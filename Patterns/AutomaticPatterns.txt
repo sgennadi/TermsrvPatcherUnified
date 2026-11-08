@@ -1,0 +1,11 @@
+# Automatic signatures adapted from fabianosrc/TermsrvPatcher (MIT license).
+# Patterns are matched by actual bytes, NOT by buggy OS version branching.
+# The app requires a unique match; no speculative replacement for unknown DLL builds.
+# Format: Architecture, find bytes (* is a one-byte wildcard), replace bytes
+
+# Windows 10 / Windows 11 22H2-23H2 / older Windows Server generic signature
+x64, 39 81 3C 06 00 00 0F * * * * 00, B8 00 01 00 00 89 81 38 06 00 00 90
+# Windows 11 24H2 family (recognize by bytes, regardless of DisplayVersion)
+x64, 8B 81 38 06 00 00 39 81 3C 06 00 00 75, B8 00 01 00 00 89 81 38 06 00 00 90 EB
+# Windows 11 25H2 / 26H2 alternate layout
+x64, 44 8B 87 3C 06 00 00 44 8B 8F 38 06 00 00 45 3B C1 75 14, 41 B9 00 01 00 00 90 44 89 8F 38 06 00 00 90 90 90 EB 14

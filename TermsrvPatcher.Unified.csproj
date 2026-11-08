@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>TermsrvPatcherUnified</AssemblyName>
+    <RootNamespace>TermsrvPatcherUnified</RootNamespace>
+    <Version>0.1.0-preview.5</Version>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ApplicationIcon>Assets/app.ico</ApplicationIcon>
+  </PropertyGroup>
+  <ItemGroup Condition="Exists('ThirdParty/NSudo/x64/NSudoDM.dll') and Exists('ThirdParty/NSudo/x64/NSudoDM.sha256')">
+    <EmbeddedResource Include="ThirdParty/NSudo/x64/NSudoDM.dll" LogicalName="TermsrvPatcherUnified.NSudo.x64.NSudoDM.dll" />
+    <EmbeddedResource Include="ThirdParty/NSudo/x64/NSudoDM.sha256" LogicalName="TermsrvPatcherUnified.NSudo.x64.NSudoDM.sha256" />
+  </ItemGroup>
+  <Target Name="VerifyNSudoPrepared" BeforeTargets="CoreCompile" Condition="'$(RequireNSudo)' == 'true'">
+    <Error Condition="!Exists('ThirdParty/NSudo/x64/NSudoDM.dll') or !Exists('ThirdParty/NSudo/x64/NSudoDM.sha256')" Text="NSudo 8.2 x64 native library is not staged. Run scripts/prepare-nsudo.ps1 before publishing." />
+  </Target>
+  <ItemGroup>
+    <EmbeddedResource Include="Patterns/AutomaticPatterns.txt" LogicalName="TermsrvPatcherUnified.Patterns.AutomaticPatterns.txt" />
+    <None Update="Patterns/LegacyUserPatterns.MANUAL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Patterns/Examples.NOT_ACTIVE.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Compile Remove="Tests/**/*.cs" />
+    <Compile Remove="Shared/**/*.cs" />
+    <None Remove="Assets/app.ico" />
+    <Resource Include="Assets/app.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="TermsrvPatcher.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="Shared/UniversalUpdater.Core/UniversalUpdater.Core.csproj" />
+    <ProjectReference Include="Shared/UniversalDiagnostics/UniversalDiagnostics.vbproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+    <PackageReference Include="System.IO.FileSystem.AccessControl" Version="5.0.0" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,51 @@
+name: Windows build and safety tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: windows-2025
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Stage and verify official NSudo 8.2 x64
+        shell: pwsh
+        run: ./scripts/prepare-nsudo.ps1
+      - name: Validate catalogs, XAML handlers and repository source
+        run: python scripts/verify_source.py
+      - name: Restore source and tests
+        run: |
+          dotnet restore TermsrvPatcher.Unified.csproj
+          dotnet restore Tests/TermsrvPatcher.Tests.csproj
+      - name: Run synthetic pattern, similarity and PE safety tests
+        run: dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore
+      - name: Publish self-contained x64 preview
+        run: dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
+      - name: Test the published EXE in read-only inspection mode
+        shell: pwsh
+        run: |
+          $inputFile = Join-Path $PWD 'scan-sample.dll'
+          $reportFile = Join-Path $PWD 'scan-smoke.txt'
+          [System.IO.File]::WriteAllBytes($inputFile, [byte[]](0x39,0x81,0x3C,0x06,0x00,0x00,0x0F,0x84,0x6F,0x66,0x01,0x00))
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $arguments = '--inspect-file "{0}" --report "{1}"' -f $inputFile, $reportFile
+          $process = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
+          if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
+          if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
+      - name: Package preview
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'publish/*' -DestinationPath 'TermsrvPatcherUnified-win-x64.zip' -Force
+          Get-FileHash 'TermsrvPatcherUnified-win-x64.zip' -Algorithm SHA256 | Format-List
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TermsrvPatcherUnified-preview-win-x64
+          path: TermsrvPatcherUnified-win-x64.zip
+          if-no-files-found: error

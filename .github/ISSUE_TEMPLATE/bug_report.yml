@@ -1,0 +1,42 @@
+name: Bug report (sanitized)
+description: Report a reproducible issue without private or machine-specific data.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not attach system DLLs, personal data, user names, machine names,
+        domain names, network addresses, credentials or raw diagnostic logs.
+  - type: input
+    id: version
+    attributes:
+      label: Application version
+      placeholder: 0.1.0-preview.3
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Read-only DLL inspection
+        - Manual pattern parsing
+        - UI / HiDPI
+        - Windows CI build
+        - Backup / restore in a disposable VM
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected vs actual behavior
+      description: Provide a sanitized, reproducible description without private system details.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Testing already performed
+      description: State whether the Windows build and tests passed, and whether this is a disposable VM.

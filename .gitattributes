@@ -1,0 +1,10 @@
+# Normalize Git text; retain Windows scripts and solutions as CRLF on checkout.
+* text=auto
+*.cs text eol=lf
+*.xaml text eol=lf
+*.xml text eol=lf
+*.yml text eol=lf
+*.md text eol=lf
+*.cmd text eol=crlf
+*.ico binary
+*.dll binary

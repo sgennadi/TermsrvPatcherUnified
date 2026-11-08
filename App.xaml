@@ -1,0 +1,33 @@
+<Application x:Class="TermsrvPatcherUnified.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnMainWindowClose">
+  <Application.Resources>
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#F6F8FB"/>
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#28589D"/>
+    <SolidColorBrush x:Key="ContentBrush" Color="#25364E"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#DCE4EE"/>
+    <Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource ContentBrush}"/>
+      <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+    <Style TargetType="Button">
+      <Setter Property="Margin" Value="0,0,10,10"/>
+      <Setter Property="Padding" Value="15,9"/>
+      <Setter Property="MinHeight" Value="38"/>
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="Foreground" Value="{StaticResource ContentBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+    </Style>
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+      <Setter Property="Foreground" Value="White"/>
+    </Style>
+    <Style TargetType="GroupBox">
+      <Setter Property="Margin" Value="0,0,0,15"/>
+      <Setter Property="Padding" Value="12"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+      <Setter Property="Background" Value="White"/>
+    </Style>
+  </Application.Resources>
+</Application>

@@ -1,0 +1,24 @@
+[Bb]in/
+[Oo]bj/
+.vs/
+publish/
+*.user
+*.suo
+*.tmp
+*.log
+TestResults/
+
+# Never commit protected Windows binaries, in-use DLLs or backup data.
+termsrv.dll*
+*.dll.copy
+*.dll.patched
+Backups/
+*.bundle
+*.zip
+*.token
+*.secrets.json
+*.private.json
+
+# Native NSudo stable archive is downloaded and verified by the release workflow.
+ThirdParty/NSudo/x64/NSudoDM.dll
+ThirdParty/NSudo/x64/NSudoDM.sha256

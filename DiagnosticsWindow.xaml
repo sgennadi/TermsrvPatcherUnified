@@ -1,0 +1,38 @@
+<Window x:Class="TermsrvPatcherUnified.DiagnosticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Diagnostics" Width="720" Height="640" MinWidth="580" MinHeight="480"
+        WindowStartupLocation="CenterOwner" FontFamily="Segoe UI" FontSize="13"
+        Background="{StaticResource BackgroundBrush}">
+  <Grid Margin="22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock Grid.Row="0" Text="Diagnostics and error reporting" FontSize="23"
+               FontWeight="SemiBold" Margin="0,0,0,14"/>
+    <StackPanel Grid.Row="1" Margin="0,0,0,11">
+      <TextBlock x:Name="ErrorLabel" FontWeight="SemiBold"/>
+      <TextBlock Text="Describe what happened. Do not include usernames, network addresses, passwords, file paths or recovery keys."
+                 Foreground="#64748B" Margin="0,5,0,9"/>
+      <TextBox x:Name="DescriptionInput" TextWrapping="Wrap" AcceptsReturn="True"
+               MinHeight="85" MaxHeight="130" VerticalScrollBarVisibility="Auto"/>
+    </StackPanel>
+    <WrapPanel Grid.Row="2" Margin="0,0,0,10">
+      <Button x:Name="SaveButton" Content="Review and save locally" Style="{StaticResource PrimaryButton}"
+              Click="Save_Click"/>
+      <Button Content="Copy report" Click="Copy_Click"/>
+      <Button Content="Open GitHub Issue" Click="OpenIssue_Click"/>
+    </WrapPanel>
+    <GroupBox Grid.Row="3" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
+      <TextBox x:Name="ReportPreview" FontFamily="Consolas" FontSize="12"
+               IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+               HorizontalScrollBarVisibility="Auto"/>
+    </GroupBox>
+    <StackPanel Grid.Row="4">
+      <TextBlock x:Name="Status" Foreground="#64748B" Text="No report saved. Reporting is optional."/>
+      <TextBlock Text="The local queue follows universal-diagnostics/v1. Copy and review the report before publishing a GitHub Issue."
+                 Foreground="#64748B" Margin="0,5,0,0"/>
+    </StackPanel>
+  </Grid>
+</Window>
