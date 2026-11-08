@@ -10,7 +10,7 @@ public partial class UpdateCenterWindow : Window
     private readonly UpdateIntegration updates;
     private bool checking;
 
-    public UpdateCenterWindow(UpdateIntegration updates)
+    internal UpdateCenterWindow(UpdateIntegration updates)
     {
         InitializeComponent();
         this.updates = updates;
