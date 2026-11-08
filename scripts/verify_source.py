@@ -143,3 +143,7 @@ check("346e38030cc9eeef48223804ba27631db96691d68bfc5d1728140d468f555204" in prep
 check("-p:RequireNSudo=true" in workflow and "prepare-nsudo.ps1" in workflow, "NSudo release dependency is mandatory in CI")
 check((ROOT / "licenses/NSudo-MIT.txt").exists(), "NSudo MIT notice is retained")
 print("PASS: 9 additional NSudo source safety checks.")
+
+check((ROOT / "GlobalUsings.cs").exists() and "global using System.IO;" in (ROOT / "GlobalUsings.cs").read_text(), "WPF main project explicitly imports System.IO")
+check("using System.IO;" in (ROOT / "Tests/Program.cs").read_text(), "WPF test project explicitly imports System.IO")
+print("PASS: explicit WPF SDK import guards.")
