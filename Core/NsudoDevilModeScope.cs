@@ -95,11 +95,12 @@ internal sealed class NsudoDevilModeScope : IDisposable
             throw new InvalidDataException("Embedded NSudo DLL integrity verification failed.");
         EnsureAmd64Dll(bytes);
 
+        // Do not place executable native code below AuditLog.Root: the
+        // audit directory may already exist with inherited user-writable ACLs.
         var basePath = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
-            "TermsrvPatcherUnified", "Native");
+            "TermsrvPatcherUnified.NativeProtected");
         var directory = Path.Combine(basePath, "NSudo-8.2-x64-" + expected[..16]);
-        EnsurePrivateDirectory(Path.GetDirectoryName(basePath)!);
         EnsurePrivateDirectory(basePath);
         EnsurePrivateDirectory(directory);
 

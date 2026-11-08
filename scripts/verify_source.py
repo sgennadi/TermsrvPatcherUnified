@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.5" in version, "version consistency")
+    check("0.1.0-preview.6" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.5" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.6" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -152,3 +152,22 @@ workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text()
 check("publish/LICENSE" in workflow and "publish/NOTICE.md" in workflow, "redistributed application license and notices are packaged")
 check("publish/licenses/NSudo-MIT.txt" in workflow and "publish/licenses/fabianosrc-MIT.txt" in workflow, "redistributed MIT notices are packaged")
 print("PASS: redistributed license packaging guards.")
+
+check((ROOT / "Core/GitHubIssuePublisher.cs").exists(), "opt-in GitHub Issue publisher present")
+publisher = (ROOT / "Core/GitHubIssuePublisher.cs").read_text(encoding="utf-8")
+check("AllowAutoRedirect = false" in publisher and "UseCookies = false" in publisher, "GitHub Issue publishing refuses redirects and cookies")
+check("api.github.com/repos/sgennadi/TermsrvPatcherUnified/issues" in publisher, "GitHub Issue source and response are pinned")
+check("MarkSubmitted" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(), "explicit local submission acknowledgement")
+check("SessionToken.Clear()" in (ROOT / "DiagnosticsWindow.xaml.cs").read_text(), "temporary UI credential is cleared")
+check("TermsrvPatcherUnified.NativeProtected" in (ROOT / "Core/NsudoDevilModeScope.cs").read_text(), "NSudo extraction is isolated from audit logs")
+print("PASS: reviewed GitHub Issue delivery and private native cache checks.")
+
+for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow"):
+    view = ET.parse(ROOT / (view_name + ".xaml")).getroot()
+    source = (ROOT / (view_name + ".xaml.cs")).read_text(encoding="utf-8")
+    for element in view.iter():
+        for key, value in element.attrib.items():
+            if key.rsplit("}", 1)[-1] in {"Click", "TextChanged", "SelectionChanged"}:
+                check(bool(re.search(r"\bvoid\s+" + re.escape(value) + r"\s*\(", source)),
+                      f"{view_name}: GUI handler exists for {value}")
+print("PASS: secondary WPF window event handler guards.")

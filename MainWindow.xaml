@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 0.1.0-preview.5"
+        Title="TermsrvPatcherUnified 0.1.0-preview.6"
         Width="980" Height="760" MinWidth="770" MinHeight="610"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">

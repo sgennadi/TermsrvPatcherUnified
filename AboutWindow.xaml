@@ -20,7 +20,7 @@
           <TextBlock Text="Updates" FontWeight="SemiBold"/>
           <TextBlock Text="UniversalUpdater — GitHub Releases check; installation requires a trusted installer." Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Diagnostics" FontWeight="SemiBold"/>
-          <TextBlock Text="UniversalDiagnostics — explicit local report capture, no automatic upload." Margin="0,3,0,12" TextWrapping="Wrap"/>
+          <TextBlock Text="UniversalDiagnostics — local capture and optional reviewed GitHub Issue publication; no background upload." Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Licensing" FontWeight="SemiBold"/>
           <TextBlock Text="GPLv3 application, MIT licensed NSudo and adapted fabianosrc contributions. See LICENSE and NOTICE." Margin="0,3,0,0" TextWrapping="Wrap"/>
         </StackPanel>

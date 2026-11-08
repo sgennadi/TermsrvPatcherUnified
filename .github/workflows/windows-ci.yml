@@ -44,6 +44,7 @@ jobs:
         run: |
           Copy-Item -LiteralPath 'LICENSE' -Destination 'publish/LICENSE' -Force
           Copy-Item -LiteralPath 'NOTICE.md' -Destination 'publish/NOTICE.md' -Force
+          Copy-Item -LiteralPath 'CHANGELOG.md' -Destination 'publish/CHANGELOG.md' -Force
           New-Item -ItemType Directory -Force -Path 'publish/licenses' | Out-Null
           Copy-Item -LiteralPath 'licenses/NSudo-MIT.txt' -Destination 'publish/licenses/NSudo-MIT.txt' -Force
           Copy-Item -LiteralPath 'licenses/fabianosrc-MIT.txt' -Destination 'publish/licenses/fabianosrc-MIT.txt' -Force

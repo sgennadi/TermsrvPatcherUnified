@@ -1,13 +1,14 @@
 <Window x:Class="TermsrvPatcherUnified.DiagnosticsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Diagnostics" Width="720" Height="640" MinWidth="580" MinHeight="480"
+        Title="Diagnostics" Width="770" Height="665" MinWidth="600" MinHeight="515"
         WindowStartupLocation="CenterOwner" FontFamily="Segoe UI" FontSize="13"
         Background="{StaticResource BackgroundBrush}">
   <Grid Margin="22">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <TextBlock Grid.Row="0" Text="Diagnostics and error reporting" FontSize="23"
                FontWeight="SemiBold" Margin="0,0,0,14"/>
@@ -16,22 +17,33 @@
       <TextBlock Text="Describe what happened. Do not include usernames, network addresses, passwords, file paths or recovery keys."
                  Foreground="#64748B" Margin="0,5,0,9"/>
       <TextBox x:Name="DescriptionInput" TextWrapping="Wrap" AcceptsReturn="True"
-               MinHeight="85" MaxHeight="130" VerticalScrollBarVisibility="Auto"/>
+               MinHeight="85" MaxHeight="130" VerticalScrollBarVisibility="Auto"
+               TextChanged="DescriptionChanged"/>
     </StackPanel>
     <WrapPanel Grid.Row="2" Margin="0,0,0,10">
       <Button x:Name="SaveButton" Content="Review and save locally" Style="{StaticResource PrimaryButton}"
               Click="Save_Click"/>
       <Button Content="Copy report" Click="Copy_Click"/>
-      <Button Content="Open GitHub Issue" Click="OpenIssue_Click"/>
+      <Button Content="Open GitHub Issues" Click="OpenIssue_Click"/>
     </WrapPanel>
-    <GroupBox Grid.Row="3" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
+    <Grid Grid.Row="3" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <StackPanel Grid.Column="0" Margin="0,0,12,0">
+        <TextBlock Text="Temporary GitHub token (Issues: write). Never saved." Foreground="#64748B"/>
+        <PasswordBox x:Name="SessionToken" Height="34" Padding="7" ToolTip="Fine-grained GitHub token with Issues:write for this repository"/>
+      </StackPanel>
+      <Button Grid.Column="1" x:Name="PublishButton" Content="Publish reviewed issue"
+              Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom"
+              Click="Publish_Click" IsEnabled="False" Margin="0"/>
+    </Grid>
+    <GroupBox Grid.Row="4" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
       <TextBox x:Name="ReportPreview" FontFamily="Consolas" FontSize="12"
                IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                HorizontalScrollBarVisibility="Auto"/>
     </GroupBox>
-    <StackPanel Grid.Row="4">
+    <StackPanel Grid.Row="5">
       <TextBlock x:Name="Status" Foreground="#64748B" Text="No report saved. Reporting is optional."/>
-      <TextBlock Text="The local queue follows universal-diagnostics/v1. Copy and review the report before publishing a GitHub Issue."
+      <TextBlock Text="Publishing is manual and public. Only the reviewed, sanitized event is sent. The token is cleared on submission."
                  Foreground="#64748B" Margin="0,5,0,0"/>
     </StackPanel>
   </Grid>

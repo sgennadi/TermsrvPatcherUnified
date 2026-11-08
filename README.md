@@ -1,4 +1,4 @@
-# TermsrvPatcherUnified — 0.1.0-preview.5
+# TermsrvPatcherUnified — 0.1.0-preview.6
 
 This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from:
 
@@ -12,7 +12,7 @@ The automatic catalog adapts the three signature families used by `fabianosrc/Te
 1. **Automatic:** Check DLL. Only a unique byte-level signature produces a `Ready` preview.
 2. **Manual:** Paste, save, or import an explicit Find/Replace pattern. `*` matches a single byte in Find; `|` separates multiple pattern groups. HEX tokens must contain exactly two hex digits. Check first, apply only after confirmation. A saved pattern is never added to the automatic catalog.
 3. **Search DLL:** Browse any DLL for read-only pattern and structural-marker inspection. If automatic matching fails, candidate offsets and up to ten near-matches (with differing byte indexes) are shown. A near-match is diagnostic only; the program **never invents replacement bytes**. Copy/export the report.
-4. **Apply:** Requires an elevated administrator on a supported x64 Windows desktop. Before backing up or touching services, an AMD64 PE DLL validator checks that every proposed edit falls entirely inside an executable PE section. A versioned, checksum-named backup is made first. TermService and dependencies are stopped, file owner/permissions are temporarily adjusted, bytes written, ACL restored and services restarted.
+4. **Apply:** Requires an elevated administrator on a supported x64 Windows desktop. Before backing up or touching services, an AMD64 PE DLL validator checks that every proposed edit falls entirely inside an executable PE section. A versioned, checksum-named backup is made first. TermService and dependencies are stopped, NSudo Devil Mode is loaded transiently for a protected write without changing the DLL owner/ACL, the result is verified, and services are restarted.
 5. **Restore:** Select a backup from `%ProgramData%\TermsrvPatcherUnified\Backups`. Its version must match the currently installed DLL.
 6. **RDP Settings:** Read or configure RDP, NLA, single session per user and Domain/Private firewall group rules. Does not offer blank-password logons.
 
@@ -51,7 +51,7 @@ The command saves a text report. It **does not modify** the DLL or remote deskto
 
 ## Current limits
 
-- This is a source preview; Windows `.exe` compilation and live DLL patch/rollback verification have **not** been performed in the current environment. Tests and workflow are provided for Windows GitHub Actions, not proof of a completed run.
+- Windows x64 compilation and read-only smoke testing completed in GitHub Actions for preview.5. No actual target `termsrv.dll` patch/rollback or RDP connection testing has been performed. A green CI run for preview.6 is required separately.
 - Firmware, OS or Windows Update changes can invalidate known signatures at any time.
 - The read-only scanner searches byte anchors and ranks nearby signatures; it is not a disassembler, proof of compatibility, or formal patch-generator.
 - Automatic signatures may require updating after future Windows DLL changes.
@@ -71,7 +71,7 @@ The combined source is released under **GPLv3**. Contributions include adapted s
 - Added synthetic tests for all automatic signature families, ambiguous/multi-group patterns, near matches and PE boundaries.
 - CI includes a packaged-EXE read-only smoke test; it still must be run on GitHub/Windows.
 
-## Changes in 0.1.0-preview.5
+## Changes in 0.1.0-preview.6
 
 - Prepared a GitHub repository layout, contribution/security policy, issue template and `gh` CLI setup scripts.
 - Split read-only CLI execution from elevated GUI mode: read-only inspection no longer needs UAC.
@@ -82,21 +82,29 @@ The combined source is released under **GPLv3**. Contributions include adapted s
 
 The GitHub destination is [sgennadi/TermsrvPatcherUnified](https://github.com/sgennadi/TermsrvPatcherUnified).
 
-## Integrated Updates and Diagnostics (0.1.0-preview.5)
+## Integrated Updates and Diagnostics (0.1.0-preview.6)
 
 The application **embeds source** from the author's existing shared projects:
 
 - `sgennadi/UniversalUpdater` RC3, `feature/project-audit-rc2`: .NET 10 core, release checking, validated version comparison, source-bound cached state, SHA-256 download/ZIP/PE safety infrastructure. UI: **Updates** in the main toolbar, **Stable/Preview**, **Check** and **Install**, changelog, and visible update indicator. **Install is disabled** until a trusted, signed host installer with rollback is wired; the app does not pretend that downloading an unsigned EXE is installation.
-- `sgennadi/UniversalDiagnocticsModule` main: canonical `UniversalDiagnosticsEmbedded.vb` compiled as a companion .NET assembly. UI: **Diagnostics**, explicit review and local capture, copy report and manually open GitHub Issue. Nothing uploads automatically, no `.ps1` collector or GitHub token is needed.
+- `sgennadi/UniversalDiagnocticsModule` main: canonical `UniversalDiagnosticsEmbedded.vb` compiled as a companion .NET assembly. UI: **Diagnostics**, explicit review and local capture, copy report and optional direct GitHub Issue submission after reviewing the sanitized report. A temporary, unsaved fine-grained GitHub token with Issues:write is required only for direct publishing; a browser/manual copy route is retained. Nothing uploads automatically, no `.ps1` collector is needed.
 
 Each upstream module remains independently maintained in its original private repository. The source is **vendored into this public application** so Windows GitHub Actions can build without private repository credentials. The embedded diagnostic event schema remains `universal-diagnostics/v1`.
 
-The Windows workflow compiles both module references and app code. Until the CI run is green, no EXE build or runtime validation is claimed. No real system DLL is modified during CI.
+The Windows workflow compiles both module references and app code; the previous preview.5 job succeeded on Windows. The current preview.6 must pass its own workflow before a compiled EXE is claimed. No real system DLL is modified during CI.
 
-## NSudo Devil Mode (0.1.0-preview.5)
+## NSudo Devil Mode (0.1.0-preview.6)
 
 The **official NSudo 8.2 stable x64 native DLL** is an opt-in component built **inside** the CI-published single-file EXE. No NSudo installer is required. GitHub Actions stages the official release archive using `scripts/prepare-nsudo.ps1`, verifies its pinned SHA-256, validates the x64 NSudo DLL identity and embeds it as a private resource. On explicit administrator-approved Apply/Restore, the app extracts it to an administrator-restricted folder, verifies the embedded SHA-256 and DLL architecture, loads it only around the protected write, and unloads it. It is never used while checking releases, inspecting binaries or collecting diagnostics.
 
 The previous `takeown.exe` / `icacls.exe` fallback was **removed**: unknown or missing NSudo resources fail closed without changing file permissions. Builds that lack the optional library can still inspect DLLs but cannot apply or restore. `About / Components` shows whether native support is bundled.
 
 Prepare manually on Windows with PowerShell 7: `pwsh ./scripts/prepare-nsudo.ps1`, then `dotnet publish ... -p:RequireNSudo=true`. The CI workflow performs this automatically. No automatic privilege escalation, blank-password RDP or automatic DLL modification is introduced.
+
+
+## Changes in 0.1.0-preview.6
+
+- Diagnostics can now submit a **reviewed** `universal-diagnostics/v1` report directly to a fixed GitHub Issue endpoint. The token is supplied per submission and cleared from the UI; it is never saved, logged, copied into the report, or sent to any redirect. A public-repository warning and second confirmation are mandatory. Manual copy/open Issue remains available.
+- A successful GitHub response is validated against this repository's issue URL and recorded locally in the diagnostic queue. Failures or ambiguous responses are never retried automatically. Mocked GitHub response tests require no network or credentials.
+- NSudo extraction uses a separate protected native-code directory rather than the ordinary audit/log folder, avoiding a conflict with inherited ACLs.
+- This preview still has no trusted self-install updater and no real-system-DLL patch test. **Install stays disabled** until signer verification and rollback are implemented.

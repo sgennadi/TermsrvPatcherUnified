@@ -1,5 +1,9 @@
 using System.IO;
 using System.Buffers.Binary;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
 int assertions = 0;
@@ -134,4 +138,116 @@ Expect<InvalidDataException>(() => NsudoDevilModeScope.EnsureAmd64Dll(new byte[1
     "native NSudo rejects a non-PE file");
 Expect<InvalidDataException>(() => NsudoDevilModeScope.EnsureAmd64Dll(notDll),
     "native NSudo rejects a non-DLL file");
+// Direct publishing is user-initiated and fully mocked in CI: no actual token,
+// network access, issue creation, machine identity or protected DLL modification.
+var eventId = Guid.NewGuid().ToString("D");
+var reviewed = $"<!-- udx-report-id:{eventId} -->\n## Universal Diagnostics (operator-reviewed)\n" +
+    "\n- Project: `sgennadi/TermsrvPatcherUnified`\n\n### Description (redacted)\nSafe test report";
+var syntheticToken = "github_pat_" + new string('X', 42);
+var issueJson = "{\"html_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/42\"}";
+var allowedHandler = new IssueStubHandler(HttpStatusCode.Created, issueJson);
+using (var http = new HttpClient(allowedHandler))
+using (var publisher = new GitHubIssuePublisher(http))
+{
+    var issue = publisher.PublishAsync(reviewed, eventId, syntheticToken).GetAwaiter().GetResult();
+    Ensure(GitHubIssuePublisher.IsApprovedIssueUri(issue), "expected GitHub issue URL accepted");
+    Ensure(allowedHandler.RequestCount == 1, "direct publisher sends once");
+    Ensure(allowedHandler.LastMethod == HttpMethod.Post, "GitHub issue publishing uses POST");
+    Ensure(allowedHandler.LastUrl == "https://api.github.com/repos/sgennadi/TermsrvPatcherUnified/issues",
+        "issue publishing destination pinned");
+    Ensure(allowedHandler.LastBearer == syntheticToken, "temporary token passed in request header only");
+    Ensure(!allowedHandler.LastBody.Contains(syntheticToken, StringComparison.Ordinal) &&
+        allowedHandler.LastBody.Contains(eventId, StringComparison.Ordinal),
+        "GitHub request body excludes token and contains reviewed report ID");
+    Expect<ArgumentException>(() => publisher.PublishAsync(reviewed, eventId, "bad token").GetAwaiter().GetResult(),
+        "reject whitespace and invalid temporary token");
+    Expect<ArgumentException>(() => publisher.PublishAsync("unreviewed", eventId, syntheticToken).GetAwaiter().GetResult(),
+        "reject unreviewed diagnostic payload");
+    Ensure(allowedHandler.RequestCount == 1, "invalid requests never reach GitHub");
+}
+foreach (var (code, response) in new[] {
+    (HttpStatusCode.Redirect, issueJson),
+    (HttpStatusCode.Forbidden, "{\"message\":\"Forbidden\"}")})
+{
+    using var http = new HttpClient(new IssueStubHandler(code, response));
+    using var pub = new GitHubIssuePublisher(http);
+    Expect<InvalidOperationException>(() => pub.PublishAsync(reviewed, eventId, syntheticToken).GetAwaiter().GetResult(),
+        "reject non-201 GitHub response without forwarding credentials");
+}
+using (var http = new HttpClient(new IssueStubHandler(HttpStatusCode.Created,
+    "{\"html_url\":\"https://example.com/other/issues/42\"}")))
+using (var publisher = new GitHubIssuePublisher(http))
+    Expect<InvalidDataException>(() => publisher.PublishAsync(reviewed, eventId, syntheticToken).GetAwaiter().GetResult(),
+        "reject untrusted GitHub Issue URL");
+Ensure(!GitHubIssuePublisher.IsApprovedIssueUri(new Uri("https://github.com/other/repo/issues/1")),
+    "reject mismatched GitHub repository");
+Ensure(!GitHubIssuePublisher.IsApprovedIssueUri(new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/1?view=all")),
+    "reject GitHub Issue URLs containing query parameters");
+
+// Local delivery reconciliation: the canonical embedded diagnostics module is
+// used as-is and never publishes to GitHub on its own.
+var previousDirectory = Environment.GetEnvironmentVariable("UDX_STATE_DIR");
+var scratch = Path.Combine(Path.GetTempPath(), "TermsrvPatcherUnified-Tests-" + Guid.NewGuid().ToString("N"));
+try
+{
+    Environment.SetEnvironmentVariable("UDX_STATE_DIR", scratch);
+    var receipt = DiagnosticsBridge.Capture(
+        new DiagnosticsBridge.DiagnosticDraft("OfflineTest", "USER_REPORT", "TEST", "Review"),
+        "Sanitized synthetic report");
+    var record = File.ReadAllText(receipt.Path);
+    Ensure(record.Contains("universal-diagnostics/v1", StringComparison.Ordinal),
+        "local collector writes canonical v1 diagnostics");
+    var markdown = DiagnosticsBridge.ReportMarkdown(record);
+    Ensure(markdown.Contains(receipt.Id, StringComparison.Ordinal), "readable markdown reflects local report");
+    var issue = new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/42");
+    DiagnosticsBridge.MarkSubmitted(receipt.Path, receipt.Id, issue);
+    using var json = JsonDocument.Parse(File.ReadAllText(receipt.Path));
+    var delivery = json.RootElement.GetProperty("delivery");
+    Ensure(delivery.GetProperty("status").GetString() == "submitted" &&
+        delivery.GetProperty("url").GetString() == issue.AbsoluteUri,
+        "approved GitHub Issue URL acknowledged in local queue");
+    Expect<InvalidOperationException>(() => DiagnosticsBridge.MarkSubmitted(receipt.Path, receipt.Id, issue),
+        "repeated acknowledged submission blocked");
+    Expect<UnauthorizedAccessException>(() => DiagnosticsBridge.MarkSubmitted(
+        Path.Combine(scratch, "not-my-report.json"), receipt.Id, issue),
+        "only project-owned queue reports can be acknowledged");
+}
+finally
+{
+    Environment.SetEnvironmentVariable("UDX_STATE_DIR", previousDirectory);
+    if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true);
+}
+
 Console.WriteLine($"PASS: {assertions} TermsrvPatcher Unified read-only and preflight assertions.");
+
+internal sealed class IssueStubHandler : HttpMessageHandler
+{
+    private readonly HttpStatusCode code;
+    private readonly string responseBody;
+    public int RequestCount { get; private set; }
+    public HttpMethod? LastMethod { get; private set; }
+    public string LastUrl { get; private set; } = "";
+    public string LastBearer { get; private set; } = "";
+    public string LastBody { get; private set; } = "";
+
+    public IssueStubHandler(HttpStatusCode code, string responseBody)
+    {
+        this.code = code;
+        this.responseBody = responseBody;
+    }
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        RequestCount++;
+        LastMethod = request.Method;
+        LastUrl = request.RequestUri?.AbsoluteUri ?? "";
+        LastBearer = request.Headers.Authorization?.Parameter ?? "";
+        LastBody = request.Content?.ReadAsStringAsync(cancellationToken).GetAwaiter().GetResult() ?? "";
+        return Task.FromResult(new HttpResponseMessage(code)
+        {
+            RequestMessage = request,
+            Content = new StringContent(responseBody, Encoding.UTF8, "application/json")
+        });
+    }
+}
