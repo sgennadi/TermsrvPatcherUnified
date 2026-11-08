@@ -147,3 +147,8 @@ print("PASS: 9 additional NSudo source safety checks.")
 check((ROOT / "GlobalUsings.cs").exists() and "global using System.IO;" in (ROOT / "GlobalUsings.cs").read_text(), "WPF main project explicitly imports System.IO")
 check("using System.IO;" in (ROOT / "Tests/Program.cs").read_text(), "WPF test project explicitly imports System.IO")
 print("PASS: explicit WPF SDK import guards.")
+
+workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text()
+check("publish/LICENSE" in workflow and "publish/NOTICE.md" in workflow, "redistributed application license and notices are packaged")
+check("publish/licenses/NSudo-MIT.txt" in workflow and "publish/licenses/fabianosrc-MIT.txt" in workflow, "redistributed MIT notices are packaged")
+print("PASS: redistributed license packaging guards.")
