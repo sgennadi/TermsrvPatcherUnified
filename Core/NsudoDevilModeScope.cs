@@ -153,8 +153,8 @@ internal sealed class NsudoDevilModeScope : IDisposable
         if ((actual.Attributes & FileAttributes.ReparsePoint) != 0)
             throw new IOException("Native runtime directory must not be a reparse point.");
         var security = actual.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
-        if (!security.AreAccessRulesProtected ||
-            security.GetOwner(typeof(SecurityIdentifier)) is not SecurityIdentifier owner ||
+        var owner = security.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        if (!security.AreAccessRulesProtected || owner is null ||
             (!owner.Equals(administrators) && !owner.Equals(system)))
             throw new UnauthorizedAccessException("Native runtime directory does not have protected administrator ownership.");
         foreach (FileSystemAccessRule entry in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
