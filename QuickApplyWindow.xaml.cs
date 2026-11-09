@@ -15,6 +15,7 @@ public partial class QuickApplyWindow : Window
     private readonly DispatcherTimer statusTimer;
     private bool checking;
     private bool queued;
+    private string? activeJobId;
 
     public QuickApplyWindow()
     {
@@ -31,8 +32,8 @@ public partial class QuickApplyWindow : Window
 
     internal void SetInitialPlan(PatchPlan checkedPlan)
     {
-        // The plan is a display hint; CheckAsync will independently re-check
-        // before the first Apply, and Queue() checks it again.
+        // This is a display hint. Both console Apply and the isolated
+        // scheduled worker independently re-check the DLL before writing.
         plan = checkedPlan;
     }
 
@@ -63,8 +64,11 @@ public partial class QuickApplyWindow : Window
             QuickStatusText.Text = authorized ? "Ready to apply" :
                 plan.State == PatchState.AlreadyPatched ? "Already patched" :
                 "Automatic Apply unavailable";
+            var session = InteractiveSessionDetector.Detect();
             QuickHelpText.Text = authorized
-                ? "One verified signature. Backup is mandatory; the task runs independently of RDP."
+                ? (session == SessionKind.Console
+                    ? "Local console: normal protected Apply with backup."
+                    : "RDP or uncertain session: protected SYSTEM task, independent of this window.")
                 : "No eligible single-target automatic plan. Open Advanced to see details.";
         }
         catch (Exception e)
@@ -88,39 +92,67 @@ public partial class QuickApplyWindow : Window
             !SystemInfo.IsAdministrator() || !NsudoDevilModeScope.IsBundled)
             return;
 
+        var initialMode = InteractiveSessionDetector.Detect();
+        string executionText = initialMode == SessionKind.Console
+            ? "LOCAL CONSOLE: Apply will run normally in the elevated GUI."
+            : "RDP / UNCONFIRMED: Apply will run as an independent one-shot SYSTEM task.";
         var approval = MessageBox.Show(this,
             "Apply the verified automatic patch with a mandatory protected backup?\n\n" +
-            "The separate SYSTEM executor may stop Remote Desktop services and disconnect " +
-            "this RDP session. It continues independently of this window, but a VM snapshot " +
-            "or local console recovery is still recommended. Confirm only where permitted by " +
-            "the applicable Windows license.",
-            "Confirm independent Apply", MessageBoxButton.YesNo,
+            executionText + "\n\n" +
+            "Remote Desktop services can restart during Apply. Retain a VM snapshot " +
+            "or local console recovery access and follow applicable Windows licensing.",
+            "Confirm protected Apply", MessageBoxButton.YesNo,
             MessageBoxImage.Warning, MessageBoxResult.No);
         if (approval != MessageBoxResult.Yes) return;
 
         checking = true;
         QuickApplyButton.IsEnabled = false;
         QuickCheckButton.IsEnabled = false;
-        QuickStatusText.Text = "Preparing protected SYSTEM executor...";
         try
         {
+            // Re-evaluate IMMEDIATELY before dispatch, not at startup.
+            // Unknown is handled like RDP to avoid terminating a fragile session.
+            var mode = InteractiveSessionDetector.Detect();
+            if (mode == SessionKind.Console)
+            {
+                QuickStatusText.Text = "Applying from the local console...";
+                var approvedPlan = plan;
+                await Task.Run(() =>
+                {
+                    using var engine = new TermsrvEngine(null);
+                    var fresh = engine.Inspect();
+                    if (fresh.State != PatchState.Ready ||
+                        fresh.OriginalSha256 != approvedPlan.OriginalSha256 ||
+                        fresh.ProfileId != approvedPlan.ProfileId ||
+                        fresh.FileVersion != approvedPlan.FileVersion)
+                        throw new InvalidOperationException("DLL changed since check. Run Check again.");
+                    engine.Apply(fresh, createBackup: true);
+                });
+                plan = null;
+                QuickStatusText.Text = "Apply completed and verified";
+                QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
+                QuickCancelButton.Content = "Close";
+                return;
+            }
+
+            QuickStatusText.Text = "Starting the protected SYSTEM task...";
             string id = await Task.Run(() => IsolatedApplyExecutor.Queue(plan));
+            activeJobId = id;
             queued = true;
             QuickStatusText.Text = "Queued independently of RDP";
             QuickHelpText.Text = "Job " + id[..8] +
-                " is running under SYSTEM. You may close this window. " +
-                "Reopen the app to inspect the result.";
+                " is running as SYSTEM. You may disconnect RDP; Close does not cancel the task.";
             QuickCancelButton.Content = "Close";
             statusTimer.Start();
         }
         catch (Exception ex)
         {
-            DiagnosticsBridge.Remember("Independent Apply", ex);
-            QuickStatusText.Text = "Apply was not started";
+            DiagnosticsBridge.Remember("Protected Apply", ex);
+            QuickStatusText.Text = "Apply failed or did not start";
             QuickHelpText.Text = ex.GetType().Name + ": " + ex.Message;
             MessageBox.Show(this,
-                "No protected job was confirmed.\n" + ex.Message,
-                "Independent Apply not started", MessageBoxButton.OK,
+                "Protected Apply did not complete successfully.\n" + ex.Message,
+                "Protected Apply", MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
         finally
@@ -137,7 +169,8 @@ public partial class QuickApplyWindow : Window
     {
         if (checking) return;
         var status = IsolatedApplyExecutor.ReadLatestStatus();
-        if (status is null) return;
+        if (status is null || activeJobId is not null &&
+            !status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase)) return;
         // Only a persistent terminal record authorizes claiming success.
         if (status.State is "Queued" or "Running")
         {

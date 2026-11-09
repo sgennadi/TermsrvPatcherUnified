@@ -111,12 +111,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.20" in version, "version consistency")
+    check("0.1.0-preview.21" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.20" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.21" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -289,6 +289,29 @@ check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").r
 
 check((ROOT / "Tests/UpdateTransactionSyntheticTests.cs").exists(), "disposable EXE update success and rollback tests exist")
 check((ROOT / "Tests/PublishedUpgradeTests.cs").exists(), "published EXE transaction QA harness exists")
+engine_src = (ROOT / "Core/TermsrvEngine.cs").read_text(encoding="utf-8")
+executor_src = (ROOT / "Core/IsolatedApplyExecutor.cs").read_text(encoding="utf-8")
+detect_src = (ROOT / "Core/InteractiveSessionDetector.cs").read_text(encoding="utf-8")
+quick_src = (ROOT / "QuickApplyWindow.xaml.cs").read_text(encoding="utf-8")
+app_src = (ROOT / "App.xaml.cs").read_text(encoding="utf-8")
+check('"TermsrvPatcherUnified.Secure"' in engine_src and "LegacyBackupDirectory" in engine_src,
+      "protected backup storage is separate from user-writable audit logs")
+check("TASK_LOGON_SERVICE_ACCOUNT" in executor_src and
+      "LocalSystemSid" in executor_src and
+      "EnsurePrivateDirectory" in executor_src and
+      "engine.Apply(plan, createBackup: true)" in executor_src and
+      "ExpectedPatchedSha256" in executor_src and
+      "FileMode.CreateNew" in executor_src,
+      "one-shot SYSTEM executor independently checks planned output and requires backup")
+check("WTSQuerySessionInformation" in detect_src and "WtsClientProtocolType" in detect_src and
+      "SessionKind.Unknown" in detect_src and
+      "InteractiveSessionDetector.RequiresIndependentExecutor()" in
+      (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8"),
+      "remote-session dispatch uses the OS session APIs immediately before Apply")
+check("new QuickApplyWindow()" in app_src and
+      "IsolatedApplyExecutor.WorkerArgument" in app_src and
+      "InteractiveSessionDetector.Detect()" in quick_src,
+      "compact Apply / Advanced UI and noninteractive worker entry point are wired")
 check((ROOT / "Core/DllBackupStore.cs").exists(), "DLL backup and Restore share strict file validator")
 check((ROOT / "Tests/DllBackupIntegrityTests.cs").exists(), "real-DLL-copy backup integrity tests are checked in")
 check("--dll-backup-qa" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),

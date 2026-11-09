@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-preview.21 — 2026-11-09
+
+- **Context-aware protected Apply:** the current interactive Windows session is checked with the WTS client protocol and remote-session metric immediately before dispatch. A confirmed console session retains the original Apply path; RDP and unknown sessions use an explicitly approved, one-shot SYSTEM Task Scheduler worker in session 0.
+- **Compact startup:** when an exact trusted automatic profile is Ready, display only Apply / Check / Advanced / Cancel plus DLL status. Advanced keeps all evidence tables, Manual, Offline, Diagnostics, updater and settings. Starting the program alone does not modify Windows.
+- **Isolated worker:** protected staging of a self-contained EXE, strict task ACL and LocalSystem identity, independent re-inspection of the original DLL, source and expected-result SHA-256 checks, exact signature and version checks, mandatory protected backup, one-shot execution lock and locally saved result. Uses existing NSudo Devil Mode 8.2 and service rollback. GUI or RDP disconnect does not cancel a successfully started task.
+- **Manual/Restore RDP safety:** do not attempt their interactive path in a remote session until independently isolated workers exist; those actions remain available at the local/VM console.
+- **Backup ACL fix:** place trusted DLL backups in a separately protected ProgramData directory instead of under the potentially user-writable audit-log directory. Legacy files are untouched and not silently migrated.
+- **Test boundaries:** synthetic session classification, path tamper refusal, WPF quick UI and real-DLL-copy backup tests on Windows CI. The hosted runner cannot certify privileged Windows 11 system writes, SYSTEM task scheduling on a real workstation, or actual RDP reconnection; isolated-VM acceptance is required before deploying to production.
+
 ## 0.1.0-preview.20 — 2026-11-09
 
 - Integrated the **byte-for-byte canonical UniversalDiagnostics v1 anonymous HTTPS relay client** from `sgennadi/UniversalDiagnocticsModule` into the single-EXE application. Existing local capture and user-reviewed authenticated GitHub reporting remain intact.

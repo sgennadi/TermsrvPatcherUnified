@@ -379,12 +379,38 @@ public partial class MainWindow : Window
         if (!Confirm(this, manual ? "Apply manual patch?" : "Apply verified patch?", message)) return;
         if (!manual)
         {
+            // Check the session immediately before dispatch. A local console
+            // keeps the original synchronous Apply/rollback flow. An RDP
+            // session (or unverified session type) uses a Session 0 SYSTEM job.
+            if (InteractiveSessionDetector.RequiresIndependentExecutor())
+            {
+                await RunBusy(async () =>
+                {
+                    string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan));
+                    FooterText.Text = "RDP/unknown session: SYSTEM Apply queued (" + jobId[..8] +
+                                      "). Closing the GUI does not stop the job.";
+                }, "Apply");
+                return;
+            }
+            bool consoleSuccess = false;
             await RunBusy(async () =>
             {
-                string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan));
-                FooterText.Text = "Independent SYSTEM Apply queued (" + jobId[..8] +
-                                  "). You may disconnect RDP. Reopen to check the result.";
+                await Task.Run(() => engine.Apply(plan, createBackup: true));
+                consoleSuccess = true;
             }, "Apply");
+            await CheckAsync();
+            if (consoleSuccess)
+                FooterText.Text = "Local console Apply completed and verified.";
+            return;
+        }
+        if (InteractiveSessionDetector.RequiresIndependentExecutor())
+        {
+            MessageBox.Show(this,
+                "Manual Apply is not yet supported by the isolated SYSTEM executor. " +
+                "To avoid terminating an RDP-dependent process, run Manual Apply from a local " +
+                "console or VM console. Automatic Apply is available through Task Scheduler.",
+                "Manual Apply blocked in remote session", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
             return;
         }
         if (!createBackup && !Confirm(this, "Confirm: no backup",
@@ -443,6 +469,15 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) != true) return;
         if (!Confirm(this, "Restore Windows DLL?", "Restoring will temporarily stop RDP and may disconnect you. " +
             "The backup DLL must match the currently installed file version. Continue?")) return;
+        if (InteractiveSessionDetector.RequiresIndependentExecutor())
+        {
+            MessageBox.Show(this,
+                "Restore can stop Remote Desktop services. Independent Restore is not " +
+                "yet implemented. Run Restore from the local/VM console.",
+                "Restore blocked in remote session", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
         await RunBusy(async () => await Task.Run(() => engine.Restore(dialog.FileName)), "Restore");
         await CheckAsync();
     }

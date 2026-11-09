@@ -25,8 +25,8 @@ internal static class IsolatedApplyExecutor
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
         "TermsrvPatcherUnified.Secure", "Executor");
 
-    internal sealed record Request(string Id, string OriginalSha256, string FileVersion,
-        string ProfileId, string ExeSha256);
+    internal sealed record Request(string Id, string OriginalSha256, string ExpectedPatchedSha256,
+        string FileVersion, string ProfileId, string ExeSha256);
     internal sealed record Status(string Id, string State, string Details, string Utc);
 
     internal static bool TryNormalizeId(string? input, out string id)
@@ -63,6 +63,12 @@ internal static class IsolatedApplyExecutor
             throw new InvalidOperationException(
                 "Installed DLL or trusted automatic signature changed. Run Check DLL again.");
         NsudoDevilModeScope.Preflight();
+        if (fresh.PatchedBytes is null)
+            throw new InvalidOperationException("Automatic preview has no verified output bytes.");
+        // Refuse another concurrent RDP-disrupting job until its result is known.
+        var last = ReadLatestStatus();
+        if (last?.State is "Queued" or "Running")
+            throw new InvalidOperationException("A protected SYSTEM job is already queued/running.");
 
         // Every path containing an executable, job request or result is
         // admin/SYSTEM-owned with a protected DACL, never user-writable.
@@ -85,7 +91,8 @@ internal static class IsolatedApplyExecutor
             throw new IOException("Staged protected executor failed SHA-256 verification.");
         // The worker ignores arbitrary paths and replacement data entirely.
         // Its request references only expected original SHA and exact profile.
-        var request = new Request(id, fresh.OriginalSha256, fresh.FileVersion,
+        var request = new Request(id, fresh.OriginalSha256,
+            SystemInfo.Sha256(fresh.PatchedBytes), fresh.FileVersion,
             fresh.ProfileId, sourceSha);
         File.WriteAllText(Path.Combine(dir, RequestName),
             JsonSerializer.Serialize(request));
@@ -95,8 +102,21 @@ internal static class IsolatedApplyExecutor
         // Register an admin/SYSTEM-only task. A scheduled trigger in one minute
         // recovers a crash between registration and immediate Run().
         // The worker's CreateNew execution lock makes the operation at-most-once.
-        RegisterAndStartTask(id, stagedExe);
-        return id;
+        try
+        {
+            RegisterAndStartTask(id, stagedExe);
+            return id;
+        }
+        catch (Exception ex)
+        {
+            // Task Scheduler can fail before launching or after submitting.
+            // Do not claim a guaranteed start or rollback; leave a visible
+            // uncertain state and do not retry without operator inspection.
+            WriteStatus(dir, new Status(id, "Unconfirmed",
+                ex.GetType().Name + ": Task Scheduler did not confirm launch.",
+                DateTimeOffset.UtcNow.ToString("O")));
+            throw;
+        }
     }
 
     internal static int RunWorker(string? input)
@@ -127,9 +147,13 @@ internal static class IsolatedApplyExecutor
                     File.ReadAllText(Path.Combine(dir, RequestName)))
                     ?? throw new InvalidDataException("Invalid scheduled request.");
                 if (!string.Equals(req.Id, id, StringComparison.Ordinal) ||
-                    req.OriginalSha256.Length != 64 ||
+                    req.OriginalSha256 is null || req.OriginalSha256.Length != 64 ||
                     !req.OriginalSha256.All(Uri.IsHexDigit) ||
-                    req.ExeSha256.Length != 64 || !req.ExeSha256.All(Uri.IsHexDigit) ||
+                    req.ExpectedPatchedSha256 is null || req.ExpectedPatchedSha256.Length != 64 ||
+                    !req.ExpectedPatchedSha256.All(Uri.IsHexDigit) ||
+                    req.ExeSha256 is null || req.ExeSha256.Length != 64 ||
+                    !req.ExeSha256.All(Uri.IsHexDigit) ||
+                    req.FileVersion is null || req.ProfileId is null ||
                     req.FileVersion.Length is < 1 or > 128 ||
                     req.ProfileId.Length is < 1 or > 256)
                     throw new InvalidDataException("Scheduled request metadata is invalid.");
@@ -143,22 +167,30 @@ internal static class IsolatedApplyExecutor
                 var plan = engine.Inspect();
                 if (plan.State == PatchState.AlreadyPatched)
                 {
+                    if (!plan.ProfileId.Equals(req.ProfileId, StringComparison.Ordinal) ||
+                        !plan.FileVersion.Equals(req.FileVersion, StringComparison.Ordinal) ||
+                        !SystemInfo.Sha256(File.ReadAllBytes(plan.FilePath))
+                            .Equals(req.ExpectedPatchedSha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidOperationException("Already-patched DLL does not match expected job output.");
                     WriteStatus(dir, new Status(id, "AlreadyPatched",
-                        "No change required; current DLL already contains a trusted replacement.",
+                        "Current DLL already contains the exact authorized replacement hash.",
                         DateTimeOffset.UtcNow.ToString("O")));
                     return 0;
                 }
                 if (plan.IsManual || plan.State != PatchState.Ready ||
                     !plan.OriginalSha256.Equals(req.OriginalSha256, StringComparison.OrdinalIgnoreCase) ||
                     !plan.ProfileId.Equals(req.ProfileId, StringComparison.Ordinal) ||
-                    !plan.FileVersion.Equals(req.FileVersion, StringComparison.Ordinal))
+                    !plan.FileVersion.Equals(req.FileVersion, StringComparison.Ordinal) ||
+                    plan.PatchedBytes is null ||
+                    !SystemInfo.Sha256(plan.PatchedBytes)
+                        .Equals(req.ExpectedPatchedSha256, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("DLL drift or a different signature invalidated the job.");
                 // No user-supplied path, no direct write and no no-backup option.
                 WriteStatus(dir, new Status(id, "Running",
                     "System executor is applying the verified plan.", DateTimeOffset.UtcNow.ToString("O")));
                 engine.Apply(plan, createBackup: true);
                 var after = File.ReadAllBytes(plan.FilePath);
-                if (!SystemInfo.Sha256(after).Equals(SystemInfo.Sha256(plan.PatchedBytes!),
+                if (!SystemInfo.Sha256(after).Equals(req.ExpectedPatchedSha256,
                     StringComparison.OrdinalIgnoreCase))
                     throw new IOException("Post-transaction DLL checksum mismatch.");
                 WriteStatus(dir, new Status(id, "Succeeded",
