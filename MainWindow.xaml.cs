@@ -128,6 +128,7 @@ public partial class MainWindow : Window
     private async Task ApplyAsync(PatchPlan? plan, bool manual)
     {
         if (plan?.State != PatchState.Ready || !NsudoDevilModeScope.IsBundled || !SystemInfo.IsAdministrator()) return;
+        bool createBackup = CreateBackupCheck.IsChecked != false;
         string message = "This operation modifies the protected Windows termsrv.dll file and stops " +
             "Remote Desktop services temporarily. Active RDP connections may be disconnected. " +
             "Windows updates may revert the change. Proceed only on a system you administer and " +
@@ -135,13 +136,20 @@ public partial class MainWindow : Window
         if (manual)
             message += "\n\nMANUAL MODE: You supplied the replacement bytes. No automatic analysis " +
                 "can guarantee that this patch is safe. Continue?";
+        if (!createBackup)
+            message += "\n\nCREATE BACKUP IS OFF: No persistent DLL backup will be saved. " +
+                       "After the operation, Restore will not be available unless an earlier " +
+                       "valid backup exists. A failed write still attempts in-memory rollback.";
         if (!Confirm(this, manual ? "Apply manual patch?" : "Apply verified patch?", message)) return;
+        if (!createBackup && !Confirm(this, "Confirm: no backup",
+                "Continue WITHOUT creating a backup? A later Restore is not guaranteed. " +
+                "Use a VM snapshot or an independent trusted backup for recovery.")) return;
         // A compatibility report is offered ONLY if the protected write, byte
         // verification and RDP-service recovery all returned successfully.
         bool applied = false;
         await RunBusy(async () =>
         {
-            await Task.Run(() => engine.Apply(plan));
+            await Task.Run(() => engine.Apply(plan, createBackup));
             applied = true;
             FooterText.Text = "Patch applied and verified. Checking current DLL...";
         });

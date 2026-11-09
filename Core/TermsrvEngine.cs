@@ -79,7 +79,7 @@ public sealed class TermsrvEngine : IDisposable
         AuditLog.Append(line);
     }
 
-    public void Apply(PatchPlan preview)
+    public void Apply(PatchPlan preview, bool createBackup = true)
     {
         EnsureAllowed(preview.FilePath);
         if (preview.State != PatchState.Ready || preview.PatchedBytes is null)
@@ -103,7 +103,10 @@ public sealed class TermsrvEngine : IDisposable
             throw new InvalidOperationException("Preview integrity check failed.");
         // A matching byte sequence in a resource/overlay is not a valid code patch.
         PeSafety.RequireExecutableEdits(current, preview.Edits);
-        WriteBackup(preview, current);
+        if (createBackup)
+            WriteBackup(preview, current);
+        else
+            Message("Permanent backup disabled for this Apply. In-operation rollback is still enabled.");
         WriteTransactional(preview.FilePath, preview.OriginalSha256, current, preview.PatchedBytes);
         Message($"Applied {(preview.IsManual ? "manual" : "automatic")} profile: {preview.ProfileId}");
     }
@@ -195,7 +198,7 @@ public sealed class TermsrvEngine : IDisposable
                 catch (Exception rollbackError)
                 {
                     Message("CRITICAL: rollback failed: " + rollbackError.Message);
-                    throw new AggregateException("Write and rollback failed; recover from the saved backup.",
+                    throw new AggregateException("Write and rollback failed; use a verified local backup or VM snapshot to recover.",
                         originalError, rollbackError);
                 }
                 throw;

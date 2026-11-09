@@ -39,6 +39,9 @@
           <TextBlock x:Name="SystemText" FontWeight="SemiBold" FontSize="15" Text="Detecting operating system..."/>
           <TextBlock x:Name="DllText" Margin="0,5,0,0" Foreground="{StaticResource MutedBrush}"/>
           <TextBlock x:Name="StatusText" Margin="0,7,0,0" FontWeight="SemiBold" Foreground="#28589D"/>
+          <CheckBox x:Name="CreateBackupCheck" IsChecked="True" Margin="0,9,0,0"
+                    Content="Create backup before applying (recommended)"
+                    ToolTip="If unchecked, there is no persistent Restore point for this operation. Automatic rollback during a failed write remains active."/>
         </StackPanel>
         <Button x:Name="RefreshButton" Grid.Column="1" Tag="&#xE72C;" Content="Check DLL" Style="{StaticResource PrimaryButton}"
                 Click="Refresh_Click" VerticalAlignment="Center" Margin="15,0,0,0"/>
