@@ -173,7 +173,9 @@ public partial class App : Application
             {
                 using var engine = new TermsrvEngine(null);
                 var candidate = engine.Inspect();
-                if (candidate.State is PatchState.Ready or PatchState.AlreadyPatched && !candidate.IsManual)
+                if (!candidate.IsManual &&
+                    (candidate.State is PatchState.Ready or PatchState.AlreadyPatched ||
+                     AutomaticRevertSafety.Inspect() is not null))
                 {
                     var compact = new QuickApplyWindow();
                     compact.SetInitialPlan(candidate);
