@@ -96,11 +96,17 @@ internal static class UiSmokeTests
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickApplyButton") is not Button quickApply ||
                     quickApply.IsEnabled ||
+                    quick.FindName("QuickRevertButton") is not Button quickRevert ||
+                    quickRevert.IsEnabled ||
+                    quick.FindName("QuickNoBackupCheck") is not CheckBox noBackup ||
+                    noBackup.IsChecked != false ||
+                    quick.FindName("QuickBackupInfoText") is not TextBlock ||
+                    quick.FindName("QuickLastJobText") is not TextBlock ||
                     quick.FindName("QuickCancelButton") is not Button ||
                     quick.FindName("QuickAdvancedButton") is not Button ||
                     quick.FindName("QuickCheckButton") is not Button ||
                     quick.FindName("QuickStatusText") is not TextBlock)
-                    throw new Exception("Compact first-run Apply / Check / Advanced / Cancel controls missing.");
+                    throw new Exception("Compact Apply / Revert / Check / Advanced / Cancel and safe backup default missing.");
                 var windows = new Window[]
                 {
                     quick,

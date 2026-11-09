@@ -363,13 +363,10 @@ public partial class MainWindow : Window
                 MessageBoxImage.Warning);
             return;
         }
+        // Full backup is default ON, but the operator can opt out. Trusted
+        // Automatic Apply ALWAYS saves an authenticated compact recovery
+        // journal before any protected DLL writes, even when this is false.
         bool createBackup = CreateBackupCheck.IsChecked != false;
-        // Independent automatic Apply always makes a durable trusted backup.
-        if (!manual && !createBackup)
-        {
-            CreateBackupCheck.IsChecked = true;
-            createBackup = true;
-        }
         bool isolatedAtConfirmation = !manual &&
             InteractiveSessionDetector.RequiresIndependentExecutor();
         string message = "This operation modifies the protected Windows termsrv.dll file and stops " +
@@ -383,14 +380,22 @@ public partial class MainWindow : Window
         else
             message += isolatedAtConfirmation
                 ? "\n\nRDP/UNCONFIRMED SESSION: The operation will be scheduled as a one-shot SYSTEM task " +
-                  "with a mandatory protected backup; disconnecting RDP will not terminate its process."
+                  "with an authenticated recovery journal; disconnecting RDP will not terminate its process."
                 : "\n\nLOCAL CONSOLE: The operation will use the normal elevated Apply " +
-                  "with mandatory protected backup and in-process verification.";
+                  "with in-process verification and an authenticated recovery journal.";
         if (!createBackup)
-            message += "\n\nCREATE BACKUP IS OFF: No persistent DLL backup will be saved. " +
-                       "After the operation, Restore will not be available unless an earlier " +
-                       "valid backup exists. A failed write still attempts in-memory rollback.";
+            message += "\n\nFULL BACKUP IS OFF: No new System32 .bak or ProgramData DLL copy " +
+                       "will be created. Automatic Apply still requires a small DPAPI-protected " +
+                       "recovery journal. Manual Apply has only in-operation rollback. " +
+                       "A VM snapshot remains strongly recommended.";
         if (!Confirm(this, manual ? "Apply manual patch?" : "Apply verified patch?", message)) return;
+        if (!createBackup && !Confirm(this, "Confirm: no full backup",
+                manual
+                    ? "Manual Apply without a full backup cannot be recovered automatically. " +
+                      "Continue ONLY with a VM snapshot or an independently verified original?"
+                    : "No full DLL backup will be created. The small encrypted journal is " +
+                      "required, but does not replace an offline VM snapshot. Continue?"))
+            return;
         if (!manual)
         {
             // Check the session immediately before dispatch. A local console
@@ -409,7 +414,7 @@ public partial class MainWindow : Window
             {
                 await RunBusy(async () =>
                 {
-                    string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan));
+                    string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan, createBackup));
                     FooterText.Text = "RDP/unknown session: SYSTEM Apply queued (" + jobId[..8] +
                                       "). Closing the GUI does not stop the job.";
                 }, "Apply");
@@ -418,7 +423,7 @@ public partial class MainWindow : Window
             bool consoleSuccess = false;
             await RunBusy(async () =>
             {
-                await Task.Run(() => engine.Apply(plan, createBackup: true));
+                await Task.Run(() => engine.Apply(plan, createBackup: createBackup));
                 consoleSuccess = true;
             }, "Apply");
             await CheckAsync();
@@ -426,9 +431,6 @@ public partial class MainWindow : Window
                 FooterText.Text = "Local console Apply completed and verified.";
             return;
         }
-        if (!createBackup && !Confirm(this, "Confirm: no backup",
-                "Continue WITHOUT creating a backup? A later Restore is not guaranteed. " +
-                "Use a VM snapshot or an independent trusted backup for recovery.")) return;
         // Manual Apply still runs in the interactive context: do not imply
         // that it is independent of the user session.
         // A compatibility report is offered ONLY if the protected write, byte

@@ -84,6 +84,31 @@ byte[] FakeBytes(BytePattern group, int offset = 40)
     return value;
 }
 
+// Preview.22: pure policy regression checks, no protected file writes.
+var syntheticOriginalSha = new string('a', 64);
+var syntheticPatchedSha = new string('b', 64);
+Ensure(!System32BackupStore.NeedsRefresh(syntheticOriginalSha, syntheticOriginalSha),
+    "same original DLL does not overwrite .bak");
+Ensure(System32BackupStore.NeedsRefresh(syntheticOriginalSha, syntheticPatchedSha),
+    "changed Windows Update DLL requires archived old .bak and new verified copy");
+Ensure(System32BackupStore.NeedsRefresh(syntheticOriginalSha, null),
+    "missing .bak is eligible for first full backup");
+var recoveryApproval = new AutomaticRevertPlan(syntheticOriginalSha,
+    syntheticPatchedSha, "10.0.26100.1", "Generic", "Journal");
+Ensure(AutomaticRevertSafety.SameApproval(recoveryApproval, recoveryApproval),
+    "Revert approval is stable only for identical SHA-bound metadata");
+Ensure(!AutomaticRevertSafety.SameApproval(recoveryApproval,
+        recoveryApproval with { InstalledSha256 = new string('c', 64) }),
+    "Windows Update invalidates previous Revert approval");
+Ensure(!AutomaticRevertSafety.SameApproval(recoveryApproval,
+        recoveryApproval with { RecoverySource = "System32Backup" }),
+    "switching a Revert recovery source requires fresh confirmation");
+Ensure(!AutomaticRevertSafety.SameApproval(recoveryApproval, null),
+    "missing protected recovery record fails closed");
+Ensure(IsolatedApplyExecutor.TryNormalizeId(Guid.NewGuid().ToString("N"), out _),
+    "one-shot scheduled recovery identifier accepted");
+Ensure(!IsolatedApplyExecutor.TryNormalizeId("../../System32", out _),
+    "untrusted scheduled recovery identifier refused");
 var signature = new BytePattern("11 * 33 44", "90 90 90 90");
 var bytes = new byte[] { 0x00, 0x11, 0x22, 0x33, 0x44 };
 Ensure(BytePattern.FindOffsets(bytes, signature.Search).SequenceEqual([1]), "wildcard matches");
@@ -111,6 +136,35 @@ foreach (var profile in automatic)
     var patched = PatchCatalog.Inspect(plan.PatchedBytes!, "fake.dll", "1.0", "patched", true, [profile]);
     Ensure(patched.State == PatchState.AlreadyPatched, "already-patched recognition: " + profile.Label);
 }
+
+// Last-resort Revert with NO backup/journal can reverse ONLY fully fixed
+// original bytes. Generic wildcard patterns lose information irreversibly.
+foreach (var profile in automatic.Skip(1))
+{
+    var originalBytes = FakeBytes(profile.Groups.Single());
+    var syntheticPatchedPlan = PatchCatalog.Inspect(originalBytes, "fake.dll",
+        "1.0", SystemInfo.Sha256(originalBytes), true, [profile]);
+    Ensure(syntheticPatchedPlan.PatchedBytes is not null, "source-free fixed profile prepares sample");
+    Ensure(ExactCatalogRevert.TryReverseGroups(syntheticPatchedPlan.PatchedBytes!,
+            profile.Groups, out var recoveredOriginal, out var reverseEdits) &&
+           recoveredOriginal.SequenceEqual(originalBytes) && reverseEdits.Length == 1,
+        "13/19 byte fully fixed pattern can be reversed without guessing original bytes");
+    var changed = (byte[])syntheticPatchedPlan.PatchedBytes!.Clone();
+    new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }.CopyTo(changed, 90);
+    var repeatedReplacement = (byte[])syntheticPatchedPlan.PatchedBytes!.Clone();
+    profile.Groups[0].Replace.CopyTo(repeatedReplacement, 100);
+    Ensure(!ExactCatalogRevert.TryReverseGroups(repeatedReplacement, profile.Groups,
+            out _, out _), "duplicate replacement signature cannot be automatically reversed");
+}
+var genericSource = FakeBytes(automatic[0].Groups.Single());
+var genericPatched = PatchCatalog.Inspect(genericSource, "fake.dll", "1.0",
+    SystemInfo.Sha256(genericSource), true, [automatic[0]]);
+Ensure(genericPatched.PatchedBytes is not null &&
+       !ExactCatalogRevert.TryReverseGroups(genericPatched.PatchedBytes,
+           automatic[0].Groups, out _, out _),
+    "generic wildcard loses original bytes: no reverse without evidence");
+Ensure(!ExactCatalogRevert.TryReverseGroups(new byte[256], automatic[1].Groups,
+        out _, out _), "unknown file never gets a reverse candidate");
 
 var old = PatchCatalog.Parse("# Windows 10 22H2\nx64, 11 22 33 44, AA BB CC DD\n");
 Ensure(old.Count == 1 && old[0].Label.StartsWith("Windows 10"), "manual catalog labels");
@@ -182,6 +236,40 @@ var notDll = (byte[])pe.Clone();
 BinaryPrimitives.WriteUInt16LittleEndian(notDll.AsSpan(0x96, 2), 0);
 Expect<InvalidDataException>(() => PeSafety.ReadAmd64DllSections(notDll), "reject non-DLL PE");
 Expect<InvalidDataException>(() => PeSafety.ReadAmd64DllSections(new byte[200]), "reject non-PE file");
+
+// End-to-end source-free Revert eligibility on a synthetic AMD64 DLL.
+// No system DLL, TermService or Windows settings are changed.
+foreach (var (profile, display, build) in new[]
+{
+    (automatic[1], "24H2", 26100),
+    (automatic[2], "26H2", 26200)
+})
+{
+    var source = (byte[])pe.Clone();
+    var group = profile.Groups.Single();
+    group.Search.Select(b => b!.Value).ToArray().CopyTo(source, 0x220);
+    var patched = (byte[])source.Clone();
+    group.Replace.CopyTo(patched, 0x220);
+    var details = new WindowsDetails("Windows 11", display, build, 100,
+        "Client", true, @"C:\Windows\System32\termsrv.dll",
+        "10.0." + build + ".100");
+    var fallback = ExactCatalogRevert.Inspect(details, patched);
+    Ensure(fallback is not null &&
+           fallback.Plan.RecoverySource == "ExactCatalog" &&
+           fallback.OriginalBytes.SequenceEqual(source) &&
+           fallback.Plan.InstalledSha256.Equals(SystemInfo.Sha256(patched),
+               StringComparison.OrdinalIgnoreCase),
+        "source-free 24H2/26H2 Revert works with exact reversible PE bytes");
+    var wrongFamily = details with { DisplayVersion = "27H2" };
+    Ensure(ExactCatalogRevert.Inspect(wrongFamily, patched) is null,
+        "unknown Windows build must not reconstruct DLL without backup");
+}
+var unknownPe = (byte[])pe.Clone();
+Ensure(ExactCatalogRevert.Inspect(
+       new WindowsDetails("Windows 11", "26H2", 26200, 1, "Client",
+           true, @"C:\Windows\System32\termsrv.dll", "10.0.26200.1"),
+       unknownPe) is null,
+    "unrecognized DLL without backup or journal cannot be reconstructed");
 
 // Check native library platform gates without loading any native code.
 Ensure(!NsudoDevilModeScope.IsBundled || OperatingSystem.IsWindows(),
@@ -360,7 +448,7 @@ Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease)
     "Updater points to exact single-EXE GitHub asset");
 Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
     "Version-mismatched update probes are rejected");
-Ensure(UpdateInstallBridge.Probe("0.1.0-preview.21") is 0 or 5,
+Ensure(UpdateInstallBridge.Probe("0.1.0-preview.22") is 0 or 5,
     "Update probe returns only explicit success or unavailable");
 // Successful-fix v2 is opt-in: original/result SHA-256 and exact modified ranges.
 var detailed = SuccessfulFixMetadata.FromSuccessfulApply(
@@ -372,7 +460,7 @@ Ensure(successBody.StartsWith("termsrv-success/v2\n", StringComparison.Ordinal),
 Ensure(successBody.Contains("windows=Windows 11\n", StringComparison.Ordinal) &&
        successBody.Contains("build=26100\n", StringComparison.Ordinal) &&
        successBody.Contains("dll=1.0\n", StringComparison.Ordinal) &&
-       successBody.Contains("app=0.1.0-preview.21\n", StringComparison.Ordinal),
+       successBody.Contains("app=0.1.0-preview.22\n", StringComparison.Ordinal),
     "report contains expected Windows, DLL and application versions");
 Ensure(successBody.Contains("original_sha256=" + ready.OriginalSha256, StringComparison.Ordinal) &&
        successBody.Contains("patched_sha256=" + SystemInfo.Sha256(ready.PatchedBytes!), StringComparison.Ordinal),

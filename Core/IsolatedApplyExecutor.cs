@@ -15,11 +15,13 @@ namespace TermsrvPatcherUnified.Core;
 internal static class IsolatedApplyExecutor
 {
     internal const string WorkerArgument = "--isolated-apply-worker";
+    internal const string RevertWorkerArgument = "--isolated-revert-worker";
     internal const string ProbeArgument = "--isolated-executor-qa";
     internal const string ProbeWorkerArgument = "--isolated-executor-probe-worker";
     private const string TaskPrefix = "TermsrvPatcherUnified-Apply-";
     private const string ExecutableName = "TermsrvPatcherUnified.exe";
     private const string RequestName = "request.json";
+    private const string RevertRequestName = "revert-request.json";
     private const string StatusName = "status.json";
     private const string LockName = "started.lock";
 
@@ -28,7 +30,9 @@ internal static class IsolatedApplyExecutor
         "TermsrvPatcherUnified.Secure", "Executor");
 
     internal sealed record Request(string Id, string OriginalSha256, string ExpectedPatchedSha256,
-        string FileVersion, string ProfileId, string ExeSha256);
+        string FileVersion, string ProfileId, string ExeSha256, bool CreateBackup = true);
+    internal sealed record RevertRequest(string Id, string OriginalSha256, string CurrentSha256,
+        string FileVersion, string ProfileId, string RecoverySource, string ExeSha256);
     internal sealed record Status(string Id, string State, string Details, string Utc);
     internal sealed record ProbeRequest(string Id, string ExeSha256);
 
@@ -42,7 +46,7 @@ internal static class IsolatedApplyExecutor
         return id.Equals(input, StringComparison.OrdinalIgnoreCase);
     }
 
-    internal static string Queue(PatchPlan preview)
+    internal static string Queue(PatchPlan preview, bool createBackup = true)
     {
         ArgumentNullException.ThrowIfNull(preview);
         if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess ||
@@ -96,11 +100,13 @@ internal static class IsolatedApplyExecutor
         // Its request references only expected original SHA and exact profile.
         var request = new Request(id, fresh.OriginalSha256,
             SystemInfo.Sha256(fresh.PatchedBytes), fresh.FileVersion,
-            fresh.ProfileId, sourceSha);
+            fresh.ProfileId, sourceSha, createBackup);
         File.WriteAllText(Path.Combine(dir, RequestName),
             JsonSerializer.Serialize(request));
         WriteStatus(dir, new Status(id, "Queued",
-            "Approved automatic Apply with mandatory backup.", DateTimeOffset.UtcNow.ToString("O")));
+            createBackup ? "Approved Apply with full backup and recovery journal." :
+            "Approved Apply without full backup; protected recovery journal mandatory.",
+            DateTimeOffset.UtcNow.ToString("O")));
 
         // Register an admin/SYSTEM-only task. A scheduled trigger in one minute
         // recovers a crash between registration and immediate Run().
@@ -117,6 +123,58 @@ internal static class IsolatedApplyExecutor
             // uncertain state and do not retry without operator inspection.
             WriteStatus(dir, new Status(id, "Unconfirmed",
                 ex.GetType().Name + ": Task Scheduler did not confirm launch.",
+                DateTimeOffset.UtcNow.ToString("O")));
+            throw;
+        }
+    }
+
+    internal static string QueueRevert(AutomaticRevertPlan approved)
+    {
+        ArgumentNullException.ThrowIfNull(approved);
+        if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess ||
+            !SystemInfo.IsAdministrator() || !NsudoDevilModeScope.IsBundled)
+            throw new UnauthorizedAccessException(
+                "Independent Revert requires elevation and embedded NSudo x64.");
+        if (!AutomaticRevertSafety.SameApproval(approved, AutomaticRevertSafety.Inspect()))
+            throw new InvalidOperationException(
+                "No exact verified recovery record for this DLL. Run Check again.");
+        NsudoDevilModeScope.Preflight();
+        if (ReadLatestStatus()?.State is "Queued" or "Running")
+            throw new InvalidOperationException("Another protected job is already queued or running.");
+
+        NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
+        NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+        string id = Guid.NewGuid().ToString("N");
+        string dir = JobDirectory(id);
+        NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+        string sourceExe = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Cannot determine the packaged EXE.");
+        if (!Path.GetExtension(sourceExe).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Independent Revert requires a standalone EXE.");
+        string sha = SystemInfo.Sha256(File.ReadAllBytes(sourceExe));
+        string staged = Path.Combine(dir, ExecutableName);
+        File.Copy(sourceExe, staged, overwrite: false);
+        if (!SystemInfo.Sha256(File.ReadAllBytes(staged))
+                .Equals(sha, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Protected Revert executor SHA-256 mismatch.");
+        // The request carries only expected hashes, version and profile.
+        // The worker reconstructs the original bytes from trusted local storage.
+        var req = new RevertRequest(id, approved.OriginalSha256,
+            approved.InstalledSha256, approved.FileVersion, approved.ProfileId,
+            approved.RecoverySource, sha);
+        File.WriteAllText(Path.Combine(dir, RevertRequestName),
+            JsonSerializer.Serialize(req));
+        WriteStatus(dir, new Status(id, "Queued",
+            "Revert queued independently of the RDP GUI.", DateTimeOffset.UtcNow.ToString("O")));
+        try
+        {
+            RegisterAndStartTask(id, staged, RevertWorkerArgument);
+            return id;
+        }
+        catch (Exception ex)
+        {
+            WriteStatus(dir, new Status(id, "Unconfirmed",
+                "Revert scheduler launch unconfirmed: " + ex.GetType().Name,
                 DateTimeOffset.UtcNow.ToString("O")));
             throw;
         }
@@ -272,7 +330,7 @@ internal static class IsolatedApplyExecutor
                 // No user-supplied path, no direct write and no no-backup option.
                 WriteStatus(dir, new Status(id, "Running",
                     "System executor is applying the verified plan.", DateTimeOffset.UtcNow.ToString("O")));
-                engine.Apply(plan, createBackup: true);
+                engine.Apply(plan, createBackup: req.CreateBackup);
                 var after = File.ReadAllBytes(plan.FilePath);
                 if (!SystemInfo.Sha256(after).Equals(req.ExpectedPatchedSha256,
                     StringComparison.OrdinalIgnoreCase))
@@ -302,6 +360,79 @@ internal static class IsolatedApplyExecutor
         {
             try { DeleteScheduledTask(id); }
             catch { /* A stale one-shot task is harmless: lock prevents re-execution. */ }
+        }
+    }
+
+    internal static int RunRevertWorker(string? input)
+    {
+        if (!TryNormalizeId(input, out var id)) return 2;
+        if (!IsSystemSessionZero()) return 3;
+        string dir = JobDirectory(id);
+        if (!Directory.Exists(dir) || !Directory.Exists(Root)) return 4;
+        NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
+        NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+        NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+        try
+        {
+            using var once = new FileStream(Path.Combine(dir, LockName),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            once.WriteByte(1);
+            once.Flush(flushToDisk: true);
+            try
+            {
+                var req = JsonSerializer.Deserialize<RevertRequest>(
+                    File.ReadAllText(Path.Combine(dir, RevertRequestName)))
+                    ?? throw new InvalidDataException("Invalid scheduled Revert request.");
+                static bool ValidHash(string? value) =>
+                    value is { Length: 64 } && value.All(Uri.IsHexDigit);
+                if (req.Id != id || !ValidHash(req.OriginalSha256) ||
+                    !ValidHash(req.CurrentSha256) || !ValidHash(req.ExeSha256) ||
+                    req.FileVersion is null || req.ProfileId is null ||
+                    req.FileVersion.Length is < 1 or > 128 ||
+                    req.ProfileId.Length is < 1 or > 256 ||
+                    req.RecoverySource is not ("Journal" or "TrustedBackup" or "System32Backup" or "ExactCatalog"))
+                    throw new InvalidDataException("Untrusted Revert request metadata.");
+                if (!SystemInfo.Sha256(File.ReadAllBytes(Path.Combine(dir, ExecutableName)))
+                        .Equals(req.ExeSha256, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Revert worker EXE SHA-256 changed.");
+                var approved = new AutomaticRevertPlan(req.OriginalSha256,
+                    req.CurrentSha256, req.FileVersion, req.ProfileId, req.RecoverySource);
+                if (!AutomaticRevertSafety.SameApproval(approved, AutomaticRevertSafety.Inspect()))
+                    throw new InvalidOperationException(
+                        "Source DLL or recovery evidence changed before Revert execution.");
+
+                WriteStatus(dir, new Status(id, "Running",
+                    "Revert worker restoring exact authenticated original.",
+                    DateTimeOffset.UtcNow.ToString("O")));
+                using var engine = new TermsrvEngine(null);
+                engine.RevertAutomatic(approved);
+                var os = SystemInfo.Read();
+                if (!SystemInfo.Sha256(File.ReadAllBytes(os.DllPath))
+                        .Equals(req.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                    throw new IOException("Revert worker final SHA-256 mismatch.");
+                WriteStatus(dir, new Status(id, "Succeeded",
+                    "Revert finished and original DLL SHA-256 verified.",
+                    DateTimeOffset.UtcNow.ToString("O")));
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                AuditLog.Append("Isolated Revert failed: " + ex.GetType().Name);
+                WriteStatus(dir, new Status(id, "Failed",
+                    "Revert failed: " + ex.GetType().Name,
+                    DateTimeOffset.UtcNow.ToString("O")));
+                return 5;
+            }
+        }
+        catch (IOException) when (File.Exists(Path.Combine(dir, LockName)))
+        {
+            // Existing lock means this job has already started; never replay.
+            return 0;
+        }
+        finally
+        {
+            try { DeleteScheduledTask(id); }
+            catch { /* The one-shot lock blocks re-execution. */ }
         }
     }
 
@@ -404,7 +535,7 @@ internal static class IsolatedApplyExecutor
             trigger.Enabled = true;
             dynamic action = task.Actions.Create(0); // TASK_ACTION_EXEC
             action.Path = stagedExe;
-            if (argument is not (WorkerArgument or ProbeWorkerArgument))
+            if (argument is not (WorkerArgument or RevertWorkerArgument or ProbeWorkerArgument))
                 throw new InvalidOperationException("Unexpected protected task argument.");
             action.Arguments = argument + " " + id;
             action.WorkingDirectory = Path.GetDirectoryName(stagedExe)!;
