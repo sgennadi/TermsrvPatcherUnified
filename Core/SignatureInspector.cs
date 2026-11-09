@@ -5,7 +5,33 @@ namespace TermsrvPatcherUnified.Core;
 /// <summary>Exact catalog evidence from file bytes. Diagnostic rows never authorize a write.</summary>
 public sealed record SignatureGroupFinding(
     string Profile, int Group, string State, string FindHex, string ReplaceHex,
-    string FindHits, string ReplaceHits, string FindOffsets, string ReplaceOffsets);
+    string FindHits, string ReplaceHits, string FindOffsets, string ReplaceOffsets)
+{
+    // Display-only. Each mask byte occupies exactly two HEX columns, even
+    // when the catalog uses one-character '*' as a single-byte wildcard.
+    // FindHex itself remains the original catalog mask for exports/search.
+    public string AlignedFindHex => string.Join(" ",
+        FindHex.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => x is "*" or "??" ? "??" : x));
+
+    public int FindByteCount => FindHex.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    public int ReplaceByteCount => ReplaceHex.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length;
+    public int WildcardByteCount => FindHex.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+        .Count(x => x is "*" or "??");
+    public int FixedByteCount => FindByteCount - WildcardByteCount;
+
+    public string LengthStatus => FindByteCount == ReplaceByteCount
+        ? FindByteCount + " / " + ReplaceByteCount + " bytes; " +
+          FixedByteCount + " fixed, " + WildcardByteCount + " wildcards"
+        : "INVALID LENGTH: Find=" + FindByteCount + ", Replace=" + ReplaceByteCount;
+
+    public string AlignedPair =>
+        "  Index:   " + string.Join(" ", Enumerable.Range(0, FindByteCount)
+            .Select(i => i.ToString("X2"))) + Environment.NewLine +
+        "  Find:    " + AlignedFindHex + Environment.NewLine +
+        "  Replace: " + ReplaceHex + Environment.NewLine +
+        "  Length:  " + LengthStatus;
+}
 
 /// <summary>Profile-level evidence, without guessing which byte sequence should be modified.</summary>
 public sealed record SignatureProfileFinding(
@@ -37,8 +63,7 @@ public sealed record SignatureInspection(
         {
             builder.AppendLine();
             builder.AppendLine(row.Profile + " / group " + row.Group + " — " + row.State);
-            builder.AppendLine("  Find:    " + row.FindHex);
-            builder.AppendLine("  Replace: " + row.ReplaceHex);
+            builder.AppendLine(row.AlignedPair);
             builder.AppendLine("  Exact Find hits: " + row.FindHits + " at " + row.FindOffsets);
             builder.AppendLine("  Exact Replace hits: " + row.ReplaceHits + " at " + row.ReplaceOffsets);
         }
