@@ -37,3 +37,9 @@ No live Windows VM test has been performed as part of the preview. GitHub Action
 - Click **Install** only on a disposable VM with a snapshot and administrator rights. Verify explicit unsigned-preview warning, separate single-EXE ZIP SHA-256, old EXE backup, app shutdown, replacement, and successful `--update-probe` validation.
 - Intentionally fail a probe on a disposable VM and verify automatic rollback and a recorded failure hold. Verify attempts from a user-writable folder are blocked.
 - After an explicitly authorized successful Apply, review the compatibility dialog. Confirm it includes only Windows name/release/build/UBR, `termsrv.dll`, DLL version, application version and fix mode. Skip must do no network I/O. A submitted token must never be stored in the local log or report.
+
+## Preview.8 updater and high-DPI acceptance
+
+- On Windows 11, install preview.7 in a protected Program Files subdirectory; confirm preview.8 is offered through Check → Install. A standard Users: ReadAndExecute ACL must *not* disable Install. Verify preview.8 launches and preview.7 remains in the backup file after successful replacement.
+- Use a disposable VM/snapshot to simulate failed post-update self-test and confirm recovery of the previous EXE and failure hold. The synthetic CI test does not replace an actual running application.
+- Inspect each of the five windows at real desktop scaling 100%, 125%, 150%, 200% for icon visibility, readable text and unclipped commands. CI only measures offscreen layouts at synthetic scale factors.

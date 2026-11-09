@@ -59,6 +59,19 @@ internal static class UpdateInstallBridge
         return true;
     }
 
+    private const System.Security.AccessControl.FileSystemRights MutatingRights =
+        System.Security.AccessControl.FileSystemRights.WriteData |
+        System.Security.AccessControl.FileSystemRights.AppendData |
+        System.Security.AccessControl.FileSystemRights.WriteExtendedAttributes |
+        System.Security.AccessControl.FileSystemRights.WriteAttributes |
+        System.Security.AccessControl.FileSystemRights.Delete |
+        System.Security.AccessControl.FileSystemRights.DeleteSubdirectoriesAndFiles |
+        System.Security.AccessControl.FileSystemRights.ChangePermissions |
+        System.Security.AccessControl.FileSystemRights.TakeOwnership;
+
+    internal static bool HasMutatingRights(System.Security.AccessControl.FileSystemRights rights) =>
+        (rights & MutatingRights) != 0;
+
     // An elevated updater cannot safely execute a replacement EXE from
     // Downloads, Desktop or another folder writable by standard users.
     private static bool IsProtectedInstallDirectory(string directory, out string reason)
@@ -82,13 +95,10 @@ internal static class UpdateInstallBridge
                 "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464");
             var creatorOwner = new System.Security.Principal.SecurityIdentifier(
                 System.Security.Principal.WellKnownSidType.CreatorOwnerSid, null);
-            var writeRights = System.Security.AccessControl.FileSystemRights.Write |
-                System.Security.AccessControl.FileSystemRights.Modify |
-                System.Security.AccessControl.FileSystemRights.Delete |
-                System.Security.AccessControl.FileSystemRights.DeleteSubdirectoriesAndFiles |
-                System.Security.AccessControl.FileSystemRights.ChangePermissions |
-                System.Security.AccessControl.FileSystemRights.TakeOwnership;
-
+            // FileSystemRights.Modify also contains READ bits; using it as an
+            // ACE mask mistakenly rejects the standard Users: ReadAndExecute
+            // entry inherited by Program Files. Check only mutating rights.
+            // CreateFiles/CreateDirectories alias WriteData/AppendData.
             for (var info = new DirectoryInfo(currentPath); info != null;
                 info = info.Parent)
             {
@@ -102,7 +112,7 @@ internal static class UpdateInstallBridge
                 {
                     if (entry.AccessControlType !=
                         System.Security.AccessControl.AccessControlType.Allow ||
-                        (entry.FileSystemRights & writeRights) == 0) continue;
+                        !HasMutatingRights(entry.FileSystemRights)) continue;
                     if (entry.IdentityReference is not
                         System.Security.Principal.SecurityIdentifier sid)
                         throw new UnauthorizedAccessException("Unresolvable installation permissions.");

@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.7" in version, "version consistency")
+    check("0.1.0-preview.8" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.7" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.8" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -189,3 +189,9 @@ check((ROOT / "data/successful-fixes.csv").exists(), "version-only CSV exists")
 print("PASS: compatibility report source guards.")
 
 check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8")), "source validator uses explicit UTF-8 on Windows")
+
+check((ROOT / "Tests/UpdateTransactionSyntheticTests.cs").exists(), "disposable EXE update success and rollback tests exist")
+check((ROOT / "Tests/UiSmokeTests.cs").exists(), "offscreen WPF layout smoke exists")
+check("--ui-smoke" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"), "Windows CI runs offscreen WPF layout smoke")
+check("HasMutatingRights" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8"), "safe Program Files ACL write-rights test")
+print("PASS: preview.8 updater transaction and offscreen GUI smoke guards.")

@@ -1,6 +1,6 @@
 # Preview QA status — 2026-11-09
 
-Version: 0.1.0-preview.7
+Version: 0.1.0-preview.8
 
 ## Existing verified baseline
 
@@ -22,3 +22,9 @@ Version: 0.1.0-preview.7
 - Authenticode signature/publisher validation: preview EXE is unsigned, manually approved only.
 
 **Status: Preview / not authorized for broad deployment.**
+
+## Preview.8 additional checks
+
+- Explicit rights mask excludes read-only ACL entries; dangerous write/delete/ownership rights still block a writable install directory.
+- An isolated Windows test uses disposable PE-like files to exercise File.Replace backup and automatic rollback when a health probe is rejected.
+- WPF windows are created offscreen on STA, no windows are shown, and layout passes are measured at four synthetic viewport factors. This is **not proof of actual 200% desktop rendering**.

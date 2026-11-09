@@ -35,6 +35,11 @@ jobs:
           dotnet restore Tests/TermsrvPatcher.Tests.csproj
       - name: Run synthetic pattern, similarity and PE safety tests
         run: dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore
+      - name: WPF window creation and synthetic 100%-200% layouts (offscreen)
+        shell: pwsh
+        run: |
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --ui-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish self-contained x64 preview
         run: dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
       - name: Test the published EXE in read-only inspection mode
@@ -49,7 +54,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
           if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
           if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
-          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.7' -Wait -PassThru
+          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.8' -Wait -PassThru
           if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
           $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }

@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--ui-smoke"])
+{
+    Environment.ExitCode = UiSmokeTests.Run() >= 20 ? 0 : 2;
+    return;
+}
+
 int assertions = 0;
 void Ensure(bool condition, string message)
 {
@@ -223,7 +229,7 @@ Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease)
     "Updater points to exact single-EXE GitHub asset");
 Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
     "Version-mismatched update probes are rejected");
-Ensure(UpdateInstallBridge.Probe("0.1.0-preview.7") is 0 or 5,
+Ensure(UpdateInstallBridge.Probe("0.1.0-preview.8") is 0 or 5,
     "Update probe returns only explicit success or unavailable");
 // Successful-fix reports contain only version metadata. They are offered
 // after a confirmed GUI Apply; the network path here is always stubbed.
@@ -236,7 +242,7 @@ Ensure(successBody.StartsWith("termsrv-success/v1", StringComparison.Ordinal),
 Ensure(successBody.Contains("windows=Windows 11", StringComparison.Ordinal) &&
        successBody.Contains("build=26100", StringComparison.Ordinal) &&
        successBody.Contains("dll=1.0", StringComparison.Ordinal) &&
-       successBody.Contains("app=0.1.0-preview.7", StringComparison.Ordinal),
+       successBody.Contains("app=0.1.0-preview.8", StringComparison.Ordinal),
     "compatibility metadata includes only requested version values");
 Ensure(!successBody.Contains("C:\\", StringComparison.Ordinal) &&
        !successBody.Contains("hostname=", StringComparison.Ordinal),
@@ -262,8 +268,31 @@ using (var sender = new SuccessfulFixPublisher(client))
         .GetAwaiter().GetResult(), "failed GitHub Issues authorization does not imply success");
 Expect<InvalidDataException>(() => new SuccessfulFixMetadata(
     "Windows 11", "24H2", 26100, 1234, "10.0.1234.0",
-    "0.1.0-preview.7", "manual\\nprivate-data=1").AsComment(),
+    "0.1.0-preview.8", "manual\\nprivate-data=1").AsComment(),
     "reject unapproved compatibility fields");
+Ensure(!UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.ReadAndExecute),
+    "standard Program Files read/execute ACE cannot block updates");
+Ensure(!UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.Read),
+    "read access alone is not treated as write access");
+Ensure(UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.WriteData),
+    "file-creation rights are considered mutating");
+Ensure(UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.CreateDirectories),
+    "directory-creation rights are considered mutating");
+Ensure(UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.Delete),
+    "delete rights are considered mutating");
+Ensure(UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.ChangePermissions),
+    "permission-change rights are considered mutating");
+Ensure(UpdateInstallBridge.HasMutatingRights(
+        System.Security.AccessControl.FileSystemRights.Modify),
+    "modify rights remain restricted");
+Ensure(UpdateTransactionSyntheticTests.Run() == 2,
+    "real File.Replace synthetic transaction passed success and rollback");
 Console.WriteLine($"PASS: {assertions} TermsrvPatcher Unified read-only and preflight assertions.");
 
 internal sealed class IssueStubHandler : HttpMessageHandler

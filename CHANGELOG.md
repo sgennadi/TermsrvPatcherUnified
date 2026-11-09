@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.8 — 2026-11-09
+
+- Fixed an overbroad filesystem ACL rights mask that included read access and could disable safe installation from Program Files.
+- Added a disposable EXE transaction test for replacement, `.bak` retention, forced probe failure, rollback and failure hold.
+- Added offscreen WPF layout smoke for all five windows, checking application icons and titles across four synthetic scales.
+- Extended Windows CI and preview-release pipeline to run both new test suites.
+- Not a Stable release: VM execution of a real version-to-version update, native display DPI and actual protected DLL modification remain unverified.
+
 ## 0.1.0-preview.7 — 2026-11-09
 
 - Applied a consistent light blue/navy theme based on the user's DISM-GUI and BitKeyBridge design, with rounded controls and Segoe MDL2 icons.

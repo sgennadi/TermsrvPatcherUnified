@@ -120,7 +120,7 @@ def apply_comment(event: dict, existing: str) -> tuple[str, bool]:
 def self_test() -> None:
     body = "\n".join((MARKER, "windows=Windows 11", "release=24H2",
         "build=26100", "ubr=3415", "file=termsrv.dll", "dll=10.0.26100.3415",
-        "app=0.1.0-preview.7", "mode=automatic"))
+        "app=0.1.0-preview.8", "mode=automatic"))
     event = {"action": "created", "issue": {"number": 1},
         "comment": {"user": {"type": "User"},
                     "created_at": "2026-11-09T05:00:00Z", "body": body}}
