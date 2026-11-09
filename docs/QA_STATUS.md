@@ -1,6 +1,6 @@
 # Preview QA status — 2026-11-09
 
-Version: 0.1.0-preview.9
+Version: 0.1.0-preview.10
 
 ## Existing verified baseline
 
@@ -66,3 +66,11 @@ Version: 0.1.0-preview.9
 - A dedicated Windows CI gate exercises `DllBackupStore` shared by the production Apply/Restore path and checks Backup disabled creates no file/directory, Backup enabled stores byte-identical original SHA-256 and idempotent reuse.
 - The store refuses version/length mismatch, nested or unrelated paths, corrupted backup contents and unrecognized file names. Existing corrupt backup is never overwritten; Restore list hides invalid entries.
 - Restoring a valid backup returns exactly the original bytes. The Windows system DLL is read only; live privileged Apply/Restore remains a manual Windows 11 VM acceptance gate.
+
+## Preview.10 final QA scope
+
+- Real Windows DLL bytes are copied to a temporary test folder; original `System32\termsrv.dll` is read-only. The new backup store is driven by the same production code as GUI Apply and Restore.
+- Backup disabled creates no persistent backup. Backup enabled stores an exact SHA-256 original, reuses an existing verified backup, fails closed on damaged originals and validates a restored byte-for-byte copy.
+- Restore rejects incorrect version recorded in filename, file-size mismatch, malformed extension/name, path outside storage, nested path and damaged copy. A valid backup appears in Restore list; invalid ones are hidden.
+- The protected storage trust check refuses user-writable NTFS ACEs or untrusted owner and accepts an explicitly administrator-controlled test directory.
+- Remaining: manual Windows 11 live Apply/Restore and TermService recovery from a VM snapshot, full 200% DPI desktop QA, and operator-approved GitHub Issues report submission.

@@ -1,4 +1,4 @@
-# TermsrvPatcherUnified — 0.1.0-preview.9
+# TermsrvPatcherUnified — 0.1.0-preview.10
 
 This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from:
 
@@ -131,3 +131,12 @@ Prepare manually on Windows with PowerShell 7: `pwsh ./scripts/prepare-nsudo.ps1
 - **Privacy:** the report is PUBLIC if the operator supplies a temporary GitHub Issues-write token and clicks Send. No token is embedded or retained. Users can Skip; there is no automatic upload.
 - GitHub aggregation accepts both legacy v1 and new v2 report schemas. Source-format and synthetic Windows tests enforce strict validation and migration to the expanded CSV format.
 - This release remains **Preview**, not a statement of licensing entitlement or proof of successful live-system DLL modification.
+
+## Preview.10 — protected backup and Restore verification
+
+- Backup On/Off now uses a shared integrity-checked backup store. With Backup disabled, no new persistent backup file or directory is created. An existing, matching SHA-256 backup is reused rather than overwritten.
+- Restore verifies the canonical checksum-named backup, the version recorded when it was created, the exact SHA-256, matching file length and 64-bit PE structure. The Restore dialog excludes corrupted, misplaced, malformed or mismatched entries.
+- **Important bug fix:** Windows may use MUI satellite resources for FileVersionInfo on a system DLL. A renamed DLL backup may report a different version despite containing identical bytes. Restoring now uses the original version recorded in the backup name plus SHA-256 validation, instead of rejecting a valid backup solely because of MUI lookup.
+- Backups must be in a directory controlled by an elevated administrator, Administrators, SYSTEM or TrustedInstaller. Both the application state root and its Backups subdirectory are checked for NTFS owner and mutating ACEs; user-writable directories and reparse points fail closed. The app never silently rewrites unsafe ACLs.
+- CI tests work on a throwaway copy of a REAL Windows DLL: checks creation, Backup disabled, no-overwrite, corruption, mismatch, path traversal, verified restoration and accepted/denied NTFS permissions. These **do not** modify live Windows DLLs or restart TermService.
+- Release remains unsigned Preview; manual Windows 11 VM validation of actual protected Apply/Restore and 200% DPI is still required.
