@@ -175,3 +175,9 @@ Version: 0.1.0-preview.10
 - Existing generic x64 Find mask matched once at `0x0006D20A` (8 fixed bytes), and the 25H2/26H2 alternate layout matched once at `0x000A6896` (19 fixed bytes). The 24H2 family did not match. **This is two distinct full-profile matches, not a repeated match of one signature.** Neither replacement was present.
 - New read-only profile-level classification reports the two candidates, their offsets and fixed-byte counts separately from within-profile repeats/mixed states, and the export does the same without copying arbitrary untrusted profile labels verbatim.
 - Regression fixtures reproduce both the operator's reported offsets and the match pattern using **synthetic data**, not the original Windows DLL. No auto-selection or protected DLL modification. The exact source file has not been independently provided for binary/PE semantic analysis; a longer signature is not proof of safe applicability.
+
+## Catalog corrections — Generic JE/JZ and Server 2022 manual pattern
+
+- The Generic automatic Find mask now fixes `0F 84` (JE/JZ), with **three** variable displacement bytes and a fixed final `00` for this catalog variant. Previously the `84` opcode was incorrectly matched as a wildcard, potentially accepting `0F 85` or other branches.
+- In the **manual-only legacy catalog**, Windows Server 2022 OS build `20348.3091` has the operator-corrected final byte `00` instead of `20`. This edit is **not** evidence that the actual system DLL has been independently verified; OS build alone cannot certify a patch profile.
+- Regression checks reject a different jump opcode or a nonzero final displacement byte. Distinct exact profiles still remain `Ambiguous` until separately validated: narrowing a Find mask never authorizes an unverified protected write.

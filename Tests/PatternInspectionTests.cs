@@ -156,15 +156,38 @@ internal static class PatternInspectionTests
                reportedInspection.Rows[1].State == "Not found" &&
                reportedInspection.Rows[2].FindOffsets == "0x000A6896",
             "the exact two reported candidate offsets and absent 24H2 pattern remain visible");
-        Verify(reportedInspection.Profiles[0].FixedBytes == 8 &&
+        Verify(reportedInspection.Profiles[0].FixedBytes == 9 &&
                reportedInspection.Profiles[2].FixedBytes == 19,
-            "generic eight-fixed-byte mask and specific nineteen-fixed-byte mask are distinguished");
+            "generic nine-fixed-byte mask and specific nineteen-fixed-byte mask are distinguished");
         var reportedPlan = PatchCatalog.Inspect(reportedShape, "synthetic.dll",
             "10.0.26100.8115", SystemInfo.Sha256(reportedShape), true, upstream);
         Verify(reportedPlan.State == PatchState.Ambiguous &&
                reportedPlan.Edits.Count == 0 &&
                reportedPlan.PatchedBytes is null,
             "reported signature combination must remain blocked from automatic Apply");
+
+        // Regression: old generic pattern accidentally treated opcode 84 as
+        // a wildcard. JE/JZ near jump is 0F 84 followed by four rel32 bytes,
+        // of which this catalog variant fixes only the final 00.
+        var genericMask = upstream[0].Groups.Single().Search;
+        Verify(genericMask.Length == 12 && genericMask[6] == 0x0F &&
+               genericMask[7] == 0x84 && genericMask[8] is null &&
+               genericMask[9] is null && genericMask[10] is null &&
+               genericMask[11] == 0,
+            "generic pattern fixes JE/JZ opcode 84 and only wildcards three displacement bytes");
+        var genericFixture = Enumerable.Repeat((byte)0xFA, 128).ToArray();
+        new byte[] { 0x39, 0x81, 0x3C, 0x06, 0, 0, 0x0F, 0x84,
+                     0x12, 0x34, 0x56, 0 }.CopyTo(genericFixture, 20);
+        Verify(BytePattern.FindOffsets(genericFixture, genericMask).SequenceEqual([20]),
+            "generic JE/JZ mask finds a valid varying rel32 displacement");
+        var wrongConditionalJump = (byte[])genericFixture.Clone();
+        wrongConditionalJump[27] = 0x85; // JNE/JNZ differs from JE/JZ.
+        Verify(BytePattern.FindOffsets(wrongConditionalJump, genericMask).Count == 0,
+            "0F 85 no longer falsely matches the generic 0F 84 signature");
+        var wrongDisplacementHigh = (byte[])genericFixture.Clone();
+        wrongDisplacementHigh[31] = 0x20;
+        Verify(BytePattern.FindOffsets(wrongDisplacementHigh, genericMask).Count == 0,
+            "this catalog variant requires final displacement byte 00, not 20");
 
         var fragment = ManualFragmentSearch.SearchBytes(dll, "1122");
         Verify(fragment.Hits.Count == 1 && fragment.Hits[0].Offset == 0x230,

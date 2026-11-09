@@ -60,6 +60,18 @@ auto = parse_catalog("AutomaticPatterns.txt")
 legacy = parse_catalog("LegacyUserPatterns.MANUAL.txt")
 check(len(auto) == 3, "3 automatic patterns")
 check(len(legacy) == 16, "16 legacy manual patterns")
+
+auto_text = (ROOT / "Patterns" / "AutomaticPatterns.txt").read_text(encoding="utf-8")
+legacy_text = (ROOT / "Patterns" / "LegacyUserPatterns.MANUAL.txt").read_text(encoding="utf-8")
+check(
+    "x64, 39 81 3C 06 00 00 0F 84 * * * 00," in auto_text
+    and "x64, 39 81 3C 06 00 00 0F * * * * 00," not in auto_text,
+    "generic catalog fixes the JE/JZ opcode and wildcards only rel32 low bytes")
+check(
+    "x64, 39 81 3C 06 00 00 0F 84 5F 64 01 00," in legacy_text
+    and "x64, 39 81 3C 06 00 00 0F 84 5F 64 01 20," not in legacy_text,
+    "Server 2022 20348.3091 legacy pattern has the corrected 00 final byte")
+
 check(len(parse_catalog("Examples.NOT_ACTIVE.txt")) >= 0, "examples segregated")
 
 project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")

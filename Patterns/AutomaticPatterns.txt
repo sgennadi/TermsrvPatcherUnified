@@ -4,7 +4,10 @@
 # Format: Architecture, find bytes (* is a one-byte wildcard), replace bytes
 
 # Windows 10 / Windows 11 22H2-23H2 / older Windows Server generic signature
-x64, 39 81 3C 06 00 00 0F * * * * 00, B8 00 01 00 00 89 81 38 06 00 00 90
+# Fixed JE/JZ opcode is 0F 84. Wildcards only cover the first three bytes
+# of the rel32 displacement. The last 00 is fixed for this catalog pattern,
+# not a property of every JE/JZ displacement. Verify real DLL bytes first.
+x64, 39 81 3C 06 00 00 0F 84 * * * 00, B8 00 01 00 00 89 81 38 06 00 00 90
 # Windows 11 24H2 family (recognize by bytes, regardless of DisplayVersion)
 x64, 8B 81 38 06 00 00 39 81 3C 06 00 00 75, B8 00 01 00 00 89 81 38 06 00 00 90 EB
 # Windows 11 25H2 / 26H2 alternate layout
