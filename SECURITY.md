@@ -17,3 +17,9 @@ No public release should be called stable before Windows VM patch and rollback t
 - Unsigned preview EXEs are not publisher-authenticated. The GitHub Releases SHA-256 digest and strict updater ZIP/x64 PE format are checked, but this is not a substitute for Authenticode.
 - Installation requires a live release check, elevated administrator, an administrator-protected Program Files installation folder and explicit user confirmation; do not enable silent updates.
 - Manual successful-fix metadata is publicly self-reported and should never be treated as independent proof of licensing, compatibility or safety. Public comments contain only version information.
+
+## Offline DLL file mode
+
+The offline workflow never overwrites the selected source DLL, changes Windows system files, invokes NSudo or stops TermService. It produces a **new** DLL only for a uniquely validated signature in executable PE sections. This does not mean the output DLL has been tested in Windows. CRC32 is useful for legacy version identification; **SHA-256 is the integrity digest**.
+
+The optional `termsrv-offline/v1` report requires the operator to review and explicitly authorize publication with a temporary GitHub Issues-write token. It publishes architecture, DLL/app version, CRC32, SHA-256 and bounded changed byte ranges, never a complete DLL, hostname, user, path or network identifiers. These reports are aggregated separately from system-Apply success records in `data/offline-fixes.csv`.
