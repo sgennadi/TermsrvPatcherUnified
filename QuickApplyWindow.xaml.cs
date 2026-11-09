@@ -327,6 +327,15 @@ public partial class QuickApplyWindow : Window
             !status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase)) return;
         // Only a persistent terminal record authorizes claiming success.
         bool isRevert = status.Details.Contains("Revert", StringComparison.OrdinalIgnoreCase);
+        // This is an audit/status record, not proof of current DLL health.
+        // Reopening the GUI after RDP logoff still displays the most recent
+        // SYSTEM worker result, even when no in-memory queued flag survives.
+        QuickLastJobText.Text = status.State is
+            ("Queued" or "Running" or "Succeeded" or "AlreadyPatched" or
+             "Failed" or "Unconfirmed")
+            ? "Last " + (isRevert ? "Revert" : "Apply") + " task " + status.Id[..8] +
+              ": " + status.State + " (recorded; Check confirms current DLL)."
+            : "";
         if (status.State is "Queued" or "Running")
         {
             queued = true;
