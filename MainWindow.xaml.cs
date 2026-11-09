@@ -20,9 +20,10 @@ public partial class MainWindow : Window
     private bool busy;
     private readonly UpdateIntegration updates = new();
 
-    public MainWindow()
+    public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        if (offlineStartup) MainTabs.SelectedIndex = 3;
         engine = new TermsrvEngine(text => Dispatcher.BeginInvoke(() => FooterText.Text = text));
         WindowSettings.Restore(this);
         Closing += (_, _) => { WindowSettings.Save(this); updates.Dispose(); };
@@ -31,6 +32,11 @@ public partial class MainWindow : Window
         RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
+            if (offlineStartup)
+            {
+                FooterText.Text = "Offline DLL mode: select a file without elevated operations.";
+                return;
+            }
             try
             {
                 SearchFile.Text = engine.EnvironmentInfo().DllPath;
