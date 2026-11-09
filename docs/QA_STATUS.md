@@ -89,3 +89,9 @@ Version: 0.1.0-preview.10
 - Native WTS API session inventory (local ID, station, state, account). User identities remain local to the GUI, are not logged, persisted or uploaded, and there are no disconnect/logoff methods.
 - Test harness uses a disposable synthetic PE for baseline drift, version change, corrupt JSON, oversized baseline, explicit replacement and no silent repair. Native enumeration is PASS/SKIP depending on WTS availability.
 - Offscreen WPF smoke validates the session table and health textbox. Live Windows 11 TermService integration, GUI screenshots at true 200% DPI and live Apply/Restore remain manual acceptance gates.
+
+## Published preview.11 -> preview.12 regression (pinned release ZIPs)
+
+- Windows Actions downloads both **published** update-only ZIP archives, rejects SHA-256 mismatches, and launches the real EXE `--update-probe` for both versions.
+- Exercises disposable PortableExeTransaction preview.11 → preview.12 replacement, checked original backup SHA-256, forced failed-probe rollback, retention of a pre-existing .bak and rejection of a modified staged EXE.
+- The published preview.12 distribution ZIP is independently SHA-256 pinned and inspected against the runner's actual `termsrv.dll` using the CLI in **read-only** mode. DLL SHA-256, SDDL ACL, TermService state and NSudo cache are compared before and after. These are not live protected Apply/Restore tests.
