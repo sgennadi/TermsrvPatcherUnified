@@ -36,7 +36,11 @@
               Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom"
               Click="Publish_Click" IsEnabled="False" Margin="0"/>
     </Grid>
-    <WrapPanel Grid.Row="4" Margin="0,0,0,10">\n      <Button x:Name="AnonymousButton" Content="Send anonymously" Style="{StaticResource PrimaryButton}" Click="Anonymous_Click" IsEnabled="False"/>\n      <TextBlock x:Name="RelayState" VerticalAlignment="Center" Foreground="#64748B" Text="Checking anonymous reporting configuration..." Margin="12,0,0,0"/>\n    </WrapPanel>\n    <GroupBox Grid.Row="5" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
+    <WrapPanel Grid.Row="4" Margin="0,0,0,10">
+      <Button x:Name="AnonymousButton" Content="Send anonymously" Style="{StaticResource PrimaryButton}" Click="Anonymous_Click" IsEnabled="False"/>
+      <TextBlock x:Name="RelayState" VerticalAlignment="Center" Foreground="#64748B" Text="Checking anonymous reporting configuration..." Margin="12,0,0,0"/>
+    </WrapPanel>
+    <GroupBox Grid.Row="5" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
       <TextBox x:Name="ReportPreview" FontFamily="Consolas" FontSize="12"
                IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                HorizontalScrollBarVisibility="Auto"/>
