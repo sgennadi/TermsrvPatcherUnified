@@ -45,7 +45,7 @@ internal static class SignatureEvidenceExport
         @"[\\\r\n\t<>@]|[A-Za-z]:[/\\]|(?:https?://)|(?:\\\\)",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex AllowedPatternText = new(
-        @"\A[0-9A-F* ,x.]+\z", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+        @"\A[0-9A-F*? ,x.]+\z", RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     internal static string Build(WindowsDetails host, PatchPlan plan,
         VerifiedSignatureSnapshot snapshot, ScanReport? fallback = null)
@@ -107,6 +107,12 @@ internal static class SignatureEvidenceExport
             b.AppendLine("  Finding: " + Safe(row.State, 90));
             b.AppendLine("  Find mask: " + SafePattern(row.FindHex));
             b.AppendLine("  Replace signature: " + SafePattern(row.ReplaceHex));
+            b.AppendLine("  Aligned byte comparison (wildcards shown as ??):");
+            b.AppendLine("    Find:    " + SafePattern(row.AlignedFindHex));
+            b.AppendLine("    Replace: " + SafePattern(row.ReplaceHex));
+            b.AppendLine("    Lengths: " + row.FindByteCount + "/" + row.ReplaceByteCount +
+                " byte(s), " + row.FixedByteCount + " fixed, " +
+                row.WildcardByteCount + " wildcard(s)");
             b.AppendLine("  Find hits: " + Safe(row.FindHits, 24) +
                          " at " + Safe(row.FindOffsets, 140));
             b.AppendLine("  Replace hits: " + Safe(row.ReplaceHits, 24) +
