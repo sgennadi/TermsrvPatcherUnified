@@ -1,3 +1,4 @@
+using UniversalDiagnostics.Transport;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
@@ -14,6 +15,8 @@ public partial class DiagnosticsWindow : Window
     private string? savedId;
     private Uri? submittedIssue;
     private bool publishing;
+    private AnonymousDiagnosticPayload? anonymousPayload;
+    private Uri? relayEndpoint;
 
     public DiagnosticsWindow()
     {
@@ -23,12 +26,25 @@ public partial class DiagnosticsWindow : Window
         DescriptionInput.Text = draft.Summary;
         ReportPreview.Text = "Reports are stored locally only after explicit confirmation. " +
             "No raw logs or GitHub credentials are captured.";
+        try
+        {
+            relayEndpoint = UniversalDiagnosticsRelayClient.ReadConfiguredEndpoint();
+            RelayState.Text = relayEndpoint is null
+                ? "Not configured — local reports only"
+                : "Relay configured — anonymous reporting available";
+        }
+        catch (Exception)
+        {
+            RelayState.Text = "Invalid relay configuration — local reports only";
+        }
         Closed += (_, _) => SessionToken.Clear();
     }
 
     private void DescriptionChanged(object sender, TextChangedEventArgs e)
     {
         if (PublishButton is null || ReportPreview is null) return;
+        anonymousPayload = null;
+        if (AnonymousButton is not null) AnonymousButton.IsEnabled = false;
         savedReport = null;
         savedPath = null;
         savedId = null;
@@ -61,12 +77,24 @@ public partial class DiagnosticsWindow : Window
         {
             var receipt = await Task.Run(() => DiagnosticsBridge.Capture(draft, description));
             var markdown = DiagnosticsBridge.ReportMarkdown(await File.ReadAllTextAsync(receipt.Path));
+            // Local capture must succeed even if a category cannot be sent anonymously.
+            try
+            {
+                anonymousPayload = UniversalDiagnosticsRelayClient.Prepare(
+                    await File.ReadAllTextAsync(receipt.Path));
+            }
+            catch (InvalidDataException)
+            {
+                anonymousPayload = null;
+                RelayState.Text = "Report contains unsupported categories — local only";
+            }
             savedReport = markdown;
             savedPath = receipt.Path;
             savedId = receipt.Id;
             submittedIssue = null;
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
+            AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
         catch (Exception ex)
@@ -95,6 +123,7 @@ public partial class DiagnosticsWindow : Window
         SessionToken.Clear(); // Token never persists in the report or application settings.
         publishing = true;
         PublishButton.IsEnabled = false;
+        AnonymousButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         Uri? created = null;
@@ -128,6 +157,60 @@ public partial class DiagnosticsWindow : Window
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
+            AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
+        }
+    }
+
+    private async void Anonymous_Click(object sender, RoutedEventArgs e)
+    {
+        if (publishing || relayEndpoint is null || anonymousPayload is null ||
+            savedPath is null || savedId is null || submittedIssue is not null) return;
+        var payload = anonymousPayload;
+        // The operator sees the exact JSON that will be sent, not the local summary.
+        if (MessageBox.Show(this,
+                "Only the following typed fields will be sent over HTTPS to the configured " +
+                "relay and may become a PUBLIC GitHub Issue. No description, logs, " +
+                "passwords or paths are uploaded. Review all fields.\n\n" + payload.Json +
+                "\n\nSend anonymously?",
+                "Review anonymous diagnostic report", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        publishing = true;
+        AnonymousButton.IsEnabled = false;
+        PublishButton.IsEnabled = false;
+        SaveButton.IsEnabled = false;
+        DescriptionInput.IsEnabled = false;
+        try
+        {
+            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var relayClient = new UniversalDiagnosticsRelayClient();
+            var issue = await relayClient.SendAsync(payload, relayEndpoint, deadline.Token);
+            submittedIssue = issue;
+            try
+            {
+                DiagnosticsBridge.MarkSubmitted(savedPath, savedId, issue);
+                Status.Text = "Anonymous report delivered and acknowledged: " + issue.AbsoluteUri;
+            }
+            catch
+            {
+                Status.Text = "Issue confirmed, but local acknowledgement failed: " +
+                    issue.AbsoluteUri;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or InvalidOperationException or
+                                   InvalidDataException or ArgumentException or
+                                   OperationCanceledException or JsonException)
+        {
+            Status.Text = "Anonymous delivery not confirmed (" + ex.GetType().Name +
+                "). Report remains in local queue. Do not assume it was sent.";
+        }
+        finally
+        {
+            publishing = false;
+            SaveButton.IsEnabled = true;
+            DescriptionInput.IsEnabled = true;
+            PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
+            AnonymousButton.IsEnabled = relayEndpoint is not null &&
+                anonymousPayload is not null && submittedIssue is null;
         }
     }
 
