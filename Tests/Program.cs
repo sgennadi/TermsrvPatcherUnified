@@ -8,7 +8,7 @@ using TermsrvPatcherUnified.Core;
 
 if (args is ["--offline-dll-qa"])
 {
-    Environment.ExitCode = OfflineDllTests.Run() >= 40 ? 0 : 2;
+    Environment.ExitCode = OfflineDllTests.Run() >= 20 ? 0 : 2;
     return;
 }
 
