@@ -354,6 +354,15 @@ public partial class MainWindow : Window
     private async Task ApplyAsync(PatchPlan? plan, bool manual)
     {
         if (plan?.State != PatchState.Ready || !NsudoDevilModeScope.IsBundled || !SystemInfo.IsAdministrator()) return;
+        if (manual && InteractiveSessionDetector.RequiresIndependentExecutor())
+        {
+            MessageBox.Show(this,
+                "Manual Apply is not yet supported by the isolated SYSTEM executor. " +
+                "Use the local or VM console. Automatic Apply uses Task Scheduler over RDP.",
+                "Manual Apply requires local console", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
         bool createBackup = CreateBackupCheck.IsChecked != false;
         // Independent automatic Apply always makes a durable trusted backup.
         if (!manual && !createBackup)
@@ -403,16 +412,6 @@ public partial class MainWindow : Window
                 FooterText.Text = "Local console Apply completed and verified.";
             return;
         }
-        if (InteractiveSessionDetector.RequiresIndependentExecutor())
-        {
-            MessageBox.Show(this,
-                "Manual Apply is not yet supported by the isolated SYSTEM executor. " +
-                "To avoid terminating an RDP-dependent process, run Manual Apply from a local " +
-                "console or VM console. Automatic Apply is available through Task Scheduler.",
-                "Manual Apply blocked in remote session", MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return;
-        }
         if (!createBackup && !Confirm(this, "Confirm: no backup",
                 "Continue WITHOUT creating a backup? A later Restore is not guaranteed. " +
                 "Use a VM snapshot or an independent trusted backup for recovery.")) return;
@@ -451,6 +450,15 @@ public partial class MainWindow : Window
 
     private async void Restore_Click(object sender, RoutedEventArgs e)
     {
+        if (InteractiveSessionDetector.RequiresIndependentExecutor())
+        {
+            MessageBox.Show(this,
+                "Restore may stop Remote Desktop services. Use the local or VM console " +
+                "until a separately verified SYSTEM Restore worker is available.",
+                "Restore requires local console", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
         var verified = engine.BackupsForCurrentVersion();
         if (verified.Count == 0)
         {
@@ -469,15 +477,6 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) != true) return;
         if (!Confirm(this, "Restore Windows DLL?", "Restoring will temporarily stop RDP and may disconnect you. " +
             "The backup DLL must match the currently installed file version. Continue?")) return;
-        if (InteractiveSessionDetector.RequiresIndependentExecutor())
-        {
-            MessageBox.Show(this,
-                "Restore can stop Remote Desktop services. Independent Restore is not " +
-                "yet implemented. Run Restore from the local/VM console.",
-                "Restore blocked in remote session", MessageBoxButton.OK,
-                MessageBoxImage.Warning);
-            return;
-        }
         await RunBusy(async () => await Task.Run(() => engine.Restore(dialog.FileName)), "Restore");
         await CheckAsync();
     }

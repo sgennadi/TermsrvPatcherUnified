@@ -141,7 +141,8 @@ public partial class QuickApplyWindow : Window
             queued = true;
             QuickStatusText.Text = "Queued independently of RDP";
             QuickHelpText.Text = "Job " + id[..8] +
-                " is running as SYSTEM. You may disconnect RDP; Close does not cancel the task.";
+                " was accepted by Task Scheduler. Wait for Running or Succeeded status. " +
+                "Closing this window does not cancel the task.";
             QuickCancelButton.Content = "Close";
             statusTimer.Start();
         }

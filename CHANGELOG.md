@@ -7,7 +7,7 @@
 - **Isolated worker:** protected staging of a self-contained EXE, strict task ACL and LocalSystem identity, independent re-inspection of the original DLL, source and expected-result SHA-256 checks, exact signature and version checks, mandatory protected backup, one-shot execution lock and locally saved result. Uses existing NSudo Devil Mode 8.2 and service rollback. GUI or RDP disconnect does not cancel a successfully started task.
 - **Manual/Restore RDP safety:** do not attempt their interactive path in a remote session until independently isolated workers exist; those actions remain available at the local/VM console.
 - **Backup ACL fix:** place trusted DLL backups in a separately protected ProgramData directory instead of under the potentially user-writable audit-log directory. Legacy files are untouched and not silently migrated.
-- **Test boundaries:** synthetic session classification, path tamper refusal, WPF quick UI and real-DLL-copy backup tests on Windows CI. The hosted runner cannot certify privileged Windows 11 system writes, SYSTEM task scheduling on a real workstation, or actual RDP reconnection; isolated-VM acceptance is required before deploying to production.
+- **Test boundaries:** synthetic session classification, path tamper refusal, WPF quick UI and real-DLL-copy backup tests, plus a **real non-destructive Task Scheduler smoke** that launches the published EXE as LocalSystem in session 0 on Windows Server 2025. No Windows 11 protected DLL write, actual RDP disconnect/reconnection or live Restore has been certified; isolated-VM acceptance is still required.
 
 ## 0.1.0-preview.20 — 2026-11-09
 
