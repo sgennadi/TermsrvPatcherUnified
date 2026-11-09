@@ -51,7 +51,7 @@ public partial class MainWindow : Window
 
     internal void SelectOfflineTab() => MainTabs.SelectedIndex = 3;
 
-    private async Task RunBusy(Func<Task> job)
+    private async Task RunBusy(Func<Task> job, string? historyOperation = null)
     {
         if (busy) return;
         busy = true;
@@ -65,6 +65,8 @@ public partial class MainWindow : Window
         catch (Exception e)
         {
             DiagnosticsBridge.Remember("Application", e);
+            if (historyOperation is not null)
+                OperationHistory.TryRecord(historyOperation, "Failure", failureType: e.GetType().Name);
             FooterText.Text = "Error: " + e.Message;
             AuditLog.Append($"Operation failed: {e.GetType().Name}: {e.Message}");
             MessageBox.Show(this, e.Message, "TermsrvPatcher Unified", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -163,7 +165,7 @@ public partial class MainWindow : Window
             await Task.Run(() => engine.Apply(plan, createBackup));
             applied = true;
             FooterText.Text = "Patch applied and verified. Checking current DLL...";
-        });
+        }, "Apply");
         await CheckAsync();
         if (applied)
         {
@@ -206,7 +208,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) != true) return;
         if (!Confirm(this, "Restore Windows DLL?", "Restoring will temporarily stop RDP and may disconnect you. " +
             "The backup DLL must match the currently installed file version. Continue?")) return;
-        await RunBusy(async () => await Task.Run(() => engine.Restore(dialog.FileName)));
+        await RunBusy(async () => await Task.Run(() => engine.Restore(dialog.FileName)), "Restore");
         await CheckAsync();
     }
 
@@ -426,7 +428,9 @@ public partial class MainWindow : Window
                 $"\nVerified SHA-256: {saved.FinalSha256}" +
                 "\nOriginal DLL not modified.";
             FooterText.Text = "Offline patched copy saved and verified. Original preserved.";
-        });
+            OperationHistory.TryRecord("OfflineCopy", "Success", source.FileVersion,
+                source.OriginalSha256, saved.FinalSha256);
+        }, "OfflineCopy");
         if (saved is null) return;
         try
         {
@@ -520,6 +524,8 @@ public partial class MainWindow : Window
             var report = await Task.Run(DllHealthMonitor.RecordLocalBaseline);
             DllHealthDetails.Text = report.AsText();
             FooterText.Text = "Local DLL reference saved. No RDP or system settings were changed.";
+            OperationHistory.TryRecord("Baseline", "Success", report.Current.DllVersion,
+                report.Current.Sha256, report.Current.Sha256);
         });
     }
 
@@ -533,6 +539,33 @@ public partial class MainWindow : Window
                 $"{sessions.Count} local Windows sessions. Read-only WTS inventory; " +
                 "account names are displayed here only and never included in reports.";
             FooterText.Text = "Session inventory refreshed. No RDP sessions were changed.";
+        });
+    }
+
+    private async void CheckRdpPolicy_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(RdpPolicyDiagnostics.ReadLocal);
+            RdpPolicyGrid.ItemsSource = report.Values;
+            RdpPolicySummary.Text = report.Values.Count + " settings inspected, " +
+                report.Warnings.Count + " notice(s). TermService: " + report.TermServiceStatus +
+                ". No changes made.";
+            RdpPolicyDetails.Text = report.AsText();
+            FooterText.Text = "RDP configuration diagnostic completed (read-only).";
+        });
+    }
+
+    private async void RefreshOperationHistory_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusy(async () =>
+        {
+            var result = await Task.Run(() => OperationHistory.ReadRecent(100));
+            OperationHistoryGrid.ItemsSource = result.Entries;
+            OperationHistorySummary.Text = result.Entries.Count + " local operation(s), " +
+                result.InvalidEntries + " invalid record(s) skipped. " +
+                (result.Warning ?? "No network calls or service changes.");
+            FooterText.Text = "Local operation history refreshed.";
         });
     }
 
@@ -565,7 +598,8 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             DiagnosticsBridge.Remember("RDP Settings", ex);
-            AuditLog.Append("RDP settings failure: " + ex.Message);
+            AuditLog.Append("RDP settings failure: " + ex.GetType().Name);
+            OperationHistory.TryRecord("RdpSettings", "Failure", failureType: ex.GetType().Name);
             MessageBox.Show(this, ex.Message, "Settings error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }

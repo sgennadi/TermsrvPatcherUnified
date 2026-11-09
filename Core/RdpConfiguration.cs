@@ -33,6 +33,7 @@ public static class RdpConfiguration
         tcp.SetValue("UserAuthentication", enforceNla ? 1 : 0, RegistryValueKind.DWord);
         if (syncFirewall) SyncFirewall(enableRdp);
         AuditLog.Append($"RDP settings changed: enabled={enableRdp}, NLA={enforceNla}, singleUserSession={oneSessionPerUser}");
+        OperationHistory.TryRecord("RdpSettings", "Success");
     }
 
     private static void SyncFirewall(bool enabled)

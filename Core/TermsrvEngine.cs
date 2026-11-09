@@ -119,6 +119,8 @@ public sealed class TermsrvEngine : IDisposable
         else
             Message("Permanent backup disabled for this Apply. In-operation rollback is still enabled.");
         WriteTransactional(preview.FilePath, preview.OriginalSha256, current, preview.PatchedBytes);
+        OperationHistory.TryRecord("Apply", "Success", preview.FileVersion,
+            preview.OriginalSha256, SystemInfo.Sha256(preview.PatchedBytes));
         Message($"Applied {(preview.IsManual ? "manual" : "automatic")} profile: {preview.ProfileId}");
     }
 
@@ -136,6 +138,8 @@ public sealed class TermsrvEngine : IDisposable
             os.DllVersion, current.LongLength);
         // A modified/unknown DLL is restored only by explicit administrator action.
         WriteTransactional(os.DllPath, SystemInfo.Sha256(current), current, desired);
+        OperationHistory.TryRecord("Restore", "Success", os.DllVersion,
+            SystemInfo.Sha256(current), SystemInfo.Sha256(desired));
         Message($"Restored backup: {Path.GetFileName(backupFile)}");
     }
 

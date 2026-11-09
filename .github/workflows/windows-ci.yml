@@ -52,6 +52,11 @@ jobs:
         run: |
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-health-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: RDP policy registry and privacy-safe history regression (read-only)
+        shell: pwsh
+        run: |
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-policy-history-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Real DLL copy backup, Restore, tamper and no-backup integrity tests
         shell: pwsh
         run: |
@@ -76,7 +81,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
           if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
           if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
-          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.12' -Wait -PassThru
+          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.13' -Wait -PassThru
           if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
           $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }

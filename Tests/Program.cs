@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--rdp-policy-history-qa"])
+{
+    Environment.ExitCode = RdpPolicyHistoryTests.Run() >= 20 ? 0 : 2;
+    return;
+}
+
 if (args is ["--rdp-health-qa"])
 {
     Environment.ExitCode = RdpHealthTests.Run() >= 12 ? 0 : 2;
@@ -259,7 +265,7 @@ Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease)
     "Updater points to exact single-EXE GitHub asset");
 Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
     "Version-mismatched update probes are rejected");
-Ensure(UpdateInstallBridge.Probe("0.1.0-preview.12") is 0 or 5,
+Ensure(UpdateInstallBridge.Probe("0.1.0-preview.13") is 0 or 5,
     "Update probe returns only explicit success or unavailable");
 // Successful-fix v2 is opt-in: original/result SHA-256 and exact modified ranges.
 var detailed = SuccessfulFixMetadata.FromSuccessfulApply(
@@ -271,7 +277,7 @@ Ensure(successBody.StartsWith("termsrv-success/v2\n", StringComparison.Ordinal),
 Ensure(successBody.Contains("windows=Windows 11\n", StringComparison.Ordinal) &&
        successBody.Contains("build=26100\n", StringComparison.Ordinal) &&
        successBody.Contains("dll=1.0\n", StringComparison.Ordinal) &&
-       successBody.Contains("app=0.1.0-preview.12\n", StringComparison.Ordinal),
+       successBody.Contains("app=0.1.0-preview.13\n", StringComparison.Ordinal),
     "report contains expected Windows, DLL and application versions");
 Ensure(successBody.Contains("original_sha256=" + ready.OriginalSha256, StringComparison.Ordinal) &&
        successBody.Contains("patched_sha256=" + SystemInfo.Sha256(ready.PatchedBytes!), StringComparison.Ordinal),

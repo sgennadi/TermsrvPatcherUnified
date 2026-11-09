@@ -95,3 +95,10 @@ Version: 0.1.0-preview.10
 - Windows Actions downloads both **published** update-only ZIP archives, rejects SHA-256 mismatches, and launches the real EXE `--update-probe` for both versions.
 - Exercises disposable PortableExeTransaction preview.11 → preview.12 replacement, checked original backup SHA-256, forced failed-probe rollback, retention of a pre-existing .bak and rejection of a modified staged EXE.
 - The published preview.12 distribution ZIP is independently SHA-256 pinned and inspected against the runner's actual `termsrv.dll` using the CLI in **read-only** mode. DLL SHA-256, SDDL ACL, TermService state and NSudo cache are compared before and after. These are not live protected Apply/Restore tests.
+
+## Preview.13 — RDP policy and operation-history QA
+
+- Read-only diagnostic compares local and policy registry values without writing keys, refreshing GPO, restarting TermService, changing firewall rules, disconnecting sessions or modifying DLL files.
+- Policy values are evidence, **not** proof that Group Policy has refreshed. Firewall inbound rule effectiveness is not inferred. Missing/unreadable/invalid values are not treated as safe defaults.
+- Local operation history is a bounded JSONL metadata view; absent/corrupt or oversized history does not authorize any protected write and a read creates no files. Stored records contain no host/account names, local paths, raw exception messages or tokens.
+- Synthetic and native Windows read-only checks are covered by `--rdp-policy-history-qa`; offscreen WPF smoke also checks both new grids. GitHub-hosted tests cannot replace interactive RDP/TermService and 200%-DPI manual Windows 11 acceptance.

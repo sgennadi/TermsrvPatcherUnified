@@ -39,6 +39,11 @@ internal static class UiSmokeTests
                 if (main.FindName("RdpSessionsGrid") is not DataGrid grid ||
                     !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox)
                     throw new Exception("Read-only RDP Health controls are missing.");
+                if (main.FindName("RdpPolicyGrid") is not DataGrid policyGrid ||
+                    !policyGrid.IsReadOnly || main.FindName("RdpPolicyDetails") is not TextBox ||
+                    main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
+                    !historyGrid.IsReadOnly)
+                    throw new Exception("Read-only policy and history controls are missing.");
                 var windows = new Window[]
                 {
                     main,
