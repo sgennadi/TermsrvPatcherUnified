@@ -73,6 +73,15 @@ internal static class DllBackupIntegrityTests
                     version, source.LongLength + 1),
                 "reject a backup whose size differs from installed DLL");
 
+            // A valid set of DLL bytes must not be selected from a .txt file.
+            var wrongExtension = Path.Combine(backupDir,
+                Path.GetFileNameWithoutExtension(saved) + ".txt");
+            File.Copy(saved, wrongExtension);
+            Refuses<InvalidOperationException>(
+                () => DllBackupStore.ReadVerified(backupDir, wrongExtension,
+                    version, source.LongLength),
+                "reject a backup with an unrelated file extension");
+
             var unrelatedFolder = Path.Combine(folder, "unrelated");
             Directory.CreateDirectory(unrelatedFolder);
             var outsideFile = Path.Combine(unrelatedFolder, Path.GetFileName(saved));

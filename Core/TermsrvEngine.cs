@@ -121,7 +121,7 @@ public sealed class TermsrvEngine : IDisposable
             os.DllVersion, current.LongLength);
         // A modified/unknown DLL is restored only by explicit administrator action.
         WriteTransactional(os.DllPath, SystemInfo.Sha256(current), current, desired);
-        Message($"Restored backup: {Path.GetFileName(candidate)}");
+        Message($"Restored backup: {Path.GetFileName(backupFile)}");
     }
 
     private void WriteTransactional(string file, string expectedSha, byte[] before, byte[] after)
