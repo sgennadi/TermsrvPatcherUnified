@@ -19,7 +19,7 @@ internal sealed record OperationHistoryEntry(
            AtUtc <= DateTimeOffset.UtcNow.AddMinutes(5) &&
            OperationHistory.AllowedOperations.Contains(Operation) &&
            (Result == "Success" || Result == "Failure") &&
-           AppVersion.Length is > 0 and <= 48 &&
+           AppVersion is not null && AppVersion.Length is > 0 and <= 48 &&
            Regex.IsMatch(AppVersion, @"\A[0-9a-zA-Z.-]+\z") &&
            (DllVersion is null || OperationHistory.IsDllVersion(DllVersion)) &&
            (BeforeSha256 is null || OperationHistory.IsSha( BeforeSha256 )) &&

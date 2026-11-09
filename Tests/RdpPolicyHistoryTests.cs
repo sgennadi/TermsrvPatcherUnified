@@ -55,6 +55,15 @@ internal static class RdpPolicyHistoryTests
             var corrupted = OperationHistory.ReadRecent(4, file);
             Verify(corrupted.InvalidEntries == 1 && corrupted.Entries.Count == 3,
                 "malformed JSON ignored without losing verified entries");
+            var validLine = File.ReadLines(file).First();
+            var nullVersionLine = validLine.Replace(
+                "\"AppVersion\":\"" + UpdateIntegration.Version + "\"",
+                "\"AppVersion\":null", StringComparison.Ordinal);
+            Verify(nullVersionLine != validLine, "test fixture contains an application version");
+            File.AppendAllText(file, nullVersionLine + Environment.NewLine);
+            var invalidFields = OperationHistory.ReadRecent(5, file);
+            Verify(invalidFields.InvalidEntries == 2 && invalidFields.Entries.Count == 3,
+                "JSON with null required fields is rejected without crashing the history view");
             Verify(!OperationHistory.TryRecord("Apply", "Unknown", file: file),
                 "invalid outcome refused");
             Verify(OperationHistory.IsSha(new string('0', 64)) &&
