@@ -18,6 +18,7 @@ public partial class MainWindow : Window
     private string? importedFile;
     private IReadOnlyList<PatchProfile> imported = [];
     private CancellationTokenSource? fragmentLookup;
+    private ManualFragmentSnapshot? fragmentSnapshot;
     private ImportedCatalogReport? importedReport;
     private bool busy;
     private readonly UpdateIntegration updates = new();
