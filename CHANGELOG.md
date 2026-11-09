@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-preview.18 — 2026-11-09
+
+- **Automatic selection:** when an installed Windows 11 24H2, 25H2 or 26H2 Client has one exact version-specific embedded signature and an unrelated older Generic fallback also matches, build the Apply preview for only the specific target instead of blocking with cross-profile Ambiguous. Show the selected profile and explicitly state that Generic remains unchanged. A unique exact Generic match remains eligible.
+- **Fail-closed conditions:** do not guess among two distinct specific profiles, untrusted imported signatures, overlapping edits, repeated Find/Replace hits, mixed original/replaced states or unknown installed OS contexts. Manual and offline scans do not inherit automatic OS-specific precedence.
+- **Catalog corrections:** the Generic Find mask fixes the 0F 84 JE/JZ opcode (not wildcard) while permitting three variable displacement bytes; the operator-supplied manual-only Windows Server 2022 20348.3091 legacy signature now ends with 00 instead of erroneous 20. Do not equate Windows OS build with termsrv.dll file version.
+- **Diagnostics:** separate profile-level exact matches from within-profile collisions, report offsets and fixed-byte counts, and retain read-only evidence. The Generic/25H2–26H2 case is tested at the operator-reported offsets 0x0006D20A and 0x000A6896 using synthetic bytes. The Windows 11 system DLL has not been patched or functionally tested in CI.
+- Existing backup, original-hash, executable-section, permission and rollback checks remain mandatory. **Unsigned Preview, not Stable**.
+
+
 ## 0.1.0-preview.17 — 2026-11-09
 
 - **Automatic → Manual HEX:** select a matching Find or Replace signature and inspect its existing bytes in Manual's read-only 16-column HEX/ASCII viewer. The workflow clears the Manual Replace input; no replacement is inferred, approved or applied automatically.

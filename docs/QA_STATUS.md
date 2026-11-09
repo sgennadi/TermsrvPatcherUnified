@@ -187,3 +187,9 @@ Version: 0.1.0-preview.10
 - On an installed Windows 11 24H2/25H2/26H2 **Client**, a uniquely matching embedded signature tagged for the installed version takes priority over a simultaneously matching older generic fallback, *only* when no other distinct or overlapping target competes. The program builds the preview for the **specific target only**. A single exact Generic match remains eligible for its normal verified path.
 - Manual, imported-catalog and offline DLL inspections do not silently inherit host-specific precedence. Unsupported OS versions, untrusted labels, multiple specific candidates, mixed Find/Replace, repeated/overlapping byte matches and all executable-PE validation failures still block Apply.
 - Regression tests verify specific-only patch bytes, generic unchanged, already-patched specific detection, unique generic fallback, no host-OS context, untrusted imported catalog and manual refusal. The installed Windows 11 26H2 system DLL was **not modified** by CI; byte selection correctness is not an end-to-end RDP license or functional validation.
+
+## Preview.18 release gate — specific-over-generic automatic selection
+
+- Windows Actions verify synthetic exact matches in the embedded catalog, including the corrected 0F 84 opcode, manual-only Server 2022 trailing 00, and host 26H2 precedence. A matching Generic fallback never produces a second edit when a unique trusted version-specific profile is selected.
+- A Ready state is only an inspected preview; Windows 11 live protected Apply/Restore, service lifecycle, real RDP connections, licensing implications and physical 200% DPI remain **outside GitHub-hosted CI**.
+- The installed termsrv.dll version 10.0.26100.8115 / SHA-256 e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456 was reported by an operator, not independently obtained or modified in the runner. No claim of live compatibility is made.
