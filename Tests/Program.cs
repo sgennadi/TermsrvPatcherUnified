@@ -237,6 +237,40 @@ BinaryPrimitives.WriteUInt16LittleEndian(notDll.AsSpan(0x96, 2), 0);
 Expect<InvalidDataException>(() => PeSafety.ReadAmd64DllSections(notDll), "reject non-DLL PE");
 Expect<InvalidDataException>(() => PeSafety.ReadAmd64DllSections(new byte[200]), "reject non-PE file");
 
+// End-to-end source-free Revert eligibility on a synthetic AMD64 DLL.
+// No system DLL, TermService or Windows settings are changed.
+foreach (var (profile, display, build) in new[]
+{
+    (automatic[1], "24H2", 26100),
+    (automatic[2], "26H2", 26200)
+})
+{
+    var source = (byte[])pe.Clone();
+    var group = profile.Groups.Single();
+    group.Search.Select(b => b!.Value).ToArray().CopyTo(source, 0x220);
+    var patched = (byte[])source.Clone();
+    group.Replace.CopyTo(patched, 0x220);
+    var details = new WindowsDetails("Windows 11", display, build, 100,
+        "Client", true, @"C:\Windows\System32\termsrv.dll",
+        "10.0." + build + ".100");
+    var fallback = ExactCatalogRevert.Inspect(details, patched);
+    Ensure(fallback is not null &&
+           fallback.Plan.RecoverySource == "ExactCatalog" &&
+           fallback.OriginalBytes.SequenceEqual(source) &&
+           fallback.Plan.InstalledSha256.Equals(SystemInfo.Sha256(patched),
+               StringComparison.OrdinalIgnoreCase),
+        "source-free 24H2/26H2 Revert works with exact reversible PE bytes");
+    var wrongFamily = details with { DisplayVersion = "27H2" };
+    Ensure(ExactCatalogRevert.Inspect(wrongFamily, patched) is null,
+        "unknown Windows build must not reconstruct DLL without backup");
+}
+var unknownPe = (byte[])pe.Clone();
+Ensure(ExactCatalogRevert.Inspect(
+       new WindowsDetails("Windows 11", "26H2", 26200, 1, "Client",
+           true, @"C:\Windows\System32\termsrv.dll", "10.0.26200.1"),
+       unknownPe) is null,
+    "unrecognized DLL without backup or journal cannot be reconstructed");
+
 // Check native library platform gates without loading any native code.
 Ensure(!NsudoDevilModeScope.IsBundled || OperatingSystem.IsWindows(),
     "embedded native NSudo package must be a Windows build resource");
