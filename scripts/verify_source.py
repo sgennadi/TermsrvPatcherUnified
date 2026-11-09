@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.12" in version, "version consistency")
+    check("0.1.0-preview.13" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.12" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.13" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -206,6 +206,13 @@ check("OfflineSaveButton" in (ROOT / "MainWindow.xaml").read_text(encoding="utf-
 check("--offline" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"), "offline GUI can bypass startup UAC request")
 check("OperationLock.Acquire()" in (ROOT / "Core/TermsrvEngine.cs").read_text(encoding="utf-8"), "protected Apply and Restore use a cross-process lock")
 check("## Disclaimer" in (ROOT / "README.md").read_text(encoding="utf-8"), "README includes liability and risk notice")
+check("## Preview." not in (ROOT / "README.md").read_text(encoding="utf-8"),
+      "README contains current usage, not per-build change history")
+check((ROOT / "Core/RdpPolicyDiagnostics.cs").exists() and (ROOT / "Core/OperationHistory.cs").exists(),
+      "read-only RDP policy and local history core modules present")
+check((ROOT / "Tests/RdpPolicyHistoryTests.cs").exists(), "policy/history regressions present")
+check("RdpPolicyGrid" in main and "OperationHistoryGrid" in main, "read-only policy and history UI available")
+check("--rdp-policy-history-qa" in workflow, "Windows CI runs RDP history/policy tests")
 
 print("PASS: compatibility report source guards.")
 
