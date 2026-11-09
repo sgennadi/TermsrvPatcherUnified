@@ -91,6 +91,42 @@ internal static class PatternInspectionTests
         catch (FormatException) { badFormat = true; }
         Verify(badFormat, "malformed HEX is not interpreted as a partial match");
 
+        var hexFrame = HexViewport.Build(dll, 0x230, 4, [1, 3]);
+        Verify(hexFrame.Rows.Count > 1 && hexFrame.HighlightedCount == 4,
+            "selected pattern is displayed in bounded 16-column HEX lines");
+        var marked = hexFrame.Rows.SelectMany(row => row.Bytes)
+            .Where(cell => cell.Highlight != HexByteHighlight.None).ToArray();
+        Verify(marked.Select(cell => cell.Offset).SequenceEqual(
+            new[] { 0x230, 0x231, 0x232, 0x233 }),
+            "actual byte offsets, not row-relative positions, are highlighted");
+        Verify(marked[0].IsFixedMatch && marked[1].IsWildcardMatch &&
+            marked[2].IsFixedMatch && marked[3].IsWildcardMatch,
+            "wildcard bytes highlighted differently from fixed mask bytes");
+        Verify(hexFrame.AsText().Contains("ADDRESS") &&
+            hexFrame.AsText().Contains("11 22 33 44"),
+            "human-readable HEX viewer includes addresses and real bytes");
+        var crossRow = HexViewport.Build(dll, 0x23F, 4, [1]);
+        Verify(crossRow.HighlightedCount == 4 &&
+            crossRow.Rows.SelectMany(row => row.Bytes).Count(c => c.IsWildcardMatch) == 1,
+            "selection crossing a 16-byte boundary remains highlighted");
+        var edge = HexViewport.Build(new byte[35], 34, 1, rowsBefore: 0, rowsAfter: 0);
+        Verify(edge.Rows.Count == 1 && edge.Rows.Single().Bytes.Count == 3,
+            "end-of-file partial row never reads beyond the file");
+        bool refused = false;
+        try { HexViewport.Build(dll, dll.Length - 1, 4); }
+        catch (ArgumentOutOfRangeException) { refused = true; }
+        Verify(refused, "out-of-bounds match selection is rejected");
+        refused = false;
+        try { HexViewport.Build(dll, 0x230, 4, [4]); }
+        catch (ArgumentOutOfRangeException) { refused = true; }
+        Verify(refused, "out-of-bounds wildcard selection is rejected");
+        var actualWildcard = ManualFragmentSearch.SearchBytes(dll, "11 ?? 33").Hits.Single();
+        Verify(actualWildcard.Length == 3 &&
+            actualWildcard.MaskHex == "11 ?? 33" &&
+            actualWildcard.WildcardPositions.SequenceEqual([1]),
+            "manual Find mask keeps wildcard positions and actual-byte length");
+        Verify(actualWildcard.Address == "0x00000230", "manual matched offset has HEX address");
+
         var imported = ImportedCatalogInspector.Inspect(dll, os.DllVersion, os, [named]);
         Verify(imported.Results.Count == 1 && imported.ExactMatches == 1,
             "all-import scan enumerates the exact matching entry");

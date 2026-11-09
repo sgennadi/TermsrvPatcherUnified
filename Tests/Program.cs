@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--pattern-inspection-qa"])
+{
+    Environment.ExitCode = PatternInspectionTests.Run() >= 35 ? 0 : 2;
+    return;
+}
+
 if (args is ["--rdp-transaction-qa"])
 {
     Environment.ExitCode = RdpTransactionTests.Run() >= 20 ? 0 : 2;
