@@ -140,3 +140,8 @@ Prepare manually on Windows with PowerShell 7: `pwsh ./scripts/prepare-nsudo.ps1
 - Backups must be in a directory controlled by an elevated administrator, Administrators, SYSTEM or TrustedInstaller. Both the application state root and its Backups subdirectory are checked for NTFS owner and mutating ACEs; user-writable directories and reparse points fail closed. The app never silently rewrites unsafe ACLs.
 - CI tests work on a throwaway copy of a REAL Windows DLL: checks creation, Backup disabled, no-overwrite, corruption, mismatch, path traversal, verified restoration and accepted/denied NTFS permissions. These **do not** modify live Windows DLLs or restart TermService.
 - Release remains unsigned Preview; manual Windows 11 VM validation of actual protected Apply/Restore and 200% DPI is still required.
+
+
+## RDPControl upstream comparison
+
+See [RDPControl source comparison and prioritized adoption plan](docs/RDPCONTROL_SOURCE_COMPARISON.md). The review identifies independent improvements we can implement in C# while preserving our strict PE checks, protected Backup/Restore path and operator approval. No upstream code was copied and no runtime dependencies were added.
