@@ -74,9 +74,13 @@ public partial class App : Application
             finally { Shutdown(); }
             return;
         }
+        // An offline-only GUI session skips the startup UAC prompt.
+        // Protected Apply/Restore and RDP settings remain independently guarded.
+        bool offlineStartup = e.Args.Length == 1 &&
+            e.Args[0].Equals("--offline", StringComparison.OrdinalIgnoreCase);
         // The scanner remains usable without elevation; the full interactive manager
         // auto-prompts once for UAC instead of requiring it for CLI --inspect-file.
-        if (!SystemInfo.IsAdministrator())
+        if (!offlineStartup && !SystemInfo.IsAdministrator())
         {
             try
             {
@@ -106,5 +110,7 @@ public partial class App : Application
         }
         MainWindow = new MainWindow();
         MainWindow.Show();
+        if (offlineStartup && MainWindow is MainWindow offline)
+            offline.SelectOfflineTab();
     }
 }

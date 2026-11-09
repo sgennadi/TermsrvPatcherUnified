@@ -13,7 +13,6 @@ public partial class MainWindow : Window
     private readonly TermsrvEngine engine;
     private PatchPlan? autoPlan;
     private PatchPlan? manualPlan;
-    private OfflineDllPreview? offlinePlan;
     private ScanReport? lastScan;
     private OfflineDllPreview? offlinePreview;
     private string? importedFile;
@@ -43,6 +42,8 @@ public partial class MainWindow : Window
             _ = BackgroundUpdateCheckAsync();
         };
     }
+
+    internal void SelectOfflineTab() => MainTabs.SelectedIndex = 3;
 
     private async Task RunBusy(Func<Task> job)
     {
@@ -307,80 +308,6 @@ public partial class MainWindow : Window
             ApplyManualButton.IsEnabled = manualPlan.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             FooterText.Text = $"Imported manual profile: {manualPlan.State}";
         });
-    }
-
-    private void OfflineInputChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
-    {
-        offlinePlan = null;
-        if (OfflineSaveButton is not null) OfflineSaveButton.IsEnabled = false;
-        if (OfflineDetails is not null)
-            OfflineDetails.Text = "Input changed. Check the selected DLL again.";
-    }
-
-    private void BrowseOffline_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Select a local termsrv.dll (x86 or x64)",
-            Filter = "termsrv.dll|termsrv.dll|DLL files (*.dll)|*.dll",
-            CheckFileExists = true
-        };
-        if (dialog.ShowDialog(this) == true) OfflineFile.Text = dialog.FileName;
-    }
-
-    private async void OfflineCheck_Click(object sender, RoutedEventArgs e)
-    {
-        string source = OfflineFile.Text;
-        string find = OfflineFind.Text;
-        string replace = OfflineReplace.Text;
-        await RunBusy(async () =>
-        {
-            offlinePlan = await Task.Run(() => OfflineDllPatcher.Inspect(source, find, replace));
-            OfflineDetails.Text = offlinePlan.Summary();
-            OfflineSaveButton.IsEnabled = offlinePlan.Plan.State == PatchState.Ready;
-            FooterText.Text = $"Offline DLL: {offlinePlan.Architecture}, {offlinePlan.Plan.State}. Original CRC32: {offlinePlan.OriginalCrc32}";
-        });
-    }
-
-    private async void OfflineSave_Click(object sender, RoutedEventArgs e)
-    {
-        var preview = offlinePlan;
-        if (preview?.Plan.State != PatchState.Ready) return;
-        var dialog = new SaveFileDialog
-        {
-            Title = "Save a separate patched DLL (source is never replaced)",
-            Filter = "Patched DLL (*.dll)|*.dll",
-            FileName = "termsrv.patched.dll",
-            AddExtension = true,
-            OverwritePrompt = true
-        };
-        if (dialog.ShowDialog(this) != true) return;
-        if (!Confirm(this, "Create OFFLINE patched copy?",
-                "The original termsrv.dll will remain unchanged. A separate DLL will be written and " +
-                "verified by SHA-256 and CRC32. The output is not installed. Continue?")) return;
-
-        OfflineDllResult? completed = null;
-        await RunBusy(async () =>
-        {
-            completed = await Task.Run(() => OfflineDllPatcher.SavePatched(preview, dialog.FileName));
-            OfflineDetails.Text = preview.Summary() +
-                $"\nSAVED: {Path.GetFileName(completed.OutputPath)}" +
-                $"\nVerified SHA-256: {completed.FinalSha256}" +
-                $"\nVerified CRC32: {completed.FinalCrc32}";
-            FooterText.Text = "Offline patched copy saved and verified; original file unchanged.";
-        });
-        if (completed is not null)
-        {
-            try
-            {
-                new SuccessfulFixWindow(completed.PublicMetadata()) { Owner = this }.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                DiagnosticsBridge.Remember("Offline compatibility reporting", ex);
-                AuditLog.Append("Offline report dialog failed: " + ex.GetType().Name);
-            }
-        }
     }
 
     private void ExportAutoDryRun_Click(object sender, RoutedEventArgs e) => ExportDryRun(autoPlan);

@@ -106,42 +106,6 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
-      <TabItem Header="Offline DLL">
-        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Margin="15,18,15,10">
-            <TextBlock Text="Patch a DLL copy in any folder" FontSize="18" FontWeight="SemiBold"/>
-            <TextBlock TextWrapping="Wrap" Margin="0,7,0,16" Foreground="{StaticResource MutedBrush}"
-                       Text="Select termsrv.dll (x64 or x86). No NSudo, system-file replacement or RDP service interruption. The original file is never overwritten."/>
-            <TextBlock Text="Selected source DLL" FontWeight="SemiBold"/>
-            <Grid Margin="0,6,0,12">
-              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-              <TextBox x:Name="OfflineFile" TextChanged="OfflineInputChanged" Grid.Column="0"
-                       VerticalContentAlignment="Center" MinHeight="36" Margin="0,0,10,0"/>
-              <Button Grid.Column="1" Tag="&#xE8B7;" Content="Browse..." Click="BrowseOffline_Click" MinWidth="118"/>
-            </Grid>
-            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12"
-                       Text="Automatic: only validated architecture-specific signatures. For x86 or unknown builds enter an exact manual pattern (Find and Replace) below. No approximate matches."/>
-            <TextBlock Text="Optional Find HEX pattern" FontWeight="SemiBold"/>
-            <TextBox x:Name="OfflineFind" TextChanged="OfflineInputChanged" MinHeight="45" MaxHeight="105"
-                     AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas"
-                     VerticalScrollBarVisibility="Auto" Margin="0,5,0,12"/>
-            <TextBlock Text="Optional Replace HEX pattern" FontWeight="SemiBold"/>
-            <TextBox x:Name="OfflineReplace" TextChanged="OfflineInputChanged" MinHeight="45" MaxHeight="105"
-                     AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas"
-                     VerticalScrollBarVisibility="Auto" Margin="0,5,0,12"/>
-            <WrapPanel Margin="0,0,0,8">
-              <Button Tag="&#xE721;" Content="Check selected DLL" Click="OfflineCheck_Click"/>
-              <Button x:Name="OfflineSaveButton" Tag="&#xE74E;" Content="Save patched DLL copy..."
-                      IsEnabled="False" Style="{StaticResource PrimaryButton}" Click="OfflineSave_Click"/>
-            </WrapPanel>
-            <TextBox x:Name="OfflineDetails" Height="230" IsReadOnly="True" TextWrapping="NoWrap"
-                     FontFamily="Consolas" FontSize="12" VerticalScrollBarVisibility="Auto"
-                     HorizontalScrollBarVisibility="Auto" Margin="0,5,0,9"/>
-            <TextBlock Foreground="#8B531A" TextWrapping="Wrap"
-                       Text="Offline output is not installed automatically. CRC32 is for compatibility identification; SHA-256 verifies integrity. An optional public GitHub report requires your explicit review and token."/>
-          </StackPanel>
-        </ScrollViewer>
-      </TabItem>
       <TabItem Header="Search DLL">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="15,18,15,10">
