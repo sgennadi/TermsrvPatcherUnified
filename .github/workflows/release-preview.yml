@@ -114,6 +114,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $assets = @(gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
-          if ($LASTEXITCODE -ne 0 -or $assets -notcontains 'TermsrvPatcherUnified-win-x64.zip' -or $assets -notcontains 'TermsrvPatcherUnified-update-win-x64.zip') {
-            throw 'Published release is missing a required asset.'
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to read back the published GitHub release.' }
+          $expected = @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip', 'SHA256SUMS.txt')
+          $unexpected = @(Compare-Object -ReferenceObject $expected -DifferenceObject $assets)
+          if ($unexpected.Count -ne 0) {
+            throw ('Published release asset set does not match exactly the three required files: ' + ($unexpected | Out-String))
           }
+          Write-Host ('PASS: exactly three release assets verified for ' + $env:RELEASE_TAG)
