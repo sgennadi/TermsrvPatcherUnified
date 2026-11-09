@@ -83,7 +83,16 @@ internal static class AutomaticRevertSafety
         // originals are never auto-selected.
         if (matches.Select(x => x.Plan.OriginalSha256).Distinct(
                 StringComparer.OrdinalIgnoreCase).Count() > 1) return null;
-        return matches.FirstOrDefault();
+        if (matches.Count > 0)
+            return matches[0];
+
+        // Last-resort source-free recovery. Only the fully fixed 13/19-byte
+        // Windows 11 family may be reversed deterministically. A generic
+        // wildcard signature, unknown Windows build, ambiguous candidate or
+        // changed DLL is NOT enough to reconstruct missing source bytes.
+        // This is not proof of an authentic Microsoft binary: UI requires
+        // a second explicit, higher-risk approval before using this fallback.
+        return ExactCatalogRevert.Inspect(os, installed);
     }
 
     internal static bool SameApproval(AutomaticRevertPlan approved,
