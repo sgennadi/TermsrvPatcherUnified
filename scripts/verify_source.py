@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.11" in version, "version consistency")
+    check("0.1.0-preview.12" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.11" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.12" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -191,6 +191,14 @@ check("CreateBackupCheck" in (ROOT / "MainWindow.xaml").read_text(encoding="utf-
 check("Apply(PatchPlan preview, bool createBackup" in (ROOT / "Core/TermsrvEngine.cs").read_text(encoding="utf-8"), "optional backup wired into apply")
 check("termsrv-success/v2" in (ROOT / "Core/SuccessfulFixPublisher.cs").read_text(encoding="utf-8"), "v2 compatibility report is supported")
 check((ROOT / "Core/OfflineDllPatcher.cs").exists(), "offline x86/x64 DLL patcher source exists")
+check((ROOT / "Core/DllHealthMonitor.cs").exists(), "passive DLL health source exists")
+check((ROOT / "Core/RdpSessionViewer.cs").exists(), "native read-only WTS inventory source exists")
+check((ROOT / "Tests/RdpHealthTests.cs").exists(), "passive health and WTS regression tests exist")
+check("RdpSessionsGrid" in (ROOT / "MainWindow.xaml").read_text(encoding="utf-8"),
+      "GUI includes the local read-only RDP session inventory")
+check("--rdp-health-qa" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),
+      "Windows CI runs passive health and WTS regression")
+
 check((ROOT / "Core/OfflineFixMetadata.cs").exists(), "offline CRC32/SHA-256 report schema exists")
 check((ROOT / "scripts/record_offline_fix.py").exists(), "offline report parser is present")
 check("original_crc32,patched_sha256,patched_crc32" in (ROOT / "data/offline-fixes.csv").read_text(encoding="utf-8"), "separate public offline CRC32 CSV schema exists")

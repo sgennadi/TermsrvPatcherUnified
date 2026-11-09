@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-preview.12 — 2026-11-09
+
+- Added passive DLL Health comparison with a manually saved, user-local JSON baseline; reports unchanged, changed bytes, changed version and invalid reference distinctly.
+- Added read-only Windows WTS session viewer inside RDP Health tab. No localized qwinsta parsing, disconnect/logoff, silent uploads or automatic re-patching.
+- Added synthetic Windows tests for DLL drift, corrupt baselines, no implicit writes, state mappings and native WTS smoke when available; offscreen WPF controls validated.
+- All baseline data is informational and never feeds Apply/Restore authorization; full Windows 11 VM functional validation remains open.
+
 ## 0.1.0-preview.11 — 2026-11-09
 
 - Added independent Offline DLL tab to select an arbitrary folder's `termsrv.dll`, detect x86/PE32 or x64/PE32+ and save an independent modified DLL file, never overwriting the original or touching Windows services.

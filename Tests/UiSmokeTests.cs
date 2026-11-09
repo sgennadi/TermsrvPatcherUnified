@@ -36,6 +36,9 @@ internal static class UiSmokeTests
                     main.FindName("OfflineSource") is not TextBox ||
                     main.FindName("OfflineSaveButton") is not Button)
                     throw new Exception("Expected exactly one offline DLL patch tab and its controls.");
+                if (main.FindName("RdpSessionsGrid") is not DataGrid grid ||
+                    !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox)
+                    throw new Exception("Read-only RDP Health controls are missing.");
                 var windows = new Window[]
                 {
                     main,
