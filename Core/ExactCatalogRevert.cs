@@ -63,10 +63,11 @@ internal static class ExactCatalogRevert
         var context = new AutomaticSelectionContext(
             os.Name, os.DisplayVersion, os.InstallationType);
         string installedHash = SystemInfo.Sha256(installed);
-        var existing = PatchCatalog.Inspect(installed, os.DllPath, os.DllVersion,
-            installedHash, true, catalog, "x64", false, context);
-        if (existing.State != PatchState.AlreadyPatched)
-            return null;
+        // A specific 13-byte replacement can also contain the 12-byte
+        // generic replacement as a prefix. The ordinary forward inspector
+        // may label such patched bytes Ambiguous, although reconstructing the
+        // unique specific ORIGINAL and comparing its full re-applied output
+        // is unambiguous. Do not use the patched-file state as proof.
         var matches = new List<AutomaticRevertSnapshot>();
         foreach (var profile in catalog)
         {
@@ -93,7 +94,7 @@ internal static class ExactCatalogRevert
             if (ready.State != PatchState.Ready ||
                 ready.PatchedBytes is null ||
                 !ready.PatchedBytes.SequenceEqual(installed) ||
-                !ready.ProfileId.Equals(existing.ProfileId, StringComparison.Ordinal))
+                !ready.ProfileId.Equals(profile.Label, StringComparison.Ordinal))
                 continue;
             matches.Add(new AutomaticRevertSnapshot(new AutomaticRevertPlan(
                 SystemInfo.Sha256(original), installedHash, os.DllVersion,
