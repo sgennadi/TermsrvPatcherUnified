@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.13` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.14` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
@@ -18,7 +18,7 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 - **Manual patterns:** explicit HEX Find/Replace, optional import and read-only nearby-match inspection. A near match never generates replacement bytes.
 - **Offline DLL:** choose a `termsrv.dll` in any folder and save a *different* verified output file. Read x86/PE32 or x64/PE32+ architecture, version, CRC32, SHA-256 and byte offsets. x86 files require an exact operator-supplied pattern; the application itself remains x64-only.
 - **Protected Apply/Restore:** explicit administrator approval, default-on persistent backup, version/hash/NTFS checks, cross-process lock and an attempted in-operation rollback. Disabling persistent backup requires extra confirmation.
-- **RDP Settings:** read and optionally configure RDP enablement, Network Level Authentication, single session per user and Domain/Private firewall rules. Domain Group Policy may override local settings.
+- **RDP Settings:** inspect or configure RDP enablement, NLA, single-session-per-user and eligible Domain/Private firewall rules. Before changes, block conflicting policy values and snapshot affected settings; verify writes and attempt reverse-order rollback if any step fails. A Group Policy refresh may still override local settings.
 - **RDP Health:** on-demand local DLL hash/version comparison against an operator-recorded baseline, plus local read-only RDP session inventory via Windows WTS APIs.
 - **Updates and Diagnostics:** visible update indicator, manual Check/Install of verified preview packages with EXE rollback, and optional reviewed diagnostics/compatibility reporting. Reports are never uploaded without consent.
 
