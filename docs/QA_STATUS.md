@@ -42,3 +42,11 @@ Version: 0.1.0-preview.9
 - It checks real offline version self-probes, the shared PortableExeTransaction success path and versioned previous EXE backup checksum.
 - Deliberate failed post-install health probe must return the old EXE with its old SHA-256, retain an existing prior .bak file and set the failure hold. Tampered staged EXEs are rejected before replacement.
 - Tests run in disposable local temp directories only. The protected Program Files GUI updater helper, full remote desktop service lifecycle and actual system DLL Apply/Restore are NOT exercised.
+
+## GitHub Actions Node.js 24 migration
+
+- Updated all four workflows to supported Node.js 24 actions: checkout@v7, setup-dotnet@v6, upload-artifact@v7 (where applicable).
+- This resolves Node.js 20 deprecation warnings from the earlier checkout@v4 and setup-dotnet@v4 references.
+- GitHub-hosted windows-2025/ubuntu-latest runners support these action versions. Self-hosted runners need an up-to-date Actions Runner.
+- Offline source validator checks that Node.js 20 action references do not regress; build, artifact upload, release publication and published-EXE rollback tests must pass after migration.
+- No change to .NET SDK 10, NSudo, Windows DLL patterns, application version 0.1.0-preview.9 or published release assets.
