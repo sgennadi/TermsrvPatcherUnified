@@ -6,31 +6,48 @@ using System.Text.RegularExpressions;
 
 namespace TermsrvPatcherUnified.Core;
 
+/// <summary>One small verified byte-range change; never a whole system DLL.</summary>
+internal sealed record ChangedBytes(long Offset, string Before, string After);
+
 /// <summary>
-/// Compatibility metadata from a COMPLETED operation, not a remote diagnostic.
-/// No host/user/network identifiers, paths, binary hashes or logs are included.
+/// Opt-in compatibility report from a successful, verified Apply operation.
+/// Contains version, original/result SHA-256 and exact changed ranges only.
+/// No host, user, network identifiers, paths, full DLL or diagnostic logs.
 /// </summary>
 internal sealed record SuccessfulFixMetadata(
     string WindowsName, string WindowsRelease, int WindowsBuild, int Ubr,
-    string DllVersion, string ApplicationVersion, string Mode)
+    string DllVersion, string ApplicationVersion, string Mode,
+    string OriginalSha256, string PatchedSha256, IReadOnlyList<ChangedBytes> Changes)
 {
     private static readonly Regex Version = new(
-        @"^[0-9]{1,5}(?:\.[0-9]{1,8}){1,4}$",
+        @"\A[0-9]{1,5}(?:\.[0-9]{1,8}){1,4}\z",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex Release = new(
-        @"^[0-9A-Za-z._-]{1,20}$",
+        @"\A[0-9A-Za-z._-]{1,20}\z",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
     private static readonly Regex AppVersion = new(
-        @"^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$",
+        @"\A[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\z",
+        RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex Hash = new(
+        @"\A[0-9a-f]{64}\z", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly Regex Bytes = new(
+        @"\A(?:[0-9A-F]{2}){1,64}\z",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     internal static SuccessfulFixMetadata FromSuccessfulApply(WindowsDetails details, PatchPlan plan)
     {
         ArgumentNullException.ThrowIfNull(details);
         ArgumentNullException.ThrowIfNull(plan);
-        var record = new SuccessfulFixMetadata(details.Name, details.DisplayVersion,
-            details.Build, details.Ubr, plan.FileVersion, UpdateIntegration.Version,
-            plan.IsManual ? "manual" : "automatic");
+        if (plan.State != PatchState.Ready || plan.PatchedBytes is null ||
+            plan.Edits.Count == 0)
+            throw new InvalidOperationException("Only a verified successful Apply can be reported.");
+        var record = new SuccessfulFixMetadata(
+            details.Name, details.DisplayVersion, details.Build, details.Ubr,
+            plan.FileVersion, UpdateIntegration.Version, plan.IsManual ? "manual" : "automatic",
+            plan.OriginalSha256.ToLowerInvariant(), SystemInfo.Sha256(plan.PatchedBytes),
+            plan.Edits.Select(edit => new ChangedBytes(edit.Offset,
+                Convert.ToHexString(edit.Expected), Convert.ToHexString(edit.Replacement)))
+                .OrderBy(edit => edit.Offset).ToArray());
         record.Validate();
         return record;
     }
@@ -40,14 +57,31 @@ internal sealed record SuccessfulFixMetadata(
         if (WindowsName is not ("Windows 10" or "Windows 11") ||
             WindowsBuild is < 19041 or > 99999 || Ubr is < 0 or > 999999 ||
             !Release.IsMatch(WindowsRelease) || !Version.IsMatch(DllVersion) ||
-            !AppVersion.IsMatch(ApplicationVersion) || Mode is not ("manual" or "automatic"))
-            throw new InvalidDataException("Compatibility report contains invalid version metadata.");
+            !AppVersion.IsMatch(ApplicationVersion) || Mode is not ("manual" or "automatic") ||
+            string.IsNullOrWhiteSpace(OriginalSha256) || !Hash.IsMatch(OriginalSha256) ||
+            string.IsNullOrWhiteSpace(PatchedSha256) || !Hash.IsMatch(PatchedSha256) ||
+            OriginalSha256 == PatchedSha256 || Changes is not { Count: > 0 and <= 16 })
+            throw new InvalidDataException("Compatibility report contains invalid metadata.");
+        long lastEnd = 0;
+        foreach (var change in Changes.OrderBy(c => c.Offset))
+        {
+            if (change.Offset < lastEnd || change.Offset > uint.MaxValue ||
+                string.IsNullOrWhiteSpace(change.Before) ||
+                string.IsNullOrWhiteSpace(change.After) ||
+                !Bytes.IsMatch(change.Before) || !Bytes.IsMatch(change.After) ||
+                change.Before.Length != change.After.Length ||
+                change.Before == change.After)
+                throw new InvalidDataException("Compatibility report contains unsafe byte changes.");
+            lastEnd = checked(change.Offset + change.Before.Length / 2);
+        }
     }
 
     internal string AsComment()
     {
         Validate();
-        return "termsrv-success/v1\n" +
+        var entries = string.Join("|", Changes.OrderBy(e => e.Offset)
+            .Select(e => $"0x{e.Offset:X8}:{e.Before}>{e.After}"));
+        return "termsrv-success/v2\n" +
                $"windows={WindowsName}\n" +
                $"release={WindowsRelease}\n" +
                $"build={WindowsBuild}\n" +
@@ -55,7 +89,10 @@ internal sealed record SuccessfulFixMetadata(
                "file=termsrv.dll\n" +
                $"dll={DllVersion}\n" +
                $"app={ApplicationVersion}\n" +
-               $"mode={Mode}";
+               $"mode={Mode}\n" +
+               $"original_sha256={OriginalSha256}\n" +
+               $"patched_sha256={PatchedSha256}\n" +
+               $"edits={entries}";
     }
 }
 
