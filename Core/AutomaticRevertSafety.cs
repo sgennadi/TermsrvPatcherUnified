@@ -1,0 +1,81 @@
+using System.Diagnostics;
+
+namespace TermsrvPatcherUnified.Core;
+
+/// <summary>
+/// Compact Revert accepts only a SHA-256-bound protected recovery journal or
+/// one administrator-controlled backup that reproduces the exact installed
+/// patched DLL via an embedded, trusted automatic signature. Never guess from
+/// Windows version, CRC32, filename or a near pattern match.
+/// </summary>
+internal sealed record AutomaticRevertPlan(string OriginalSha256,
+    string InstalledSha256, string FileVersion, string ProfileId, string RecoverySource);
+
+internal sealed record AutomaticRevertSnapshot(AutomaticRevertPlan Plan, byte[] OriginalBytes);
+
+internal static class AutomaticRevertSafety
+{
+    internal static AutomaticRevertPlan? Inspect() => Resolve()?.Plan;
+
+    internal static AutomaticRevertSnapshot? Resolve()
+    {
+        if (!OperatingSystem.IsWindows() || !Environment.Is64BitProcess ||
+            !SystemInfo.IsAdministrator() || !NsudoDevilModeScope.IsBundled)
+            return null;
+        var os = SystemInfo.Read();
+        if (!os.Supported || !File.Exists(os.DllPath)) return null;
+        byte[] installed = File.ReadAllBytes(os.DllPath);
+        PeSafety.ReadAmd64DllSections(installed);
+        string currentHash = SystemInfo.Sha256(installed);
+
+        // The authenticated journal is independent of the signature catalog.
+        // It is deliberately keyed by the EXACT current (patched) file hash.
+        // If Windows Update replaced this DLL, stale journals do not match.
+        var journal = RecoveryJournalStore.LoadExact(installed, os.DllVersion);
+        if (journal is not null)
+        {
+            if (journal.OriginalSha256.Equals(currentHash,
+                    StringComparison.OrdinalIgnoreCase)) return null;
+            return new AutomaticRevertSnapshot(new AutomaticRevertPlan(
+                journal.OriginalSha256, currentHash, os.DllVersion,
+                journal.ProfileId, "Journal"), journal.OriginalBytes);
+        }
+
+        // Compatibility with backups from Preview.21 and earlier. A single
+        // trusted backup must independently reproduce the WHOLE installed DLL.
+        // Unknown/mixed/manual signatures are not eligible for one-click Revert.
+        using var engine = new TermsrvEngine(null);
+        var backups = engine.BackupsForCurrentVersion();
+        if (backups.Count != 1) return null;
+        byte[] original = DllBackupStore.ReadVerified(
+            TermsrvEngine.BackupDirectory, backups[0],
+            os.DllVersion, installed.LongLength);
+        var originalHash = SystemInfo.Sha256(original);
+        if (originalHash.Equals(currentHash, StringComparison.OrdinalIgnoreCase))
+            return null;
+        var expected = PatchCatalog.Inspect(original, os.DllPath, os.DllVersion,
+            originalHash, true, PatchCatalog.LoadAutomatic(), "x64", false,
+            new AutomaticSelectionContext(os.Name, os.DisplayVersion, os.InstallationType));
+        if (expected.State != PatchState.Ready || expected.IsManual ||
+            expected.PatchedBytes is null || expected.Edits.Count == 0)
+            return null;
+        PeSafety.RequireExecutableEdits(original, expected.Edits);
+        if (!SystemInfo.Sha256(expected.PatchedBytes)
+                .Equals(currentHash, StringComparison.OrdinalIgnoreCase))
+            return null;
+        return new AutomaticRevertSnapshot(new AutomaticRevertPlan(
+            originalHash, currentHash, os.DllVersion,
+            expected.ProfileId, "TrustedBackup"), original);
+    }
+
+    internal static bool SameApproval(AutomaticRevertPlan approved,
+        AutomaticRevertPlan? current) =>
+        current is not null &&
+        approved.OriginalSha256.Equals(current.OriginalSha256,
+            StringComparison.OrdinalIgnoreCase) &&
+        approved.InstalledSha256.Equals(current.InstalledSha256,
+            StringComparison.OrdinalIgnoreCase) &&
+        approved.FileVersion.Equals(current.FileVersion, StringComparison.Ordinal) &&
+        approved.ProfileId.Equals(current.ProfileId, StringComparison.Ordinal) &&
+        approved.RecoverySource.Equals(current.RecoverySource, StringComparison.Ordinal);
+}
