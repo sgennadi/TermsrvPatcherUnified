@@ -26,9 +26,13 @@ internal static class UiSmokeTests
                     UpdateIntegration.Version, "automatic",
                     new string('a', 64), new string('b', 64),
                     [new ChangedBytes(40, "11223344", "AABBCCDD")]);
+                var main = new MainWindow();
+                if (main.FindName("CreateBackupCheck") is not CheckBox backup ||
+                    backup.IsChecked != true)
+                    throw new Exception("Create backup must be checked by default.");
                 var windows = new Window[]
                 {
-                    new MainWindow(),
+                    main,
                     new UpdateCenterWindow(updater),
                     new DiagnosticsWindow(),
                     new AboutWindow(),
