@@ -1,0 +1,91 @@
+name: Published EXE - real Windows DLL read-only safety test
+
+on:
+  push:
+    branches: [main, 'qa/**']
+    paths:
+      - '.github/workflows/published-dll-readonly-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-dll-readonly:
+    runs-on: windows-2025
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download published preview.9 and verify exact release checksum
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = 'v0.1.0-preview.9'
+          $asset = 'TermsrvPatcherUnified-win-x64.zip'
+          $expected = '9218ee7db297747efd27eb0b3f664caad4e081e858a81005f6080567ade03177'
+          $qa = Join-Path $env:RUNNER_TEMP 'termsrv-real-dll-readonly'
+          New-Item -ItemType Directory -Path $qa -Force | Out-Null
+          gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $asset --dir $qa --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Published release download failed.' }
+          $zip = Join-Path $qa $asset
+          $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) { throw 'Published full-distribution ZIP SHA-256 mismatch.' }
+          Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $qa 'app') -Force
+          $exe = Join-Path $qa 'app/TermsrvPatcherUnified.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw 'Expected application EXE is absent.' }
+          Write-Host 'PASS: authentic published preview.9 full-distribution ZIP SHA-256.'
+      - name: Verify real installed DLL SHA-256, ACL and TermService unchanged
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $qa = Join-Path $env:RUNNER_TEMP 'termsrv-real-dll-readonly'
+          $exe = Join-Path $qa 'app/TermsrvPatcherUnified.exe'
+          $dll = Join-Path ([Environment]::SystemDirectory) 'termsrv.dll'
+          if (-not (Test-Path -LiteralPath $dll)) { throw 'This Windows runner has no termsrv.dll; cannot claim a real-DLL test.' }
+          $hashBefore = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          $aclBefore = (Get-Acl -LiteralPath $dll).Sddl
+          $serviceBefore = (Get-Service -Name TermService -ErrorAction Stop).Status.ToString()
+          $nativeCache = Join-Path $env:ProgramData 'TermsrvPatcherUnified.NativeProtected'
+          $nativeBefore = Test-Path -LiteralPath $nativeCache
+          $fileVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo($dll).FileVersion
+          $report = Join-Path $qa 'real-dll-readonly-report.txt'
+          $arguments = '--inspect-file "{0}" --report "{1}"' -f $dll, $report
+          $good = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru
+          if ($good.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $report)) {
+            throw "Published EXE did not complete read-only inspection. Exit $($good.ExitCode)."
+          }
+          $text = Get-Content -LiteralPath $report -Raw -Encoding UTF8
+          if (-not $text.Contains('read-only DLL inspection') -or
+              -not $text.Contains("Name: termsrv.dll") -or
+              -not $text.Contains("SHA-256: $hashBefore") -or
+              -not $text.Contains("File version: $fileVersion") -or
+              -not $text.Contains('Candidate offsets are informational only')) {
+            throw 'Published real-DLL inspection report contains incorrect values.'
+          }
+          $badExtension = Join-Path $qa 'blocked-report.exe'
+          $badArgs = '--inspect-file "{0}" --report "{1}"' -f $dll, $badExtension
+          $wrong = Start-Process -FilePath $exe -ArgumentList $badArgs -Wait -PassThru
+          if ($wrong.ExitCode -eq 0 -or (Test-Path -LiteralPath $badExtension)) {
+            throw 'CLI accepted an unsafe report extension.'
+          }
+          $noDll = Join-Path $qa 'missing.dll'
+          $missingReport = Join-Path $qa 'missing-report.txt'
+          $missingArgs = '--inspect-file "{0}" --report "{1}"' -f $noDll, $missingReport
+          $missing = Start-Process -FilePath $exe -ArgumentList $missingArgs -Wait -PassThru
+          if ($missing.ExitCode -eq 0 -or (Test-Path -LiteralPath $missingReport)) {
+            throw 'CLI did not reject a missing DLL.'
+          }
+          $hashAfter = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          $aclAfter = (Get-Acl -LiteralPath $dll).Sddl
+          $serviceAfter = (Get-Service -Name TermService -ErrorAction Stop).Status.ToString()
+          $nativeAfter = Test-Path -LiteralPath $nativeCache
+          if ($hashBefore -ne $hashAfter -or $aclBefore -ne $aclAfter -or
+              $serviceBefore -ne $serviceAfter -or $nativeBefore -ne $nativeAfter) {
+            throw 'Read-only CLI modified system DLL, ACL, RDP service or native cache state.'
+          }
+          Write-Host "PASS: real $fileVersion system termsrv.dll inspected without modification."
+          Write-Host 'PASS: original DLL checksum, ACL, TermService state, and NSudo cache unchanged.'
+          Write-Host 'PASS: unsafe report extension and missing target are rejected.'
+          Write-Host 'LIMIT: Windows Server 2025 runner; no Windows 11 GUI, elevated Apply or Restore test.'
