@@ -132,6 +132,40 @@ internal static class PatternInspectionTests
                exportedCross.Contains("0x00000290"),
             "locally exported evidence explains two distinct exact locations");
 
+        // Exact regression fixture for a reported Windows 11 26H2 pattern shape.
+        // The bytes are synthetic, not a copy of the user's DLL. The embedded
+        // catalog's generic and alternate-layout patterns occupy distinct
+        // offsets, 0x6D20A and 0xA6896, exactly as reported by the operator.
+        var upstream = PatchCatalog.LoadAutomatic();
+        byte[] reportedShape = new byte[0xA6896 + 0x100];
+        Array.Fill(reportedShape, (byte)0xFA);
+        void AddOriginal(PatchProfile profile, int at)
+        {
+            var group = profile.Groups.Single();
+            for (int i = 0; i < group.Search.Length; i++)
+                reportedShape[at + i] = group.Search[i] ?? (byte)0x73;
+        }
+        AddOriginal(upstream[0], 0x6D20A);
+        AddOriginal(upstream[2], 0xA6896);
+        var reportedInspection = SignatureInspector.Analyze(reportedShape, upstream);
+        Verify(reportedInspection.CompleteProfileCount == 2 &&
+               reportedInspection.DistinctCandidateTargetCount == 2 &&
+               reportedInspection.ConflictingProfileCount == 0,
+            "reported 26H2 situation is two distinct exact profile matches, not duplicate bytes");
+        Verify(reportedInspection.Rows[0].FindOffsets == "0x0006D20A" &&
+               reportedInspection.Rows[1].State == "Not found" &&
+               reportedInspection.Rows[2].FindOffsets == "0x000A6896",
+            "the exact two reported candidate offsets and absent 24H2 pattern remain visible");
+        Verify(reportedInspection.Profiles[0].FixedBytes == 8 &&
+               reportedInspection.Profiles[2].FixedBytes == 19,
+            "generic eight-fixed-byte mask and specific nineteen-fixed-byte mask are distinguished");
+        var reportedPlan = PatchCatalog.Inspect(reportedShape, "synthetic.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(reportedShape), true, upstream);
+        Verify(reportedPlan.State == PatchState.Ambiguous &&
+               reportedPlan.Edits.Count == 0 &&
+               reportedPlan.PatchedBytes is null,
+            "reported signature combination must remain blocked from automatic Apply");
+
         var fragment = ManualFragmentSearch.SearchBytes(dll, "1122");
         Verify(fragment.Hits.Count == 1 && fragment.Hits[0].Offset == 0x230,
             "two-byte compact HEX fragment found");
