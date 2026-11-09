@@ -16,6 +16,9 @@ public sealed record SignatureInspection(
 {
     public IReadOnlyList<SignatureProfileFinding> Profiles { get; init; } = [];
     public string AmbiguityReason { get; init; } = "";
+    public int CompleteProfileCount { get; init; }
+    public int DistinctCandidateTargetCount { get; init; }
+    public int ConflictingProfileCount { get; init; }
 
     public string AsText()
     {
@@ -149,7 +152,7 @@ public static class SignatureInspector
         {
             var completeProfiles = profileFindings.Where(x =>
                 x.Classification.StartsWith("Complete ", StringComparison.Ordinal)).Take(8);
-            reason = "MULTIPLE DISTINCT complete profiles at different candidate targets: " +
+            reason = "MULTIPLE DISTINCT complete profiles at different candidate target sets: " +
                 string.Join("; ", completeProfiles.Select(x =>
                     x.Profile + " [" + x.Offsets + ", fixed bytes " + x.FixedBytes + "]")) +
                 ". No automatic choice. A version label or longer pattern alone is not sufficient.";
@@ -176,7 +179,10 @@ public static class SignatureInspector
         return new SignatureInspection(findings, summary)
         {
             Profiles = profileFindings,
-            AmbiguityReason = reason
+            AmbiguityReason = reason,
+            CompleteProfileCount = complete,
+            DistinctCandidateTargetCount = distinctTargets.Count,
+            ConflictingProfileCount = invalid
         };
     }
 

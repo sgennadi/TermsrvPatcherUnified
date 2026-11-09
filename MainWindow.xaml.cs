@@ -144,6 +144,10 @@ public partial class MainWindow : Window
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
+            if (autoPlan.State == PatchState.Ambiguous)
+                AutoDetails.Text += "\nAmbiguity classification (read-only): " +
+                    signatureSnapshot.Inspection.AmbiguityReason +
+                    "\nNo automatic profile chosen or Apply authorized.";
             AutoSignatureGrid.ItemsSource = signatureSnapshot.Inspection.Rows;
             AutoSignatureSummary.Text = signatureSnapshot.Inspection.Summary +
                 " Verified SHA-256: " + signatureSnapshot.Sha256;

@@ -76,7 +76,23 @@ internal static class SignatureEvidenceExport
         b.AppendLine("DLL SHA-256: " + snapshot.Sha256);
         b.AppendLine("Automatic result: " + plan.State);
         b.AppendLine("Exact groups inspected: " + snapshot.Inspection.Rows.Count);
-        b.AppendLine(snapshot.Inspection.Summary);
+        b.AppendLine("Complete profile matches: " + snapshot.Inspection.CompleteProfileCount);
+        b.AppendLine("Distinct candidate target sets: " + snapshot.Inspection.DistinctCandidateTargetCount);
+        b.AppendLine("Within-profile conflicts: " + snapshot.Inspection.ConflictingProfileCount);
+        if (snapshot.Inspection.DistinctCandidateTargetCount > 1)
+            b.AppendLine("Ambiguity: MULTIPLE DISTINCT complete profile matches; no safe automatic selection.");
+        else if (snapshot.Inspection.ConflictingProfileCount > 0)
+            b.AppendLine("Ambiguity: WITHIN-PROFILE repeated, mixed or conflicting bytes.");
+        else
+            b.AppendLine("Ambiguity: no distinct cross-profile conflict in the exact evidence.");
+        // Never serialize the raw display summary: catalog labels are untrusted
+        // and could contain local paths or other personal text.
+        b.AppendLine("Profile-level inspection (labels redacted if unsafe):");
+        foreach (var profile in snapshot.Inspection.Profiles.Take(256))
+            b.AppendLine("  " + Safe(profile.Profile, 130) + " / " +
+                Safe(profile.Classification, 115) + " / offsets " +
+                Safe(profile.Offsets, 512) + " / fixed bytes " +
+                profile.FixedBytes + " / groups " + profile.Groups);
         for (int index = 0; index < snapshot.Inspection.Rows.Count; index++)
         {
             var row = snapshot.Inspection.Rows[index];
