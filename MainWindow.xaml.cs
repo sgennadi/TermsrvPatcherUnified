@@ -17,16 +17,27 @@ public partial class MainWindow : Window
     private OfflineDllPreview? offlinePreview;
     private string? importedFile;
     private IReadOnlyList<PatchProfile> imported = [];
+    private CancellationTokenSource? fragmentLookup;
+    private ManualFragmentSnapshot? fragmentSnapshot;
+    private ImportedCatalogReport? importedReport;
     private bool busy;
     private readonly UpdateIntegration updates = new();
 
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        ManualHexColumnHeaders.ItemsSource = Enumerable.Range(0, 16)
+            .Select(i => i.ToString("X2")).ToArray();
         if (offlineStartup) MainTabs.SelectedIndex = 3;
         engine = new TermsrvEngine(text => Dispatcher.BeginInvoke(() => FooterText.Text = text));
         WindowSettings.Restore(this);
-        Closing += (_, _) => { WindowSettings.Save(this); updates.Dispose(); };
+        Closing += (_, _) =>
+        {
+            fragmentLookup?.Cancel();
+            fragmentLookup?.Dispose();
+            WindowSettings.Save(this);
+            updates.Dispose();
+        };
         updates.Get(UpdateChannel.Prerelease).NoticeChanged += (_, _) =>
             Dispatcher.BeginInvoke(RefreshUpdateIndicator);
         RefreshUpdateIndicator();
@@ -96,6 +107,11 @@ public partial class MainWindow : Window
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
+            var evidence = await Task.Run(() => SignatureInspector.Analyze(
+                File.ReadAllBytes(os.DllPath), PatchCatalog.LoadAutomatic()));
+            AutoSignatureGrid.ItemsSource = evidence.Rows;
+            AutoSignatureSummary.Text = evidence.Summary;
+            AutoSignatureDetails.Text = evidence.AsText();
             ApplyAutoButton.IsEnabled = autoPlan.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             if (autoPlan.State is PatchState.Unknown or PatchState.Ambiguous)
             {
@@ -223,11 +239,118 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(TermsrvEngine.BackupDirectory) { UseShellExecute = true });
     }
 
-    private void ManualEdited(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private async void ManualEdited(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         manualPlan = null;
         if (ApplyManualButton is not null) ApplyManualButton.IsEnabled = false;
-        if (ManualResult is not null) ManualResult.Text = "Pattern changed. Check again before applying.";
+        if (ManualResult is not null)
+            ManualResult.Text = "Pattern changed. Check again before applying.";
+
+        // Replacing HEX must not restart an unchanged Find lookup.
+        if (sender != ManualFind || ManualFragmentSummary is null ||
+            ManualFragmentGrid is null || ManualFind is null) return;
+
+        fragmentLookup?.Cancel();
+        fragmentLookup?.Dispose();
+        fragmentLookup = new CancellationTokenSource();
+        CancellationToken cancellation = fragmentLookup.Token;
+        string find = ManualFind.Text;
+        fragmentSnapshot = null;
+        ManualFragmentGrid.ItemsSource = null;
+        ClearManualHexViewer();
+        if (string.IsNullOrWhiteSpace(find))
+        {
+            ManualFragmentSummary.Text = "Enter at least two complete fixed HEX bytes (e.g. 44 8B).";
+            return;
+        }
+
+        ManualFragmentSummary.Text = "Searching installed termsrv.dll (read-only)...";
+        try
+        {
+            await Task.Delay(300, cancellation);
+            string path = await Task.Run(() => engine.EnvironmentInfo().DllPath, cancellation);
+            var snapshot = await Task.Run(
+                () => ManualFragmentSearch.SearchFileSnapshot(path, find), cancellation);
+            if (cancellation.IsCancellationRequested) return;
+            fragmentSnapshot = snapshot;
+            ManualFragmentSummary.Text = snapshot.Report.Summary;
+            ManualFragmentGrid.ItemsSource = snapshot.Report.Hits;
+            if (snapshot.Report.Hits.Count != 0)
+                ManualFragmentGrid.SelectedIndex = 0;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException or
+                                   ArgumentException or InvalidOperationException)
+        {
+            if (cancellation.IsCancellationRequested) return;
+            ManualFragmentSummary.Text = "HEX lookup unavailable (" + ex.GetType().Name +
+                "). Manual patch verification remains disabled.";
+        }
+    }
+
+    private void ClearManualHexViewer()
+    {
+        if (ManualHexRows is null) return;
+        ManualHexRows.ItemsSource = null;
+        if (ManualHexHeader is not null)
+            ManualHexHeader.Text = "Select a match to inspect real DLL bytes at that offset.";
+        if (ManualHexMask is not null)
+            ManualHexMask.Text = "Find mask: (not selected)";
+        if (ManualHexPrevious is not null) ManualHexPrevious.IsEnabled = false;
+        if (ManualHexNext is not null) ManualHexNext.IsEnabled = false;
+        if (ManualHexCopy is not null) ManualHexCopy.IsEnabled = false;
+    }
+
+    private void ManualFragmentSelectionChanged(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ManualFragmentGrid?.SelectedItem is not ManualFragmentHit selected ||
+            fragmentSnapshot is null)
+        {
+            ClearManualHexViewer();
+            return;
+        }
+
+        var frame = HexViewport.Build(fragmentSnapshot.Bytes, selected.Offset,
+            selected.Length, selected.WildcardPositions);
+        ManualHexRows.ItemsSource = frame.Rows;
+        int position = ManualFragmentGrid.SelectedIndex;
+        int total = fragmentSnapshot.Report.Hits.Count;
+        ManualHexHeader.Text = $"Match {position + 1}/{total}  |  Address: 0x{selected.Offset:X8}  |  " +
+            $"Length: {selected.Length} byte(s)  |  File: {fragmentSnapshot.Bytes.Length:N0} bytes";
+        ManualHexMask.Text = "Find mask: " + selected.MaskHex +
+                             Environment.NewLine + "Actual:    " + selected.ActualHex;
+        ManualHexPrevious.IsEnabled = position > 0;
+        ManualHexNext.IsEnabled = position >= 0 && position < total - 1;
+        ManualHexCopy.IsEnabled = true;
+    }
+
+    private void ManualHexPrevious_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManualFragmentGrid?.SelectedIndex > 0)
+            ManualFragmentGrid.SelectedIndex--;
+    }
+
+    private void ManualHexNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManualFragmentGrid is not null && fragmentSnapshot is not null &&
+            ManualFragmentGrid.SelectedIndex >= 0 &&
+            ManualFragmentGrid.SelectedIndex < fragmentSnapshot.Report.Hits.Count - 1)
+            ManualFragmentGrid.SelectedIndex++;
+    }
+
+    private void ManualHexCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManualFragmentGrid?.SelectedItem is not ManualFragmentHit selected) return;
+        try
+        {
+            Clipboard.SetText(selected.ActualHex);
+            FooterText.Text = "Actual matched HEX copied locally (no replacement generated).";
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            FooterText.Text = "Clipboard is currently unavailable.";
+        }
     }
 
     private void ImportedSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -290,14 +413,68 @@ public partial class MainWindow : Window
         try
         {
             imported = PatchCatalog.Parse(File.ReadAllText(dialog.FileName), "Imported user patterns");
+            if (imported.Count > 256)
+                throw new FormatException("Imported catalogs are limited to 256 profiles for responsive read-only analysis.");
             importedFile = dialog.FileName;
+            importedReport = null;
+            ImportedResultsGrid.ItemsSource = null;
+            ImportedCheckDetails.Clear();
             ImportSelector.ItemsSource = imported;
-            if (imported.Count > 0) ImportSelector.SelectedIndex = 0;
-            ImportedInfo.Text = $"Imported {imported.Count} patterns. Select one then Check selected.";
+            ImportSelector.SelectedIndex = -1;
+            ImportedInfo.Text = $"Imported {imported.Count} patterns. Checking all entries against the installed DLL...";
             manualPlan = null;
             ApplyManualButton.IsEnabled = false;
+            _ = CheckAllImportedAsync();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Invalid pattern file"); }
+    }
+
+    private async void CheckAllImported_Click(object sender, RoutedEventArgs e)
+        => await CheckAllImportedAsync();
+
+    private async Task CheckAllImportedAsync()
+    {
+        if (busy || imported.Count == 0) return;
+        var patterns = imported.ToArray();
+        var source = importedFile;
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(() =>
+            {
+                var os = engine.EnvironmentInfo();
+                var data = File.ReadAllBytes(os.DllPath);
+                return ImportedCatalogInspector.Inspect(data, os.DllVersion, os, patterns);
+            });
+            // Discard stale results if a new import occurred while inspection ran.
+            if (source != importedFile) return;
+            importedReport = report;
+            ImportedResultsGrid.ItemsSource = report.Results;
+            ImportedCatalogSummary.Text = report.Summary;
+            ImportedInfo.Text = report.ExactMatches + " exact byte match(es); " +
+                report.VersionHintMatches + " compatible Windows/build hints. " +
+                "A version label never authorizes a patch.";
+            if (report.SuggestedIndex is int index)
+            {
+                ImportSelector.SelectedIndex = index;
+                ImportedCheckDetails.Text = report.Results.First(x => x.Index == index).Description;
+                FooterText.Text = "Unique imported candidate selected for review (NOT applied).";
+            }
+            else
+            {
+                ImportSelector.SelectedIndex = -1;
+                ImportedCheckDetails.Text = report.AsText();
+                FooterText.Text = "Imported catalog inspection complete; no automatic Apply enabled.";
+            }
+        });
+    }
+
+    private void ImportedResultSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ImportedResultsGrid?.SelectedItem is not ImportedProfileCheck result) return;
+        if (ImportSelector is not null) ImportSelector.SelectedIndex = result.Index;
+        if (ImportedCheckDetails is not null) ImportedCheckDetails.Text = result.Description;
+        manualPlan = null;
+        if (ApplyManualButton is not null) ApplyManualButton.IsEnabled = false;
     }
 
     private async void CheckImported_Click(object sender, RoutedEventArgs e)

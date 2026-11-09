@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.14" in version, "version consistency")
+    check("0.1.0-preview.15" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.14" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.15" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -217,6 +217,14 @@ check("--rdp-transaction-qa" in workflow, "Windows CI verifies transactional set
 check("RdpSettingsTransaction.Execute" in (ROOT / "Core/RdpConfiguration.cs").read_text(encoding="utf-8"),
       "all RDP Settings writes share the rollback transaction")
 check((ROOT / "Tests/RdpPolicyHistoryTests.cs").exists(), "policy/history regressions present")
+check((ROOT / "Core/HexViewport.cs").exists() and
+      (ROOT / "Tests/PatternInspectionTests.cs").exists(),
+      "bounded read-only 16-column HEX viewer and regression tests are present")
+check("--pattern-inspection-qa" in workflow, "Windows CI tests pattern evidence and HEX viewer")
+check(all(name in main for name in ("ManualHexRows", "ManualHexMask",
+                                   "ManualHexPrevious", "ManualHexNext",
+                                   "ManualFragmentGrid", "CheckAllImportedButton")),
+      "Manual has masked HEX viewer, search and imported-catalog controls")
 check("RdpPolicyGrid" in main and "OperationHistoryGrid" in main, "read-only policy and history UI available")
 check("--rdp-policy-history-qa" in workflow, "Windows CI runs RDP history/policy tests")
 

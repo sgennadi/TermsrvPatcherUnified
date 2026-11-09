@@ -20,9 +20,9 @@ public sealed class BytePattern
     {
         var tokens = Tokens(text);
         if (tokens.Length < 1) throw new FormatException("Search pattern cannot be empty.");
-        try { return tokens.Select(t => t == "*" ? (byte?)null : ParseHexByte(t)).ToArray(); }
+        try { return tokens.Select(t => t is "*" or "??" ? (byte?)null : ParseHexByte(t)).ToArray(); }
         catch (Exception e) when (e is FormatException or OverflowException)
-        { throw new FormatException("Search must be hexadecimal bytes separated by spaces, or '*'.", e); }
+        { throw new FormatException("Search must be hexadecimal bytes separated by spaces, or '*' / '??' for one byte.", e); }
     }
 
     public static byte[] ParseReplace(string text)

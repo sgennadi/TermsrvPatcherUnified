@@ -125,3 +125,12 @@ Version: 0.1.0-preview.10
 - [Published Preview.13 -> Preview.14 EXE replacement/rollback](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42609330936): **PASS** on Windows 2025 in disposable directories with the actual release ZIPs and EXEs. Checks version probe, protected-package SHA-256, backup preservation, replacement, failure-injected health-probe rollback and tampered staged-file refusal.
 - [Published Preview.14 real system-DLL read-only inspection](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42609330997): **PASS** on a real Windows 2025 system `termsrv.dll`; verified report data plus original file SHA-256, SDDL ACL, TermService state and native cache unchanged.
 - Both are **non-destructive** Windows Server 2025 checks, not Windows 11 live Apply/Restore, user-session or firewall/GPO end-to-end acceptance. Those remain manual VM gates.
+
+## Preview.15 — exact signature evidence and Manual HEX viewer
+
+- Automatic displays each catalog original/replacement pattern, hit count and locations for diagnosis, keeping `Ambiguous` fail-closed and preserving the existing executable-section Apply preflight.
+- Manual live lookup allows short/incomplete Find text, compact or space-delimited HEX and one-byte `*`/`??` wildcards. Results are capped at 24; broad or malformed input never generates replacement instructions.
+- The read-only HEX viewer displays bounded 16-byte-per-row offset/HEX/ASCII context from **the same DLL snapshot as the selected match**, with fixed-match and wildcard color emphasis, Previous/Next navigation and optional Copy actual HEX. The viewer does not read on startup when no mask is entered.
+- Imported Patches.txt catalogs now support one-click read-only inspection of all entries with separate OS and DLL build evidence and exact PE safety checks. Unique candidates are suggestions until a separate operator-selected manual verification; version labels alone never authorize Apply.
+- GitHub Issues require account sign-in or a write token. No unauthenticated upload endpoint is deployed; users can copy a reviewed report without sending it.
+- `--pattern-inspection-qa` and offscreen WPF control smoke are CI/release gates. **Actual 200%-DPI layout, live RDP sessions, protected Apply/Restore and Windows 11 VM acceptance are not certified here.**

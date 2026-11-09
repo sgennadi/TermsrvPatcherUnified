@@ -148,7 +148,7 @@ public partial class DiagnosticsWindow : Window
             "https://github.com/sgennadi/TermsrvPatcherUnified/issues/new")
         { UseShellExecute = true });
         Status.Text = submittedIssue is null ?
-            "Issue page opened. Paste the reviewed report yourself to submit." :
+            "GitHub Issue form opened. Sign in to publish; anonymous GitHub Issues are not supported." :
             "Published issue opened in browser.";
     }
 }
