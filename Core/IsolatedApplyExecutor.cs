@@ -15,6 +15,8 @@ namespace TermsrvPatcherUnified.Core;
 internal static class IsolatedApplyExecutor
 {
     internal const string WorkerArgument = "--isolated-apply-worker";
+    internal const string ProbeArgument = "--isolated-executor-qa";
+    internal const string ProbeWorkerArgument = "--isolated-executor-probe-worker";
     private const string TaskPrefix = "TermsrvPatcherUnified-Apply-";
     private const string ExecutableName = "TermsrvPatcherUnified.exe";
     private const string RequestName = "request.json";
@@ -28,6 +30,7 @@ internal static class IsolatedApplyExecutor
     internal sealed record Request(string Id, string OriginalSha256, string ExpectedPatchedSha256,
         string FileVersion, string ProfileId, string ExeSha256);
     internal sealed record Status(string Id, string State, string Details, string Utc);
+    internal sealed record ProbeRequest(string Id, string ExeSha256);
 
     internal static bool TryNormalizeId(string? input, out string id)
     {
@@ -119,16 +122,94 @@ internal static class IsolatedApplyExecutor
         }
     }
 
+    /// <summary>
+    /// Truly non-destructive Windows Task Scheduler integration check.
+    /// Stages the same EXE and executes the same COM task-registration path,
+    /// but the worker only attests SYSTEM + Session 0 and returns; it never
+    /// opens a system DLL or stops a Windows service.
+    /// </summary>
+    internal static int RunSchedulerProbe()
+    {
+        if (!OperatingSystem.IsWindows() || !SystemInfo.IsAdministrator()) return 10;
+        var id = Guid.NewGuid().ToString("N");
+        var parent = Path.GetDirectoryName(Root)!;
+        NsudoDevilModeScope.EnsurePrivateDirectory(parent);
+        NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+        var directory = JobDirectory(id);
+        NsudoDevilModeScope.EnsurePrivateDirectory(directory);
+        string source = Environment.ProcessPath
+            ?? throw new InvalidOperationException("Self-contained EXE not detected.");
+        if (!Path.GetExtension(source).Equals(".exe", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Probe requires published Windows EXE.");
+        var sha = SystemInfo.Sha256(File.ReadAllBytes(source));
+        var staged = Path.Combine(directory, ExecutableName);
+        File.Copy(source, staged, overwrite: false);
+        if (!SystemInfo.Sha256(File.ReadAllBytes(staged)).Equals(sha, StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Probe staging checksum mismatch.");
+        File.WriteAllText(Path.Combine(directory, "probe-request.json"),
+            JsonSerializer.Serialize(new ProbeRequest(id, sha)));
+        WriteStatus(directory, new Status(id, "ProbeQueued", "Safe scheduler probe",
+            DateTimeOffset.UtcNow.ToString("O")));
+        RegisterAndStartTask(id, staged, ProbeWorkerArgument);
+        for (int i = 0; i < 90; i++)
+        {
+            Thread.Sleep(TimeSpan.FromSeconds(1));
+            var status = JsonSerializer.Deserialize<Status>(
+                File.ReadAllText(Path.Combine(directory, StatusName)));
+            if (status is null || !status.Id.Equals(id, StringComparison.Ordinal)) return 12;
+            if (status.State == "ProbeSucceeded")
+            {
+                Console.WriteLine("PASS: Task Scheduler launched protected EXE under SYSTEM in session 0; no DLL or service touched.");
+                return 0;
+            }
+            if (status.State == "Failed") return 13;
+        }
+        Console.Error.WriteLine("FAIL: one-shot SYSTEM Task Scheduler probe timed out, no success assumed.");
+        return 14;
+    }
+
+    internal static int RunProbeWorker(string? input)
+    {
+        if (!TryNormalizeId(input, out var id)) return 2;
+        if (!IsSystemSessionZero()) return 3;
+        var dir = JobDirectory(id);
+        if (!Directory.Exists(dir)) return 4;
+        NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
+        NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+        NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+        try
+        {
+            using var once = new FileStream(Path.Combine(dir, LockName),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            var request = JsonSerializer.Deserialize<ProbeRequest>(
+                File.ReadAllText(Path.Combine(dir, "probe-request.json")))
+                ?? throw new InvalidDataException("Probe request missing.");
+            if (request.Id != id || request.ExeSha256 is null ||
+                request.ExeSha256.Length != 64 || !request.ExeSha256.All(Uri.IsHexDigit) ||
+                !SystemInfo.Sha256(File.ReadAllBytes(Path.Combine(dir, ExecutableName)))
+                    .Equals(request.ExeSha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Probe executable or ID mismatch.");
+            WriteStatus(dir, new Status(id, "ProbeSucceeded", "SYSTEM Session 0 attested",
+                DateTimeOffset.UtcNow.ToString("O")));
+            return 0;
+        }
+        catch (Exception e)
+        {
+            AuditLog.Append("SYSTEM probe failed: " + e.GetType().Name);
+            WriteStatus(dir, new Status(id, "Failed", e.GetType().Name,
+                DateTimeOffset.UtcNow.ToString("O")));
+            return 5;
+        }
+        finally
+        {
+            try { DeleteScheduledTask(id); } catch { }
+        }
+    }
+
     internal static int RunWorker(string? input)
     {
         if (!TryNormalizeId(input, out var id)) return 2;
-        using var identity = WindowsIdentity.GetCurrent();
-        if (identity.User is null ||
-            !identity.User.IsWellKnown(WellKnownSidType.LocalSystemSid))
-            return 3;
-        using (var process = Process.GetCurrentProcess())
-            if (process.SessionId != 0)
-                return 3; // Only an actual Session 0 SYSTEM executor is accepted.
+        if (!IsSystemSessionZero()) return 3;
         string dir = JobDirectory(id);
         // Only access an already-created, administrator-controlled job folder.
         if (!Directory.Exists(dir) || !Directory.Exists(Root)) return 4;
@@ -224,6 +305,16 @@ internal static class IsolatedApplyExecutor
         }
     }
 
+    private static bool IsSystemSessionZero()
+    {
+        using var identity = WindowsIdentity.GetCurrent();
+        if (identity.User is null ||
+            !identity.User.IsWellKnown(WellKnownSidType.LocalSystemSid))
+            return false;
+        using var process = Process.GetCurrentProcess();
+        return process.SessionId == 0;
+    }
+
     internal static Status? ReadLatestStatus()
     {
         if (!Directory.Exists(Root)) return null;
@@ -278,7 +369,8 @@ internal static class IsolatedApplyExecutor
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
 
-    private static void RegisterAndStartTask(string id, string stagedExe)
+    private static void RegisterAndStartTask(string id, string stagedExe,
+        string argument = WorkerArgument)
     {
         string taskName = TaskPrefix + id;
         object? service = null, folder = null, definition = null, registered = null;
@@ -312,7 +404,9 @@ internal static class IsolatedApplyExecutor
             trigger.Enabled = true;
             dynamic action = task.Actions.Create(0); // TASK_ACTION_EXEC
             action.Path = stagedExe;
-            action.Arguments = WorkerArgument + " " + id;
+            if (argument is not (WorkerArgument or ProbeWorkerArgument))
+                throw new InvalidOperationException("Unexpected protected task argument.");
+            action.Arguments = argument + " " + id;
             action.WorkingDirectory = Path.GetDirectoryName(stagedExe)!;
             // Task security descriptor grants control only to SYSTEM and
             // Administrators; no standard user can change the task action.

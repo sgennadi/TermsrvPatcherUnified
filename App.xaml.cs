@@ -52,6 +52,26 @@ public partial class App : Application
             return;
         }
         if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.ProbeArgument, StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { Shutdown(IsolatedApplyExecutor.RunSchedulerProbe()); }
+            catch (Exception ex)
+            {
+                AuditLog.Append("Safe Task Scheduler smoke failed: " + ex.GetType().Name);
+                Shutdown(10);
+            }
+            return;
+        }
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.ProbeWorkerArgument, StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2
+                ? IsolatedApplyExecutor.RunProbeWorker(e.Args[1]) : 2);
+            return;
+        }
+        if (e.Args.Length > 0 &&
             e.Args[0].Equals(IsolatedApplyExecutor.WorkerArgument, StringComparison.Ordinal))
         {
             // This branch runs before any interactive GUI or RDP session setup.

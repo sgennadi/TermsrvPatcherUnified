@@ -331,6 +331,12 @@ check("actions/setup-dotnet@v6" in (ROOT / ".github/workflows/windows-ci.yml").r
       "Windows CI SDK setup uses Node 24")
 check("actions/upload-artifact@v7" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),
       "Windows CI artifact upload uses Node 24")
+check("--isolated-executor-qa" in
+      (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),
+      "CI must verify a real session-0 SYSTEM Task Scheduler launch without touching termsrv.dll")
+check("ProbeWorkerArgument" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8") and
+      "RunSchedulerProbe" in (ROOT / "Core/IsolatedApplyExecutor.cs").read_text(encoding="utf-8"),
+      "non-destructive Scheduler worker and local controller are wired")
 check((ROOT / "Tests/UiSmokeTests.cs").exists(), "offscreen WPF layout smoke exists")
 check("--ui-smoke" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"), "Windows CI runs offscreen WPF layout smoke")
 check("HasMutatingRights" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8"), "safe Program Files ACL write-rights test")
