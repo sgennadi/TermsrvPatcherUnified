@@ -95,7 +95,7 @@ check("--no-restore" in (ROOT / ".github" / "workflows" / "windows-ci.yml").read
       "GitHub workflow tests restored project")
 check((ROOT / "Assets" / "app.ico").stat().st_size > 128, "application icon exists")
 check((ROOT / "LICENSE").stat().st_size > 30_000, "GPLv3 license included")
-check("MIT License" in (ROOT / "licenses" / "fabianosrc-MIT.txt").read_text(),
+check("MIT License" in (ROOT / "licenses" / "fabianosrc-MIT.txt").read_text(encoding="utf-8"),
       "MIT attribution included")
 
 # Validate exact synthetic detection and ambiguous duplication in an independent interpreter.
@@ -144,11 +144,11 @@ check("-p:RequireNSudo=true" in workflow and "prepare-nsudo.ps1" in workflow, "N
 check((ROOT / "licenses/NSudo-MIT.txt").exists(), "NSudo MIT notice is retained")
 print("PASS: 9 additional NSudo source safety checks.")
 
-check((ROOT / "GlobalUsings.cs").exists() and "global using System.IO;" in (ROOT / "GlobalUsings.cs").read_text(), "WPF main project explicitly imports System.IO")
-check("using System.IO;" in (ROOT / "Tests/Program.cs").read_text(), "WPF test project explicitly imports System.IO")
+check((ROOT / "GlobalUsings.cs").exists() and "global using System.IO;" in (ROOT / "GlobalUsings.cs").read_text(encoding="utf-8"), "WPF main project explicitly imports System.IO")
+check("using System.IO;" in (ROOT / "Tests/Program.cs").read_text(encoding="utf-8"), "WPF test project explicitly imports System.IO")
 print("PASS: explicit WPF SDK import guards.")
 
-workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text()
+workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text(encoding="utf-8")
 check("publish/LICENSE" in workflow and "publish/NOTICE.md" in workflow, "redistributed application license and notices are packaged")
 check("publish/licenses/NSudo-MIT.txt" in workflow and "publish/licenses/fabianosrc-MIT.txt" in workflow, "redistributed MIT notices are packaged")
 print("PASS: redistributed license packaging guards.")
@@ -157,9 +157,9 @@ check((ROOT / "Core/GitHubIssuePublisher.cs").exists(), "opt-in GitHub Issue pub
 publisher = (ROOT / "Core/GitHubIssuePublisher.cs").read_text(encoding="utf-8")
 check("AllowAutoRedirect = false" in publisher and "UseCookies = false" in publisher, "GitHub Issue publishing refuses redirects and cookies")
 check("api.github.com/repos/sgennadi/TermsrvPatcherUnified/issues" in publisher, "GitHub Issue source and response are pinned")
-check("MarkSubmitted" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(), "explicit local submission acknowledgement")
-check("SessionToken.Clear()" in (ROOT / "DiagnosticsWindow.xaml.cs").read_text(), "temporary UI credential is cleared")
-check("TermsrvPatcherUnified.NativeProtected" in (ROOT / "Core/NsudoDevilModeScope.cs").read_text(), "NSudo extraction is isolated from audit logs")
+check("MarkSubmitted" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"), "explicit local submission acknowledgement")
+check("SessionToken.Clear()" in (ROOT / "DiagnosticsWindow.xaml.cs").read_text(encoding="utf-8"), "temporary UI credential is cleared")
+check("TermsrvPatcherUnified.NativeProtected" in (ROOT / "Core/NsudoDevilModeScope.cs").read_text(encoding="utf-8"), "NSudo extraction is isolated from audit logs")
 print("PASS: reviewed GitHub Issue delivery and private native cache checks.")
 
 for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow", "SuccessfulFixWindow"):
@@ -172,18 +172,20 @@ for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow", "Suc
                       f"{view_name}: GUI handler exists for {value}")
 print("PASS: secondary WPF window event handler guards.")
 
-check("global using System.Net.Http;" in (ROOT / 'GlobalUsings.cs').read_text(), 'WPF project explicitly imports System.Net.Http for GitHub Issues API')
+check("global using System.Net.Http;" in (ROOT / 'GlobalUsings.cs').read_text(encoding="utf-8"), 'WPF project explicitly imports System.Net.Http for GitHub Issues API')
 
 check((ROOT / "Core/UpdateInstallBridge.cs").exists(), "manual self-update bridge exists")
-check("PortableExeTransaction" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(), "self-update uses shared transactional rollback")
-check("TermsrvPatcherUnified-update-win-x64.zip" in (ROOT / "Core/UpdateIntegration.cs").read_text(), "update channel expects single-executable release asset")
-check("PrepareAndLaunchAsync" in (ROOT / "UpdateCenterWindow.xaml.cs").read_text(), "manual Install launches checked updater")
-check("--update-probe" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(), "updater health probe exists")
+check("PortableExeTransaction" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8"), "self-update uses shared transactional rollback")
+check("TermsrvPatcherUnified-update-win-x64.zip" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"), "update channel expects single-executable release asset")
+check("PrepareAndLaunchAsync" in (ROOT / "UpdateCenterWindow.xaml.cs").read_text(encoding="utf-8"), "manual Install launches checked updater")
+check("--update-probe" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8"), "updater health probe exists")
 print("PASS: self-update integration source guards.")
 
 check((ROOT / "scripts/record_successful_fix.py").exists(), "version-only compatibility CSV aggregation script exists")
-check("SuccessfulFixMetadata.FromSuccessfulApply" in (ROOT / "MainWindow.xaml.cs").read_text(), "compatibility report is offered after successful protected apply")
-check("SuccessfulFixPublisher" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(), "user-confirmed GitHub Issues compatibility reporting is wired")
-check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").read_text(), "GitHub event handler updates compatibility CSV")
+check("SuccessfulFixMetadata.FromSuccessfulApply" in (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8"), "compatibility report is offered after successful protected apply")
+check("SuccessfulFixPublisher" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8"), "user-confirmed GitHub Issues compatibility reporting is wired")
+check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").read_text(encoding="utf-8"), "GitHub event handler updates compatibility CSV")
 check((ROOT / "data/successful-fixes.csv").exists(), "version-only CSV exists")
 print("PASS: compatibility report source guards.")
+
+check(".read_text()" not in (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8"), "source validator uses explicit UTF-8 on Windows")

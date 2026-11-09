@@ -3,7 +3,6 @@ name: Publish Preview Release
 on:
   push:
     branches: [main]
-    paths: [VERSION]
   workflow_dispatch:
 
 permissions:
@@ -95,7 +94,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = $env:RELEASE_TAG
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
-          if ($LASTEXITCODE -eq 0) { throw "Release $tag exists; refusing to replace an existing artifact." }
+          if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
           $notes = @(
             "TermsrvPatcherUnified $env:RELEASE_VERSION - UNSIGNED PREVIEW (not Stable)."
             'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
