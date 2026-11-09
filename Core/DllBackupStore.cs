@@ -72,15 +72,21 @@ internal static class DllBackupStore
             throw new InvalidOperationException("Select a backup directly inside the application's backup folder.");
         RejectLinkedParents(root);
         RejectLinkedFile(file);
-        var fileVersion = FileVersionInfo.GetVersionInfo(file).FileVersion ?? "";
-        if (!fileVersion.Equals(installedVersion, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Backup DLL version does not match the installed DLL.");
+        // Windows uses side-by-side MUI resources for some system-file version
+        // strings. Those resources are unavailable after backup renaming, so
+        // GetVersionInfo(backup) may differ from GetVersionInfo(System32 DLL).
+        // Save records the original version in the canonical checksum name.
+        var filename = Path.GetFileName(file);
+        var expectedVersionPrefix = FileName(installedVersion, new string('0', 64))[..^68];
+        if (!filename.StartsWith(expectedVersionPrefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Backup DLL version or name does not match the installed DLL.");
         var bytes = File.ReadAllBytes(file);
         if (bytes.LongLength != installedLength)
             throw new InvalidOperationException("Backup length differs from installed DLL.");
         var computedSha = SystemInfo.Sha256(bytes);
-        // This also rejects an unrelated DLL with a syntactically valid SHA suffix,
-        // a tampered version field and a forged, incomplete backup basename.
+        // SHA-256 detects corruption and the canonical name binds the version
+        // recorded at backup time. It does not authenticate arbitrary files from
+        // an untrusted writable directory: keep backups administrator-controlled.
         if (!Path.GetFileName(file).Equals(FileName(installedVersion, computedSha),
                 StringComparison.OrdinalIgnoreCase))
             throw new IOException("Backup filename, version or SHA-256 is invalid.");
