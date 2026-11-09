@@ -57,13 +57,13 @@ internal static class DllBackupIntegrityTests
             Check(DllBackupStore.Save(backupDir, version, source, sourceHash,
                     createBackup: true) == saved && File.GetLastWriteTimeUtc(saved) == initialTime,
                 "a second Apply keeps the existing verified backup intact");
-            Check(DllBackupStore.ListVerified(backupDir, version, source.LongLength)
-                    .SequenceEqual([saved], StringComparer.OrdinalIgnoreCase),
-                "Restore list displays only verified matching backup");
             var restoredBytes = DllBackupStore.ReadVerified(backupDir, saved,
                 version, source.LongLength);
             Check(restoredBytes.AsSpan().SequenceEqual(source),
                 "verified Restore recovers exact original bytes and SHA-256");
+            Check(DllBackupStore.ListVerified(backupDir, version, source.LongLength)
+                    .SequenceEqual([saved], StringComparer.OrdinalIgnoreCase),
+                "Restore list displays only verified matching backup");
             Refuses<InvalidOperationException>(
                 () => DllBackupStore.ReadVerified(backupDir, saved,
                     "0.0.0.0", source.LongLength),
