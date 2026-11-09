@@ -43,6 +43,51 @@ internal static class PatternInspectionTests
         var os = new WindowsDetails("Windows 11", "26H2", 26300, 9711, "Client",
             true, "synthetic.dll", "10.0.26100.8115");
 
+        var knownCatalog = PatchCatalog.LoadAutomatic();
+        Verify(knownCatalog.Count == 3 && knownCatalog.All(p =>
+               p.Architecture == "x64" && p.Groups.Count == 1),
+            "embedded automatic catalog has all three expected x64 groups");
+        var expectedLengths = new[] { 12, 13, 19 };
+        for (int i = 0; i < knownCatalog.Count; i++)
+        {
+            var group = knownCatalog[i].Groups.Single();
+            Verify(group.Search.Length == expectedLengths[i] &&
+                   group.Replace.Length == expectedLengths[i],
+                "automatic Find and Replace byte lengths exactly agree for family " + (i + 1));
+        }
+        var displayedCatalog = SignatureInspector.Analyze(dll, knownCatalog);
+        foreach (var row in displayedCatalog.Rows)
+        {
+            Verify(row.FindByteCount == row.ReplaceByteCount &&
+                   row.AlignedFindHex.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                       .All(x => x.Length == 2) &&
+                   row.AlignedPair.Contains("  Find:    ") &&
+                   row.AlignedPair.Contains("  Replace: "),
+                "every automatic group displays Find/Replace in aligned two-character cells");
+        }
+        Verify(knownCatalog[0].Groups[0].Search[7] == 0x84 &&
+               displayedCatalog.Rows[0].AlignedFindHex.Contains("0F 84 ?? ?? ?? 00"),
+            "the Generic opcode 84 is fixed, with exactly three variable displacement bytes");
+
+        var validManual = ManualPatternValidator.Check("39 81 3C 06 00 00 0F 84 * * * 00",
+            "B8 00 01 00 00 89 81 38 06 00 00 90");
+        Verify(validManual.IsValid && validManual.GroupCount == 1 &&
+               validManual.Message.Contains("12 Find/Replace byte pairs"),
+            "valid Generic Find and Replace validate without a system operation");
+        var unequalManual = ManualPatternValidator.Check("11 22 33 44",
+            "AA BB CC");
+        Verify(!unequalManual.IsValid &&
+               unequalManual.Message.Contains("Find has 4 byte(s), Replace has 3"),
+            "unequal Manual fields give precise lengths without throwing or logging an operation");
+        Verify(!ManualPatternValidator.Check("11 22 33 44", "").IsValid &&
+               !ManualPatternValidator.Check("", "AA BB CC DD").IsValid,
+            "incomplete manual fields are handled by editor validation");
+        Verify(!ManualPatternValidator.Check("11 22 33 44 | 55 66 77 88",
+            "AA BB CC DD").IsValid,
+            "manual group count mismatches are diagnosed");
+        Verify(!ManualPatternValidator.Check("11 22 33 44", "AA BB ?? DD").IsValid,
+            "manual Replace refuses wildcard bytes");
+
         var report = SignatureInspector.Analyze(dll, [named]);
         Verify(report.Rows.Count == 1, "each catalog group is visible");
         Verify(report.Rows[0].State == "Exact original match", "exact Find marked");

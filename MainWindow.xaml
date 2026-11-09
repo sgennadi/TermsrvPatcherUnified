@@ -52,8 +52,8 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="15,18,15,10">
             <TextBlock Text="Automatic pattern recognition" FontSize="18" FontWeight="SemiBold"/>
-            <TextBlock Text="Detects signatures from the embedded catalog using the actual DLL bytes. Windows release labels are informational only."
-                       Margin="0,7,0,18" Foreground="{StaticResource MutedBrush}"/>
+            <TextBlock Text="Checks the actual DLL bytes against three embedded families. If specific and Generic both match, only the installed-Windows-specific profile is proposed for verified review."
+                       TextWrapping="Wrap" Margin="0,7,0,18" Foreground="{StaticResource MutedBrush}"/>
             <GroupBox Header="Match and preview">
               <StackPanel>
                 <TextBlock x:Name="AutoSummary" Text="Press Check DLL to inspect the installed file."/>
@@ -90,8 +90,16 @@
                     <DataGridTextColumn Header="Replace offsets" Binding="{Binding ReplaceOffsets}" Width="160"/>
                   </DataGrid.Columns>
                 </DataGrid>
+                <TextBlock Text="Selected signature — Find directly above Replace, aligned by byte" FontWeight="SemiBold"
+                           Margin="0,12,0,5"/>
+                <TextBox x:Name="AutoSelectedPair" IsReadOnly="True" Height="112" FontFamily="Consolas"
+                         FontSize="12" Margin="0,0,0,7" TextWrapping="NoWrap"
+                         Text="Select a signature group above to compare exact bytes and wildcard positions."
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                <TextBlock Text="Full signature evidence (read-only)" FontWeight="SemiBold"
+                           Margin="0,3,0,5"/>
                 <TextBox x:Name="AutoSignatureDetails" IsReadOnly="True" Height="130" FontFamily="Consolas"
-                         FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                         FontSize="12" Margin="0,2,0,0" TextWrapping="NoWrap"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
                 <WrapPanel Margin="0,9,0,0">
                   <Button x:Name="AutoInspectFindButton" Tag="&#xE8B5;"
@@ -283,7 +291,10 @@
             </GroupBox>
             <TextBlock Text="Replace HEX pattern (same byte count)" FontWeight="SemiBold"/>
             <TextBox x:Name="ManualReplace" TextChanged="ManualEdited" MinHeight="64" MaxHeight="110" TextWrapping="Wrap" AcceptsReturn="True"
-                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Margin="0,5,0,12"/>
+                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Margin="0,5,0,7"/>
+            <TextBlock x:Name="ManualInputStatus" Text="Enter Find and Replace bytes to check equal lengths."
+                       TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource MutedBrush}"
+                       Margin="0,0,0,11"/>
             <WrapPanel>
               <Button Tag="&#xE721;" Content="Check manual pattern" Click="CheckManual_Click"/>
               <Button Tag="&#xE74E;" Content="Save pattern..." Click="SaveManual_Click"/>

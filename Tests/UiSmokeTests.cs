@@ -48,6 +48,8 @@ internal static class UiSmokeTests
                     !profileEvidence.IsReadOnly ||
                     main.FindName("AutoSignatureGrid") is not DataGrid automaticEvidence ||
                     !automaticEvidence.IsReadOnly ||
+                    main.FindName("AutoSelectedPair") is not TextBox pair ||
+                    !pair.IsReadOnly || pair.Text is null ||
                     main.FindName("AutoInspectFindButton") is not Button fromFind ||
                     fromFind.IsEnabled ||
                     main.FindName("AutoInspectReplaceButton") is not Button fromReplace ||
@@ -56,6 +58,7 @@ internal static class UiSmokeTests
                     exportEvidence.IsEnabled ||
                     main.FindName("ManualFragmentGrid") is not DataGrid fragmentGrid ||
                     !fragmentGrid.IsReadOnly ||
+                    main.FindName("ManualInputStatus") is not TextBlock ||
                     main.FindName("ImportedResultsGrid") is not DataGrid importedGrid ||
                     !importedGrid.IsReadOnly ||
                     main.FindName("CheckAllImportedButton") is not Button)
