@@ -49,3 +49,9 @@ No live Windows VM test has been performed as part of the preview. GitHub Action
 - Published preview.9 inspected the actual Windows Server 2025 runner `termsrv.dll` without changing the DLL SHA-256, ACL, TermService status or protected native cache.
 - The published distribution ZIP SHA-256, real DLL file version and SHA-256 in the generated report were verified; invalid output extension/missing DLL input were rejected.
 - For a proper Windows 11 acceptance test still use a disposable **Windows 11 x64 VM with console access and snapshot**, compare original and restored DLL SHA-256, service states, backup file integrity, and UI at actual 100–200% display scaling. Do not run destructive tests on a production RDP-only machine.
+
+## New backup and Restore acceptance gate
+
+- An isolated GitHub Actions Windows test copies the runner's real `termsrv.dll` into a temporary folder and checks the same backup store used for actual Apply/Restore. It never invokes the elevated DLL writer.
+- Verify on an authorized disposable Windows 11 VM with snapshot: with **Create backup** on, a checksum-named original DLL exists; with it off, no new persistent backup is created. Validate Restore after a completed Apply, original DLL hash, file permissions and RDP service state. Avoid remote-only recovery paths.
+- Check that a corrupted, renamed, version-mismatched, or externally located backup never becomes a selectable Restore source.

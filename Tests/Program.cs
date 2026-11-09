@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--dll-backup-qa"])
+{
+    Environment.ExitCode = DllBackupIntegrityTests.Run() >= 20 ? 0 : 2;
+    return;
+}
+
 if (args is ["--published-upgrade-check", var oldZip, var newZip, var oldVersion, var newVersion])
 {
     Environment.ExitCode = PublishedUpgradeTests.Run(oldZip, newZip, oldVersion, newVersion) == 3 ? 0 : 2;
