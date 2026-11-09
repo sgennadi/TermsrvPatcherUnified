@@ -2,6 +2,7 @@
 
 ## 0.1.0-preview.18 — 2026-11-09
 
+- **Packaging:** portable ZIP contains exactly `TermsrvPatcherUnified.exe` + `Example.txt`; full GPLv3/MIT texts and notices are appended to the latter. The updater ZIP remains one EXE. Both build paths use the same exact-content validator, with negative tests.
 - **Automatic selection:** when an installed Windows 11 24H2, 25H2 or 26H2 Client has one exact version-specific embedded signature and an unrelated older Generic fallback also matches, build the Apply preview for only the specific target instead of blocking with cross-profile Ambiguous. Show the selected profile and explicitly state that Generic remains unchanged. A unique exact Generic match remains eligible.
 - **Fail-closed conditions:** do not guess among two distinct specific profiles, untrusted imported signatures, overlapping edits, repeated Find/Replace hits, mixed original/replaced states or unknown installed OS contexts. Manual and offline scans do not inherit automatic OS-specific precedence.
 - **Catalog corrections:** the Generic Find mask fixes the 0F 84 JE/JZ opcode (not wildcard) while permitting three variable displacement bytes; the operator-supplied manual-only Windows Server 2022 20348.3091 legacy signature now ends with 00 instead of erroneous 20. Do not equate Windows OS build with termsrv.dll file version.

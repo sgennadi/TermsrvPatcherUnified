@@ -1,0 +1,28 @@
+TermsrvPatcherUnified - Example HEX patterns
+==========================================
+This text is for reference only and is NOT automatically loaded.
+The embedded Automatic catalog has its own validated rules. A byte match by
+itself does not prove Windows RDP works or that additional sessions are licensed.
+
+FORMAT: Architecture, Find HEX bytes, Replace HEX bytes
+Architectures: x64 or x86. Find accepts two-digit HEX or one-byte * wildcard.
+Replace accepts only exact two-digit HEX, with the SAME length as Find.
+Use | to separate corresponding multi-group Find/Replace sequences.
+
+Examples of the embedded automatic signature family FORMAT (read-only):
+# Generic family - 12 bytes, JE/JZ opcode 0F 84 is fixed
+x64, 39 81 3C 06 00 00 0F 84 * * * 00, B8 00 01 00 00 89 81 38 06 00 00 90
+# Windows 11 24H2 family - 13 bytes
+x64, 8B 81 38 06 00 00 39 81 3C 06 00 00 75, B8 00 01 00 00 89 81 38 06 00 00 90 EB
+# Windows 11 25H2/26H2 alternate layout - 19 bytes
+x64, 44 8B 87 3C 06 00 00 44 8B 8F 38 06 00 00 45 3B C1 75 14, 41 B9 00 01 00 00 90 44 89 8F 38 06 00 00 90 90 90 EB 14
+# SYNTHETIC x86 multi-group syntax example (fictional bytes, NEVER APPLY)
+x86, 01 23 45 67 * * | 89 AB CD EF, 01 23 45 67 90 90 | 89 AB CD EF
+
+This is an unsigned preview. Use only where properly licensed; keep verified
+backups and independent console recovery. All Apply operations require a
+verified PE executable-section match and explicit administrator confirmation.
+
+A portable distribution contains exactly TermsrvPatcherUnified.exe and
+Example.txt. The full GPLv3 and MIT texts and attributions are appended below
+to the release copy of Example.txt. Source: https://github.com/sgennadi/TermsrvPatcherUnified

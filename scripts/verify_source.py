@@ -160,10 +160,20 @@ check((ROOT / "GlobalUsings.cs").exists() and "global using System.IO;" in (ROOT
 check("using System.IO;" in (ROOT / "Tests/Program.cs").read_text(encoding="utf-8"), "WPF test project explicitly imports System.IO")
 print("PASS: explicit WPF SDK import guards.")
 
+packager = (ROOT / 'scripts/package_preview.ps1').read_text(encoding="utf-8")
 workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text(encoding="utf-8")
-check("publish/LICENSE" in workflow and "publish/NOTICE.md" in workflow, "redistributed application license and notices are packaged")
-check("publish/licenses/NSudo-MIT.txt" in workflow and "publish/licenses/fabianosrc-MIT.txt" in workflow, "redistributed MIT notices are packaged")
-print("PASS: redistributed license packaging guards.")
+release = (ROOT / '.github/workflows/release-preview.yml').read_text(encoding="utf-8")
+example = (ROOT / 'Example.txt').read_text(encoding="utf-8")
+check(all(p in packager for p in ('Example.txt', 'LICENSE', 'NOTICE.md',
+      'licenses/NSudo-MIT.txt', 'licenses/fabianosrc-MIT.txt')),
+      "portable Example.txt includes complete GPLv3, notices and MIT texts")
+check('verify_update_package.py --full' in packager, "portable two-file ZIP is validated")
+check('verify_update_package.py $updateZip' in packager, "single-EXE updater ZIP validated")
+check('scripts/package_preview.ps1' in workflow and 'scripts/package_preview.ps1' in release,
+      "CI and release share the exact-layout packager")
+check('Architecture, Find HEX bytes, Replace HEX bytes' in example and 'x64,' in example,
+      "Example.txt contains real HEX pattern formatting examples")
+print("PASS: two-file portable ZIP, updater and license packaging guards.")
 
 check((ROOT / "Core/GitHubIssuePublisher.cs").exists(), "opt-in GitHub Issue publisher present")
 publisher = (ROOT / "Core/GitHubIssuePublisher.cs").read_text(encoding="utf-8")

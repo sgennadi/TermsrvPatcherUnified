@@ -26,7 +26,7 @@ A unique matching signature does **not** prove Remote Desktop will work after mo
 
 ## Install and inspect
 
-1. Download the x64 package from [Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases) and verify its `SHA256SUMS.txt`.
+1. Download the x64 package from [Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases) and verify its separately published `SHA256SUMS.txt`. The portable ZIP contains exactly **TermsrvPatcherUnified.exe** and **Example.txt** (HEX examples plus full GPLv3/MIT license texts and notices); the updater-only ZIP contains **one EXE**. Automatic patterns, NSudo, updater, diagnostics and framework dependencies are compiled/bundled in the EXE.
 2. Start the EXE. Choose **Check DLL** for a read-only local inspection.
 3. Use **Offline DLL** to inspect a file without modifying Windows services, or use **RDP Health** to inspect checksum drift and sessions.
 4. For protected Apply/Restore, use an elevated administrator session with console recovery access. Confirm the pattern and retain a backup.
