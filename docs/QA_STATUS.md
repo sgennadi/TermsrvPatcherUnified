@@ -193,3 +193,10 @@ Version: 0.1.0-preview.10
 - Windows Actions verify synthetic exact matches in the embedded catalog, including the corrected 0F 84 opcode, manual-only Server 2022 trailing 00, and host 26H2 precedence. A matching Generic fallback never produces a second edit when a unique trusted version-specific profile is selected.
 - A Ready state is only an inspected preview; Windows 11 live protected Apply/Restore, service lifecycle, real RDP connections, licensing implications and physical 200% DPI remain **outside GitHub-hosted CI**.
 - The installed termsrv.dll version 10.0.26100.8115 / SHA-256 e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456 was reported by an operator, not independently obtained or modified in the runner. No claim of live compatibility is made.
+
+## Preview.18 Automatic signature comparison / Manual validation
+
+- The Automatic tab now has a selected-group read-only monospaced HEX panel: byte-index header, **Find directly above Replace**, fixed two-digit display width even for catalog wildcard `*` (displayed as `??`), byte counts and exact-match offsets. The full report also preserves aligned pairs and horizontal scrolling; the underlying catalog Find mask is unmodified by its display formatting.
+- Current embedded automatic catalog contains three x64 pairs with equal Find/Replace lengths: Generic **12/12** (fixed `0F 84`, 3 wildcard displacement bytes), Windows 11 24H2 **13/13** and Windows 11 25H2/26H2 **19/19**. Matching the pattern length does **not** validate replacement semantics or license compatibility for a particular DLL version.
+- The Manual editor validates Find/Replace groups locally and explains missing fields, malformed HEX, wildcard placement and unequal byte counts *before* `Check manual pattern` starts any inspection. Invalid/incomplete editor input is not appended to the protected-operation failure log. Existing historical log records remain unchanged.
+- New regression tests inspect all three embedded signatures, aligned two-character cells, wildcard display, read-only evidence formatting and unequal/incomplete Manual input.

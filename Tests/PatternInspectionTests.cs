@@ -176,6 +176,10 @@ internal static class PatternInspectionTests
                exportedCross.Contains("0x00000230") &&
                exportedCross.Contains("0x00000290"),
             "locally exported evidence explains two distinct exact locations");
+        Verify(exportedCross.Contains("Aligned byte comparison") &&
+               exportedCross.Contains("Find:    11 22 33 44") &&
+               exportedCross.Contains("Replace: AA BB CC DD"),
+            "read-only evidence aligns Find and Replace as monospaced byte cells");
 
         // Exact regression fixture for a reported Windows 11 26H2 pattern shape.
         // The bytes are synthetic, not a copy of the user's DLL. The embedded
