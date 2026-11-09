@@ -59,7 +59,7 @@ for element in app.iter():
 auto = parse_catalog("AutomaticPatterns.txt")
 legacy = parse_catalog("LegacyUserPatterns.MANUAL.txt")
 check(len(auto) == 3, "3 automatic patterns")
-check(len(legacy) == 16, "16 legacy manual patterns")
+check(len(legacy) == 22, "22 historical manual patterns, including six sourced Windows 10 signatures")
 
 auto_text = (ROOT / "Patterns" / "AutomaticPatterns.txt").read_text(encoding="utf-8")
 legacy_text = (ROOT / "Patterns" / "LegacyUserPatterns.MANUAL.txt").read_text(encoding="utf-8")
@@ -72,6 +72,22 @@ check(
     and "x64, 39 81 3C 06 00 00 0F 84 5F 64 01 20," not in legacy_text,
     "Server 2022 20348.3091 legacy pattern has the corrected 00 final byte")
 
+
+# Documented Windows 10 legacy variants must be manual-only exact signatures:
+# a pattern sourced from a webpage is not independent compatibility evidence.
+historical_references = [
+    "39 81 3C 06 00 00 0F 84 F7 40 01 00",
+    "39 81 3C 06 00 00 0F 84 E7 43 01 00",
+    "39 81 3C 06 00 00 0F 84 7F 2C 01 00",
+    "39 81 3C 06 00 00 0F 84 53 71 02 00",
+    "39 81 3C 06 00 00 0F 84 3F 42 02 00",
+    "39 81 3C 06 00 00 0F 84 73 42 02 00",
+]
+check(all(legacy_text.count(pattern) == 1 and pattern not in auto_text
+          for pattern in historical_references),
+      "six externally documented Windows 10 signatures are unique and manual-only")
+check("mysysadmintips.com" in legacy_text and "not independently DLL-verified" in legacy_text,
+      "historical source attribution and validation limit remain explicit")
 check(len(parse_catalog("Examples.NOT_ACTIVE.txt")) >= 0, "examples segregated")
 
 project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
