@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.15` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.16` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
@@ -30,7 +30,7 @@ A unique matching signature does **not** prove Remote Desktop will work after mo
 2. Start the EXE. Choose **Check DLL** for a read-only local inspection.
 3. Use **Offline DLL** to inspect a file without modifying Windows services, or use **RDP Health** to inspect checksum drift and sessions.
 4. For protected Apply/Restore, use an elevated administrator session with console recovery access. Confirm the pattern and retain a backup.
-5. Use **Updates → Check → Install** to approve an application upgrade. No silent installation is performed.
+5. Use **Updates → Check → Install** for a manual EXE update only when the current app is running elevated from an administrator-protected Program Files folder. If **Install** is disabled, the updater explains why and provides **Open GitHub release** to download the full ZIP. An extracted EXE launched from Desktop/Downloads is not eligible for in-place update. No silent installation is performed.
 
 Non-elevated, offline-only GUI startup:
 
