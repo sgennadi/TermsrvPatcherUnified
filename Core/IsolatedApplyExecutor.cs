@@ -305,7 +305,7 @@ internal static class IsolatedApplyExecutor
         }
     }
 
-    private static bool IsSystemSessionZero()
+    internal static bool IsSystemSessionZero()
     {
         using var identity = WindowsIdentity.GetCurrent();
         if (identity.User is null ||

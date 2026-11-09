@@ -312,6 +312,11 @@ check("new QuickApplyWindow()" in app_src and
       "IsolatedApplyExecutor.WorkerArgument" in app_src and
       "InteractiveSessionDetector.Detect()" in quick_src,
       "compact Apply / Advanced UI and noninteractive worker entry point are wired")
+check("IsolatedApplyExecutor.IsSystemSessionZero()" in app_src and
+      "InteractiveSessionDetector.RequiresIndependentExecutor()" in app_src and
+      "Environment.ExitCode = 6" in app_src,
+      "headless --reapply routes RDP to SYSTEM and does not claim queued as completed")
+
 check((ROOT / "Core/DllBackupStore.cs").exists(), "DLL backup and Restore share strict file validator")
 check((ROOT / "Tests/DllBackupIntegrityTests.cs").exists(), "real-DLL-copy backup integrity tests are checked in")
 check("--dll-backup-qa" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),

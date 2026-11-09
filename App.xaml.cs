@@ -93,8 +93,25 @@ public partial class App : Application
                     throw new UnauthorizedAccessException("Unattended --reapply requires an elevated administrator or an approved SYSTEM task.");
                 using var engine = new TermsrvEngine(null);
                 var plan = engine.Inspect();
-                if (plan.State == PatchState.Ready) engine.Apply(plan);
-                Environment.ExitCode = plan.State is PatchState.Ready or PatchState.AlreadyPatched ? 0 : 3;
+                if (plan.State == PatchState.Ready)
+                {
+                    if (!IsolatedApplyExecutor.IsSystemSessionZero() &&
+                        InteractiveSessionDetector.RequiresIndependentExecutor())
+                    {
+                        string jobId = IsolatedApplyExecutor.Queue(plan);
+                        // Queued is NOT completed: distinct exit code so callers
+                        // cannot mistake Task Scheduler acceptance for Apply success.
+                        Environment.ExitCode = 6;
+                        AuditLog.Append("Headless RDP Apply deferred to SYSTEM job " + jobId[..8]);
+                    }
+                    else
+                    {
+                        engine.Apply(plan, createBackup: true);
+                        Environment.ExitCode = 0;
+                    }
+                }
+                else
+                    Environment.ExitCode = plan.State == PatchState.AlreadyPatched ? 0 : 3;
                 AuditLog.Append($"Headless inspection: {plan.State}, {plan.ProfileId}");
             }
             catch (Exception ex)
