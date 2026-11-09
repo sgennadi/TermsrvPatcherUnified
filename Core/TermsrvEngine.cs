@@ -124,14 +124,25 @@ public sealed class TermsrvEngine : IDisposable
             throw new InvalidOperationException("Preview integrity check failed.");
         // A matching byte sequence in a resource/overlay is not a valid code patch.
         PeSafety.RequireExecutableEdits(current, preview.Edits);
+        // A small authenticated recovery journal is mandatory for every trusted
+        // automatic Apply, even when the operator disables FULL DLL backups.
+        // No system DLL or service has been modified if journal creation fails.
+        if (!preview.IsManual)
+            RecoveryJournalStore.SaveBeforeApply(preview, current);
         if (createBackup)
+        {
             DllBackupStore.RequireTrustedLocation(BackupDirectory, create: true);
-        var saved = DllBackupStore.Save(BackupDirectory, preview.FileVersion, current,
-            preview.OriginalSha256, createBackup);
-        if (saved is not null)
-            Message("Verified backup available: " + Path.GetFileName(saved));
+            var saved = DllBackupStore.Save(BackupDirectory, preview.FileVersion, current,
+                preview.OriginalSha256, createBackup: true);
+            System32BackupStore.SyncBeforeApply(preview, current);
+            Message("Original protected backup verified: " + Path.GetFileName(saved) +
+                    "; System32 termsrv.dll.bak verified.");
+        }
         else
-            Message("Permanent backup disabled for this Apply. In-operation rollback is still enabled.");
+        {
+            Message("Full DLL backups disabled by the operator. Small authenticated recovery journal " +
+                    "and transaction rollback remain available.");
+        }
         WriteTransactional(preview.FilePath, preview.OriginalSha256, current, preview.PatchedBytes);
         OperationHistory.TryRecord("Apply", "Success", preview.FileVersion,
             preview.OriginalSha256, SystemInfo.Sha256(preview.PatchedBytes));
@@ -155,6 +166,39 @@ public sealed class TermsrvEngine : IDisposable
         OperationHistory.TryRecord("Restore", "Success", os.DllVersion,
             SystemInfo.Sha256(current), SystemInfo.Sha256(desired));
         Message($"Restored backup: {Path.GetFileName(backupFile)}");
+    }
+
+    /// <summary>
+    /// Restore exactly the source bytes certified by a protected recovery
+    /// journal or independently verified original backup. No caller may supply
+    /// a replacement byte vector or an arbitrary backup path.
+    /// </summary>
+    internal void RevertAutomatic(AutomaticRevertPlan approved)
+    {
+        ArgumentNullException.ThrowIfNull(approved);
+        var os = SystemInfo.Read();
+        EnsureAllowed(os.DllPath);
+        using var operation = OperationLock.Acquire();
+        var snapshot = AutomaticRevertSafety.Resolve()
+            ?? throw new InvalidOperationException(
+                "No exact authenticated Revert source for the currently installed DLL.");
+        if (!AutomaticRevertSafety.SameApproval(approved, snapshot.Plan))
+            throw new InvalidOperationException(
+                "The DLL, backup or recovery source changed since confirmation. Run Check again.");
+        byte[] current = File.ReadAllBytes(os.DllPath);
+        if (!SystemInfo.Sha256(current).Equals(approved.InstalledSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !SystemInfo.Sha256(snapshot.OriginalBytes).Equals(approved.OriginalSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            current.Length != snapshot.OriginalBytes.Length)
+            throw new InvalidOperationException("Revert checksum/length verification failed.");
+        PeSafety.ReadAmd64DllSections(snapshot.OriginalBytes);
+        WriteTransactional(os.DllPath, approved.InstalledSha256, current,
+            snapshot.OriginalBytes);
+        OperationHistory.TryRecord("Revert", "Success", os.DllVersion,
+            approved.InstalledSha256, approved.OriginalSha256);
+        Message("Reverted exact original DLL from " + approved.RecoverySource +
+                " with verified SHA-256. Backup archive and recovery journal retained.");
     }
 
     private void WriteTransactional(string file, string expectedSha, byte[] before, byte[] after)
