@@ -1,4 +1,4 @@
-# TermsrvPatcherUnified — 0.1.0-preview.11
+# TermsrvPatcherUnified — 0.1.0-preview.12
 
 This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from:
 
@@ -171,3 +171,11 @@ Start without a UAC prompt for offline file work:
 ```
 
 The normal GUI still requests elevation when starting in the live system-management mode; Apply/Restore and protected settings are checked independently. The offline-only startup option does not grant permission to change the system DLL.
+
+## Preview.12 — passive DLL Health and read-only RDP Sessions
+
+- **RDP Health tab:** Check the current installed `termsrv.dll` version and SHA-256 against an **operator-recorded** baseline. The Check button is read-only. **Save current as baseline** explicitly saves metadata into `%LOCALAPPDATA%\TermsrvPatcherUnified\Health\baseline.json`; it never changes the system DLL.
+- Status distinguishes *no baseline*, *unchanged*, *same-version byte changes*, *different DLL version* and *invalid baseline*. A checksum difference does not establish whether Windows Update, an administrator or something else caused it.
+- The baseline is editable user-local reference metadata **not an authenticated signature** and is never used to enable Apply or Restore. No scheduled task, automatic re-patch, service restart or network call is performed.
+- **RDP session viewer:** explicitly refresh local sessions with native Windows WTS APIs. Shows Session ID, station, session state and account name locally only. No `qwinsta` text parsing, logoff/disconnect controls, identity uploads or persistence.
+- Windows GitHub Actions test synthetic drift, corrupt/oversized reference files, WTS state mapping, native enumeration when available and offscreen WPF controls. It does not verify Windows 11 live Apply/Restore or actual 200% DPI.

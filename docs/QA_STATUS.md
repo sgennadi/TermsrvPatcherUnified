@@ -82,3 +82,10 @@ Version: 0.1.0-preview.10
 - Isolated x86/x64 test fixtures cover CRC32 `123456789 = CBF43926`, version/architecture metadata, SHA-256, duplicate/unknown patterns, stale preview, source preservation and refusal to edit resources/headers.
 - An optional public `termsrv-offline/v1` report includes architecture, DLL/app versions, CRC32/SHA-256 and bounded changes. It requires user review and a temporary GitHub token; `data/offline-fixes.csv` is distinct from confirmed system Apply reports.
 - Cross-process protected operation lock and read-only JSON DryRun export are included, with synthetic CI checks. Real Windows 11 protected Apply/Restore, RDP service restart, and 200% DPI still require manually controlled VM testing.
+
+## Preview.12 — passive RDPControl-inspired health/session controls
+
+- Independent C# read-only DLL health with explicit operator baseline, SHA-256/version/size comparison and no implicit writes. User-editable baseline never participates in Apply/Restore decisions.
+- Native WTS API session inventory (local ID, station, state, account). User identities remain local to the GUI, are not logged, persisted or uploaded, and there are no disconnect/logoff methods.
+- Test harness uses a disposable synthetic PE for baseline drift, version change, corrupt JSON, oversized baseline, explicit replacement and no silent repair. Native enumeration is PASS/SKIP depending on WTS availability.
+- Offscreen WPF smoke validates the session table and health textbox. Live Windows 11 TermService integration, GUI screenshots at true 200% DPI and live Apply/Restore remain manual acceptance gates.

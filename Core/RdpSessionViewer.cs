@@ -7,7 +7,7 @@ namespace TermsrvPatcherUnified.Core;
 /// Read-only Win32 Terminal Services API inventory. Never calls any WTS
 /// disconnect/logoff/send-message APIs and never transmits session identities.
 /// </summary>
-internal sealed record LocalRdpSession(int SessionId, string Station, string State, string Account);
+public sealed record LocalRdpSession(int SessionId, string Station, string State, string Account);
 
 internal static class RdpSessionViewer
 {
