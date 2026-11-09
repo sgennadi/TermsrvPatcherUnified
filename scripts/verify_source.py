@@ -195,6 +195,8 @@ print("PASS: compatibility report source guards.")
 check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8")), "source validator uses explicit UTF-8 on Windows")
 
 check((ROOT / "Tests/UpdateTransactionSyntheticTests.cs").exists(), "disposable EXE update success and rollback tests exist")
+check((ROOT / "Tests/PublishedUpgradeTests.cs").exists(), "published EXE transaction QA harness exists")
+check((ROOT / ".github/workflows/published-upgrade-qa.yml").exists(), "pinned real published EXE upgrade workflow exists")
 check((ROOT / "Tests/UiSmokeTests.cs").exists(), "offscreen WPF layout smoke exists")
 check("--ui-smoke" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"), "Windows CI runs offscreen WPF layout smoke")
 check("HasMutatingRights" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8"), "safe Program Files ACL write-rights test")

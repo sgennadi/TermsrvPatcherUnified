@@ -35,3 +35,10 @@ Version: 0.1.0-preview.9
 - A user-reviewed, opt-in successful-fix report includes original/patched SHA-256 and bounded before/after byte ranges, with Windows, DLL and app versions. It does not include paths, usernames or device identity.
 - The compatibility GitHub workflow accepts v1 and v2 reports and validates the CSV migration, hashes, offsets, duplicate aggregation and malicious/extra fields.
 - Windows Actions checks default backup state, dialog layout, report serialization and offline updater rollback. Live protected DLL and RDP service modification remains untested.
+
+## Published preview.8 -> preview.9 real-EXE regression
+
+- Dedicated Windows Actions job downloads the actual published preview.8 and preview.9 single-EXE ZIP files; both ZIP files are pinned by SHA-256 to already published GitHub assets.
+- It checks real offline version self-probes, the shared PortableExeTransaction success path and versioned previous EXE backup checksum.
+- Deliberate failed post-install health probe must return the old EXE with its old SHA-256, retain an existing prior .bak file and set the failure hold. Tampered staged EXEs are rejected before replacement.
+- Tests run in disposable local temp directories only. The protected Program Files GUI updater helper, full remote desktop service lifecycle and actual system DLL Apply/Restore are NOT exercised.
