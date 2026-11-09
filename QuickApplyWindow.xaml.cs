@@ -77,6 +77,8 @@ public partial class QuickApplyWindow : Window
             QuickRevertButton.IsEnabled = revertPlan is not null &&
                 SystemInfo.IsAdministrator() && NsudoDevilModeScope.IsBundled;
             QuickStatusText.Text = authorized ? "Ready to apply" :
+                revertPlan?.RecoverySource == "ExactCatalog"
+                    ? "Revert by known signature (no original backup)" :
                 revertPlan is not null ? "Verified original available for Revert" :
                 plan.State == PatchState.AlreadyPatched ? "Already patched" :
                 "Automatic Apply unavailable";
@@ -86,10 +88,16 @@ public partial class QuickApplyWindow : Window
                     ? "Local console: direct protected Apply. Full backup is optional."
                     : "RDP or uncertain session: one-shot SYSTEM task, independent of the window.")
                 : revertPlan is not null
-                    ? (session == SessionKind.Console
-                        ? "Exact original verified. Revert restores it from protected recovery."
-                        : "Revert will use an independent SYSTEM task even if RDP disconnects.")
-                    : "No verified one-click action. Open Advanced for details.";
+                    ? revertPlan.RecoverySource == "ExactCatalog"
+                        ? "NO BACKUP/JOURNAL: bytes reconstructible from fixed catalog; " +
+                          "not proof of a genuine Microsoft original. Review before Revert."
+                        : (session == SessionKind.Console
+                            ? "Original SHA-256 verified against protected recovery."
+                            : "Protected Revert will continue under SYSTEM after RDP disconnect.")
+                    : plan.State == PatchState.AlreadyPatched
+                        ? "No safe saved source or reversible fixed signature. " +
+                          "Use Advanced and Windows SFC/DISM recovery; Revert disabled."
+                        : "No verified one-click action. Open Advanced for details.";
         }
         catch (Exception e)
         {
@@ -220,13 +228,29 @@ public partial class QuickApplyWindow : Window
         string route = initialMode == SessionKind.Console
             ? "Local console: Revert runs as a protected transaction."
             : "RDP/unknown session: Revert runs as a separate SYSTEM Session 0 task.";
+        bool sourceFree = approved.RecoverySource == "ExactCatalog";
+        string operation = sourceFree
+            ? "EMERGENCY BYTE RECONSTRUCTION (NO BACKUP/JOURNAL). " +
+              "This only reverses a unique fixed embedded signature. " +
+              "The resulting SHA-256 is calculated, NOT compared to an authentic Microsoft original."
+            : "Restore the original termsrv.dll using verified " + approved.RecoverySource + " evidence.";
         if (MessageBox.Show(this,
-                "Restore the exact original termsrv.dll from " + approved.RecoverySource +
-                "? This temporarily stops RDP services and can disconnect remote users.\n\n" +
-                route + "\n\nOriginal SHA-256: " + approved.OriginalSha256[..16] +
-                "...\n\nRetain VM console access and independently verified recovery.",
-                "Confirm Revert", MessageBoxButton.YesNo,
-                MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+                operation + "\n\nThis temporarily stops RDP and may disconnect remote users.\n\n" +
+                route + "\n\nResult SHA-256: " + approved.OriginalSha256[..16] +
+                "...\n\nRetain VM console access and an independent recovery option.",
+                sourceFree ? "Confirm emergency reconstruction" : "Confirm Revert",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        if (sourceFree && MessageBox.Show(this,
+                "There is NO authenticated backup or recovery journal. " +
+                "Matching fixed bytes is not proof that other DLL bytes are original. " +
+                "For fully authenticated Windows recovery, use SFC / DISM and a local console. " +
+                "Proceed with an unverified, catalog-based reconstruction ONLY on " +
+                "an isolated, recoverable machine?",
+                "Second confirmation: no original source",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
         checking = true;
         QuickApplyButton.IsEnabled = false;
@@ -249,8 +273,12 @@ public partial class QuickApplyWindow : Window
                 });
                 revertPlan = null;
                 plan = null;
-                QuickStatusText.Text = "Revert completed and original SHA-256 verified";
-                QuickHelpText.Text = "Windows DLL original bytes restored. Use Check to refresh state.";
+                QuickStatusText.Text = sourceFree
+                    ? "Catalog reconstruction completed; result SHA-256 verified"
+                    : "Revert completed and original SHA-256 verified";
+                QuickHelpText.Text = sourceFree
+                    ? "Authenticity of Windows DLL is NOT established. Validate using Windows servicing tools."
+                    : "Protected original restored. Use Check to refresh state.";
                 QuickCancelButton.Content = "Close";
                 return;
             }
