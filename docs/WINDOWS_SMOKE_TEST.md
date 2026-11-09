@@ -43,3 +43,9 @@ No live Windows VM test has been performed as part of the preview. GitHub Action
 - On Windows 11, install preview.7 in a protected Program Files subdirectory; confirm preview.8 is offered through Check → Install. A standard Users: ReadAndExecute ACL must *not* disable Install. Verify preview.8 launches and preview.7 remains in the backup file after successful replacement.
 - Use a disposable VM/snapshot to simulate failed post-update self-test and confirm recovery of the previous EXE and failure hold. The synthetic CI test does not replace an actual running application.
 - Inspect each of the five windows at real desktop scaling 100%, 125%, 150%, 200% for icon visibility, readable text and unclipped commands. CI only measures offscreen layouts at synthetic scale factors.
+
+## Preview.9 read-only verification (already completed in GitHub Actions)
+
+- Published preview.9 inspected the actual Windows Server 2025 runner `termsrv.dll` without changing the DLL SHA-256, ACL, TermService status or protected native cache.
+- The published distribution ZIP SHA-256, real DLL file version and SHA-256 in the generated report were verified; invalid output extension/missing DLL input were rejected.
+- For a proper Windows 11 acceptance test still use a disposable **Windows 11 x64 VM with console access and snapshot**, compare original and restored DLL SHA-256, service states, backup file integrity, and UI at actual 100–200% display scaling. Do not run destructive tests on a production RDP-only machine.
