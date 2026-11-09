@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.22 — 2026-11-09
+
+- **Quick Revert and compact no-backup:** add Revert beside Apply, Check and Advanced, and an unchecked-by-default `Do not create backup` box. A separate confirmation is required before skipping full DLL backups. Advanced Apply honors the same choice. Automatic Apply always saves a small encrypted/authenticated per-version recovery journal before system writes.
+- **System32 full copy and servicing-aware rotation:** optional full original `termsrv.dll.bak` in System32 plus protected ProgramData backup, both checked by SHA-256. At the next explicitly approved Apply after a Windows Update, archive the previous indexed `.bak` and verify the new current original before updating. Check never writes or silently replaces `.bak`; mismatched/truncated/tampered backups fail closed.
+- **One-click Revert by proof:** exact journal first; otherwise verified protected backup or indexed System32 copy. Re-verify source SHA, target SHA, current DLL version and length at dispatch and inside protected transaction. Remote Revert gets a separate one-shot LocalSystem/Session 0 worker, including clear Queued/Running/Succeeded/Failed statuses. An arbitrary manual Restore still requires the local console.
+- **No backup AND no journal:** only uniquely reversible, fully fixed known Windows 11 24H2 (13-byte) or 25H2/26H2 (19-byte) signatures may reconstruct their known source bytes. Cross-check one target by reapplying and comparing the entire current DLL, enforce executable PE bounds, disallow wildcard Generic / unknown Windows families / mixed / repeated / overlapping matches, require a second explicit high-risk confirmation. This cannot attest a genuine Microsoft-supplied original file: label separately as `RevertReconstructed`. For other states, refuse and recommend signed system component repair/SFC or offline recovery.
+- **QA boundary:** new pure, read-only synthetic pattern-reversal and WPF controls tests plus existing Windows CI; no live Windows 11 protected DLL write, RDP disconnect/reconnect, real System32 copy rotation or physical 200% DPI validation. **Unsigned Preview, not Stable.**
+
 ## 0.1.0-preview.21 — 2026-11-09
 
 - **Context-aware protected Apply:** the current interactive Windows session is checked with the WTS client protocol and remote-session metric immediately before dispatch. A confirmed console session retains the original Apply path; RDP and unknown sessions use an explicitly approved, one-shot SYSTEM Task Scheduler worker in session 0.
