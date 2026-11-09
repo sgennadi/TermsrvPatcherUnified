@@ -248,6 +248,21 @@ internal static class PatternInspectionTests
                ranked26.Rows[3].Decision == "Not found" &&
                ranked26.Summary.Contains("At most one verified target", StringComparison.Ordinal),
             "26H2 Generic is skipped and only one protected target is proposed");
+        // 25H2 shares the 19-byte alternate layout but is still checked
+        // by exact bytes, not by a version label alone.
+        var os25 = os with { DisplayVersion = "25H2", Build = 26200, Ubr = 8737 };
+        var plan25 = PatchCatalog.Inspect(reportedShape, "synthetic.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(reportedShape), true, upstream,
+            selectionContext: new AutomaticSelectionContext("Windows 11", "25H2", "Client"));
+        var ranked25 = AutomaticPriorityPolicy.Build(os25, plan25,
+            VerifiedSignatureSnapshot.Capture(reportedShape, plan25, upstream), upstream);
+        Verify(plan25.State == PatchState.Ready &&
+               ranked25.Rows[0].Decision == "Selected" &&
+               ranked25.Rows[0].Name.Contains("25H2 / 26H2") &&
+               ranked25.Rows[1].ReferenceOnly &&
+               ranked25.Rows[1].Decision == "Reference only" &&
+               ranked25.Rows[2].Decision == "Skipped",
+            "25H2 ranks 19-byte exact match before Generic, with hotpatch read-only");
         var unresolvedPriority = AutomaticPriorityPolicy.Build(os, reportedPlan,
             VerifiedSignatureSnapshot.Capture(reportedShape, reportedPlan, upstream),
             upstream);

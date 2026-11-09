@@ -44,6 +44,11 @@ internal static class UiSmokeTests
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
                     !historyGrid.IsReadOnly)
                     throw new Exception("Read-only policy and history controls are missing.");
+                if (main.FindName("AutoPriorityGrid") is not DataGrid priorityGrid ||
+                    !priorityGrid.IsReadOnly || priorityGrid.CanUserSortColumns ||
+                    priorityGrid.CanUserReorderColumns ||
+                    main.FindName("AutoPrioritySummary") is not TextBlock)
+                    throw new Exception("Automatic priority list must be read-only and order-locked.");
                 if (main.FindName("AutoProfileGrid") is not DataGrid profileEvidence ||
                     !profileEvidence.IsReadOnly ||
                     main.FindName("AutoSignatureGrid") is not DataGrid automaticEvidence ||
