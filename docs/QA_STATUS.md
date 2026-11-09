@@ -102,3 +102,10 @@ Version: 0.1.0-preview.10
 - Policy values are evidence, **not** proof that Group Policy has refreshed. Firewall inbound rule effectiveness is not inferred. Missing/unreadable/invalid values are not treated as safe defaults.
 - Local operation history is a bounded JSONL metadata view; absent/corrupt or oversized history does not authorize any protected write and a read creates no files. Stored records contain no host/account names, local paths, raw exception messages or tokens.
 - Synthetic and native Windows read-only checks are covered by `--rdp-policy-history-qa`; offscreen WPF smoke also checks both new grids. GitHub-hosted tests cannot replace interactive RDP/TermService and 200%-DPI manual Windows 11 acceptance.
+
+## Published Preview.12 -> Preview.13 checks (release assets, 2026-11-09)
+
+- Published `v0.1.0-preview.13` is an **unsigned prerelease**, not Stable. The updater-only ZIP is SHA-256 pinned to `504a371266dc45ee99a89538f9833ce994ad96f8764524d1b628ea45b8004ee8`; the full distribution ZIP is pinned to `cb99903ff0033670d6bfdce912a95657cfd2d46e4322d69c3a365e8dea714d1b`.
+- [Published EXE upgrade/rollback QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42606117672): **PASS** on a disposable Windows 2025 runner: verify both downloaded ZIP digests, launch real Preview.12/Preview.13 EXEs, exercise upgrade, retained EXE backup, health-probe failure/rollback and staged-file tamper refusal.
+- [Real Windows termsrv.dll read-only QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42606117680): **PASS** using the actual Preview.13 release EXE: inspect a real installed DLL, validate report version/hash, reject invalid paths/extensions, and independently confirm DLL bytes, NTFS ACL, TermService status and NSudo cache remain unchanged.
+- Neither workflow applies a DLL patch, changes Windows services or proves interactive Windows 11 RDP functionality. Manual protected Apply/Restore and 200% physical DPI remain open acceptance gates.
