@@ -12,22 +12,37 @@ $temp = Join-Path ([IO.Path]::GetTempPath()) ('nsudo-8.2-' + [guid]::NewGuid().T
 New-Item -ItemType Directory -Path $temp | Out-Null
 try {
     $archive = Join-Path $temp 'NSudo_8.2_All_Components.zip'
-    # Archived GitHub release CDN can transiently return HTTP 504.
-    # Retry only transport failures; a downloaded archive must still match
-    # the pinned SHA-256 before it can be used as executable native code.
-    for ($attempt = 1; $attempt -le 5; $attempt++) {
+    # Prefer the official pinned archive; if its archived CDN is unavailable,
+    # recover the IDENTICAL, SHA-256-pinned library from our previously
+    # verified preview.6 CI artifact. Never accept unverified native code.
+    $downloaded = $false
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
         try {
             if (Test-Path -LiteralPath $archive) {
                 Remove-Item -LiteralPath $archive -Force
             }
-            Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 5 -TimeoutSec 90 -ErrorAction Stop
+            Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 5 -TimeoutSec 45 -ErrorAction Stop
+            $downloaded = $true
             break
         }
         catch {
-            if ($attempt -ge 5) { throw "NSudo official archive was unavailable after repeated attempts: $($_.Exception.GetType().Name)" }
-            Write-Warning "NSudo official archive temporarily unavailable; retry attempt $($attempt + 1) of 5."
-            Start-Sleep -Seconds ([Math]::Min(20, 3 * $attempt))
+            Write-Warning "Official NSudo 8.2 download unavailable (attempt $attempt of 2)."
+            if ($attempt -lt 2) { Start-Sleep -Seconds 3 }
         }
+    }
+    if (-not $downloaded) {
+        if ($env:GITHUB_REPOSITORY -ne 'sgennadi/TermsrvPatcherUnified' -or
+            [string]::IsNullOrWhiteSpace($env:GH_TOKEN)) {
+            throw "Official NSudo archive unavailable and authenticated CI artifact recovery is not available."
+        }
+        $artifactFolder = Join-Path $temp 'previous-preview'
+        New-Item -ItemType Directory -Force -Path $artifactFolder | Out-Null
+        gh run download 42562651909 --repo 'sgennadi/TermsrvPatcherUnified' --name 'TermsrvPatcherUnified-preview-win-x64' --dir $artifactFolder
+        if ($LASTEXITCODE -ne 0) { throw 'Pinned prior preview GitHub Actions artifact cannot be downloaded.' }
+        $trustedPriorZip = Join-Path $artifactFolder 'TermsrvPatcherUnified-win-x64.zip'
+        python scripts/recover-nsudo-from-preview.py $trustedPriorZip $OutDir
+        if ($LASTEXITCODE -ne 0) { throw 'Pinned prior preview failed NSudo recovery checks.' }
+        return
     }
     $sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($sha256 -ne $archiveSha256) {

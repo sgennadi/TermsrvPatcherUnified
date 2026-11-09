@@ -18,6 +18,7 @@ jobs:
     runs-on: windows-2025
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -36,6 +37,8 @@ jobs:
           "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
       - name: Stage pinned official NSudo 8.2 x64
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/prepare-nsudo.ps1
       - name: Check source and updater ZIP validator
         shell: pwsh

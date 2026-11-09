@@ -9,6 +9,7 @@ jobs:
     runs-on: windows-2025
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -16,6 +17,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Stage and verify official NSudo 8.2 x64
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/prepare-nsudo.ps1
       - name: Validate catalogs, XAML handlers and repository source
         shell: pwsh
