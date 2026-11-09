@@ -69,6 +69,69 @@ internal static class PatternInspectionTests
         Verify(repeated.State.Contains("repeated"), "repeated signature is ambiguous");
         Verify(repeated.FindHits == "2", "multiple offsets counted");
 
+        // Reproduce the diagnostic shape of Windows 11 26H2 build 26300.9711:
+        // an old generic mask and a longer 25H2/26H2 mask both match, but
+        // at DIFFERENT offsets. The mismatch is between profiles, not inside
+        // a single repeated signature. These are synthetic bytes only.
+        byte[] crossBytes = (byte[])dll.Clone();
+        new byte[] { 0x55, 0x66, 0x77, 0x88, 0x99 }.CopyTo(crossBytes, 0x290);
+        var genericProfile = named with { Label = "Windows 10 / older generic family" };
+        var specificProfile = PatchCatalog.Manual(
+            "55 66 77 88 99", "90 91 92 93 94") with
+            { Label = "Windows 11 25H2 / 26H2 alternate layout" };
+        var missingProfile = PatchCatalog.Manual("C1 C2 C3 C4", "70 71 72 73") with
+            { Label = "Windows 11 24H2 family" };
+        PatchProfile[] catalog = [genericProfile, missingProfile, specificProfile];
+        var crossReport = SignatureInspector.Analyze(crossBytes, catalog);
+        Verify(crossReport.CompleteProfileCount == 2 &&
+               crossReport.DistinctCandidateTargetCount == 2 &&
+               crossReport.ConflictingProfileCount == 0,
+            "two distinct full profile matches are not misclassified as duplicates within one profile");
+        Verify(crossReport.AmbiguityReason.Contains("MULTIPLE DISTINCT") &&
+               crossReport.Summary.Contains("0 conflicting profile(s)"),
+            "exactly explain cross-profile ambiguity with zero within-profile collisions");
+        Verify(crossReport.Profiles.Count == 3 &&
+               crossReport.Profiles[0].Offsets == "0x00000230" &&
+               crossReport.Profiles[1].Classification.Contains("Incomplete") &&
+               crossReport.Profiles[2].Offsets == "0x00000290",
+            "list each family and real byte offset, even for an absent family");
+        Verify(crossReport.Profiles[2].FixedBytes > crossReport.Profiles[0].FixedBytes &&
+               crossReport.AmbiguityReason.Contains("longer pattern alone is not sufficient"),
+            "longer version-specific pattern is only a candidate, never an automatic selection");
+        Verify(crossReport.AsText().Contains("Per-profile classification:") &&
+               crossReport.AsText().Contains("0x00000290"),
+            "read-only report shows individual profile evidence before group details");
+        var automaticPlan = PatchCatalog.Inspect(crossBytes, "fake.dll", "10.0.26100.8115",
+            SystemInfo.Sha256(crossBytes), true, catalog);
+        Verify(automaticPlan.State == PatchState.Ambiguous &&
+               automaticPlan.PatchedBytes is null && automaticPlan.Edits.Count == 0,
+            "two independent exact patterns still block automatic modification");
+        var repeatedReport = SignatureInspector.Analyze(duplicate, [named]);
+        Verify(repeatedReport.DistinctCandidateTargetCount == 0 &&
+               repeatedReport.ConflictingProfileCount == 1 &&
+               repeatedReport.AmbiguityReason.Contains("WITHIN-PROFILE"),
+            "repeated bytes inside one pattern are classified separately");
+        var equivalentReport = SignatureInspector.Analyze(dll, [
+            named, named with { Label = "second label, identical target" }
+        ]);
+        Verify(equivalentReport.CompleteProfileCount == 2 &&
+               equivalentReport.DistinctCandidateTargetCount == 1 &&
+               !equivalentReport.AmbiguityReason.Contains("MULTIPLE DISTINCT"),
+            "two labels for identical byte edits are not falsely counted as independent targets");
+        var checkedCrossPlan = new PatchPlan(PatchState.Ambiguous, "Two candidate families", "",
+            "fake.dll", "10.0.26100.8115", SystemInfo.Sha256(crossBytes), [], null);
+        var verifiedCross = VerifiedSignatureSnapshot.Capture(
+            crossBytes, checkedCrossPlan, catalog);
+        var exportedCross = SignatureEvidenceExport.Build(
+            new WindowsDetails("Windows 11", "26H2", 26300, 9711,
+                "Client", true, "fake.dll", "10.0.26100.8115"),
+            checkedCrossPlan, verifiedCross);
+        Verify(exportedCross.Contains("Distinct candidate target sets: 2") &&
+               exportedCross.Contains("MULTIPLE DISTINCT") &&
+               exportedCross.Contains("0x00000230") &&
+               exportedCross.Contains("0x00000290"),
+            "locally exported evidence explains two distinct exact locations");
+
         var fragment = ManualFragmentSearch.SearchBytes(dll, "1122");
         Verify(fragment.Hits.Count == 1 && fragment.Hits[0].Offset == 0x230,
             "two-byte compact HEX fragment found");
