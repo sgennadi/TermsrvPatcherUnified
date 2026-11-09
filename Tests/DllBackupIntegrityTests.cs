@@ -139,13 +139,32 @@ internal static class DllBackupIntegrityTests
 
             if (SystemInfo.IsAdministrator())
             {
-                // Production Apply/Restore demand an administrator-owned tree
-                // with no untrusted writable ACEs; test this without system writes.
+                // A normal user-temp folder may inherit permissive rights:
+                // explicitly create an admin-controlled test root and child.
+                var user = System.Security.Principal.WindowsIdentity.GetCurrent().User!;
+                var admin = new System.Security.Principal.SecurityIdentifier(
+                    System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null);
+                var localSystem = new System.Security.Principal.SecurityIdentifier(
+                    System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
+                var privateAcl = new System.Security.AccessControl.DirectorySecurity();
+                privateAcl.SetAccessRuleProtection(true, false);
+                privateAcl.SetOwner(user);
+                foreach (var sid in new[] { user, admin, localSystem })
+                    privateAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+                        sid, System.Security.AccessControl.FileSystemRights.FullControl,
+                        System.Security.AccessControl.InheritanceFlags.ContainerInherit |
+                        System.Security.AccessControl.InheritanceFlags.ObjectInherit,
+                        System.Security.AccessControl.PropagationFlags.None,
+                        System.Security.AccessControl.AccessControlType.Allow));
+                new DirectoryInfo(folder).SetAccessControl(privateAcl);
+                new DirectoryInfo(backupDir).SetAccessControl(privateAcl);
                 DllBackupStore.RequireTrustedLocation(backupDir, create: false);
-                Check(true, "administrator-controlled backup tree is allowed");
+                Check(true, "protected administrator-owned backup folder passes ACL gate");
+
                 var unsafeDir = Path.Combine(folder, "unsafe-backups");
                 Directory.CreateDirectory(unsafeDir);
                 var unsafeInfo = new DirectoryInfo(unsafeDir);
+                unsafeInfo.SetAccessControl(privateAcl);
                 var unsafeAcl = unsafeInfo.GetAccessControl();
                 unsafeAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
                     new System.Security.Principal.SecurityIdentifier(
@@ -157,7 +176,7 @@ internal static class DllBackupIntegrityTests
                 unsafeInfo.SetAccessControl(unsafeAcl);
                 Refuses<UnauthorizedAccessException>(
                     () => DllBackupStore.RequireTrustedLocation(unsafeDir, create: false),
-                    "untrusted writable ACL must prevent Backup/Restore");
+                    "writable untrusted ACE prevents protected Backup and Restore");
             }
             else
                 Console.WriteLine("SKIP: NTFS ACL trust checks require elevated runner.");
