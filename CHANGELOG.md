@@ -1,3 +1,5 @@
+# Changelog
+
 ## 0.1.0-preview.19 — 2026-11-09
 
 - **Automatic Apply priority list:** fixed read-only ordered rows for trusted 19-byte 25H2/26H2, 13-byte 24H2, Generic 12-byte profiles, plus a separate externally sourced 12-byte Hot Patch reference. Shows exact Find/Replace hit counts, offsets, selected/skipped/blocked decisions and explanations.
@@ -5,8 +7,6 @@
 - The new 12-byte Hot Patch reference is observation-only and never authorizes a protected disk edit or an in-memory write. It can coincide with the 12-byte suffix of the trusted 19-byte 25H2/26H2 pattern, and remains independently non-authoritative.
 - Synthetic regression QA covers 24H2/25H2/26H2 ordering, the external 12-byte suffix at 0x000A689D, blocked ambiguity, and Server 2025 inspect-only state. WPF offscreen test checks fixed order and view-only selection.
 - No live Windows 11 protected Apply or RDP session test is claimed.
-
-# Changelog
 
 ## 0.1.0-preview.18 — 2026-11-09
 
