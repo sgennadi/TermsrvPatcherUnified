@@ -161,6 +161,24 @@ internal static class DllBackupIntegrityTests
                 DllBackupStore.RequireTrustedLocation(backupDir, create: false);
                 Check(true, "protected administrator-owned backup folder passes ACL gate");
 
+                // Exercise the actual ProgramData inheritance boundary, but
+                // use a unique QA-only directory, never the application folder.
+                var programDataProbe = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                    "TermsrvBackup-QA-" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    var programDataBackups = Path.Combine(programDataProbe, "Backups");
+                    DllBackupStore.RequireTrustedLocation(programDataBackups, create: true);
+                    Check(Directory.Exists(programDataBackups),
+                        "first-use ProgramData backup storage is created with a protected ACL");
+                }
+                finally
+                {
+                    if (Directory.Exists(programDataProbe))
+                        Directory.Delete(programDataProbe, recursive: true);
+                }
+
                 var unsafeDir = Path.Combine(folder, "unsafe-backups");
                 Directory.CreateDirectory(unsafeDir);
                 var unsafeInfo = new DirectoryInfo(unsafeDir);
