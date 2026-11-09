@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.UpdateCenterWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Updates — 0.1.0-preview.15" Width="710" Height="570" MinWidth="590" MinHeight="475"
+        Title="Updates — 0.1.0-preview.15" Width="760" Height="620" MinWidth="620" MinHeight="535"
         WindowStartupLocation="CenterOwner" FontFamily="Segoe UI" FontSize="13"
         Background="{StaticResource BackgroundBrush}" Icon="Assets/app.ico">
   <Grid Margin="24">
@@ -38,12 +38,15 @@
     </GroupBox>
     <Grid Grid.Row="3">
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-      <TextBlock Grid.Row="0" x:Name="InstallHelp" Foreground="#8B531A" Margin="0,0,0,8"
-                 Text="Install requires a trusted, signed update installer. Not available in this preview."/>
+      <TextBlock Grid.Row="0" x:Name="InstallHelp" Foreground="#8B531A"
+                 TextWrapping="Wrap" Margin="0,0,0,10"
+                 Text="Check for a LIVE release first. Installation requires an elevated EXE in a protected Program Files folder."/>
       <WrapPanel Grid.Row="1">
         <Button x:Name="CheckButton" Tag="&#xE72C;" Content="Check" Style="{StaticResource PrimaryButton}"
                 Click="Check_Click" MinWidth="105"/>
         <Button x:Name="InstallButton" Tag="&#xE896;" Content="Install" Click="Install_Click" MinWidth="105" IsEnabled="False"/>
+        <Button x:Name="ReleasePageButton" Tag="&#xE774;" Content="Open GitHub release"
+                Click="OpenRelease_Click" MinWidth="155"/>
         <Button Tag="&#xE8BB;" Content="Close" Click="Close_Click" MinWidth="105"/>
       </WrapPanel>
     </Grid>

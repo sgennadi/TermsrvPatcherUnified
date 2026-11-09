@@ -64,10 +64,17 @@ internal static class UiSmokeTests
                     main.FindName("ManualHexCopy") is not Button copy ||
                     copy.IsEnabled)
                     throw new Exception("Read-only 16-column HEX viewer and navigation controls are missing.");
+                var updaterWindow = new UpdateCenterWindow(updater);
+                if (updaterWindow.FindName("InstallHelp") is not TextBlock eligibilityHelp ||
+                    eligibilityHelp.Text.Contains("signed update installer", StringComparison.OrdinalIgnoreCase) ||
+                    updaterWindow.FindName("ReleasePageButton") is not Button ||
+                    updaterWindow.FindName("InstallButton") is not Button installButton ||
+                    installButton.IsEnabled)
+                    throw new Exception("Update eligibility explanation or manual-release fallback is missing.");
                 var windows = new Window[]
                 {
                     main,
-                    new UpdateCenterWindow(updater),
+                    updaterWindow,
                     new DiagnosticsWindow(),
                     new AboutWindow(),
                     new SuccessfulFixWindow(record)
