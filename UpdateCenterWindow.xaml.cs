@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using TermsrvPatcherUnified.Core;
@@ -43,14 +44,28 @@ public partial class UpdateCenterWindow : Window
         NotesText.Text = live is null
             ? "Press Check to retrieve release notes. A cached update cannot be installed."
             : $"Version {live.Version}\nPublished: {live.PublishedAt?.ToString("u") ?? "Unknown"}\n\n{live.ReleaseNotes}";
-        bool available = !checking && !installing &&
-            notice.Status == UpdateNoticeStatus.Available &&
-            !notice.IsCached && live is not null &&
-            UpdateInstallBridge.CanInstall(out _);
+        // Explain why Install is disabled. A discovered update is not
+        // sufficient proof that an in-place EXE replacement is safe.
+        bool canInstall = UpdateInstallBridge.CanInstall(out string reason);
+        bool freshRelease = notice.Status == UpdateNoticeStatus.Available &&
+            !notice.IsCached && live is not null;
+        bool available = !checking && !installing && freshRelease && canInstall;
         InstallButton.IsEnabled = available;
         InstallHelp.Text = available
-            ? "Manual unsigned preview: Check -> Install. Backup and automatic rollback are enabled."
-            : "Install requires a LIVE newer release, an administrator, and a trusted local EXE.";
+            ? "Ready: administrator-owned Program Files EXE. The unsigned preview is verified; the current EXE is backed up and rollback is attempted if health verification fails."
+            : checking ? "Checking release metadata. Installation is unavailable until the live check completes."
+            : installing ? "Installation in progress."
+            : notice.Status == UpdateNoticeStatus.InstallationHeld
+                ? "Install blocked: a previous failed update needs administrator review."
+            : notice.IsCached ? "Install blocked: cached release information is not enough. Press Check for a LIVE result."
+            : notice.Status == UpdateNoticeStatus.CheckFailed
+                ? "Install blocked: the GitHub release check failed. Press Check again or open the release page."
+            : notice.Status == UpdateNoticeStatus.Available && live is null
+                ? "Install blocked: no verified LIVE release details. Press Check."
+            : freshRelease && !canInstall
+                ? "Install blocked: " + reason + " Download the full ZIP from GitHub for a manual, administrator-approved installation."
+            : "Install is unavailable: no newer LIVE release is selected. Choose Preview and press Check.";
+        InstallButton.ToolTip = available ? "Install the verified update" : InstallHelp.Text;
 
     }
 
@@ -141,6 +156,21 @@ public partial class UpdateCenterWindow : Window
             CheckButton.IsEnabled = true;
             ChannelSelector.IsEnabled = true;
             RenderNotice();
+        }
+    }
+
+    private void OpenRelease_Click(object sender, RoutedEventArgs e)
+    {
+        // Fixed official link: opening it sends no diagnostics or credentials.
+        try
+        {
+            Process.Start(new ProcessStartInfo(
+                "https://github.com/sgennadi/TermsrvPatcherUnified/releases")
+            { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            StatusText.Text = "Could not open the browser; open the project's GitHub Releases page manually.";
         }
     }
 

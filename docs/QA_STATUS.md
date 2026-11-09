@@ -144,3 +144,11 @@ Version: 0.1.0-preview.10
   - Full Windows x64 ZIP: `a81007d454fccad0a2285bae43fb5265924bdc19ef95e1c6e6690dd7c8da25b4`.
   - Updater-only EXE ZIP: `2d73cc716358161d8822cbd8c4c0cd7b054d3a994a4006909a5ad24fd99eebcb`.
 - The published-asset tests are deliberately **non-destructive Windows Server 2025** jobs. They do not certify live Windows 11 26H2 RDP function, physical 200%-DPI HEX viewer appearance, real protected Apply/Restore or firewall/GPO behavior. Manual Windows 11 GUI acceptance is specified in `docs/WINDOWS_SMOKE_TEST.md`.
+
+## Preview.16 — updater eligibility and manual-install guidance
+
+- Explain the precise `UpdateInstallBridge.CanInstall` blocking reason below the preview release notes, including user privileges, packaged EXE path, Program Files ACL restrictions and live/cached status. **No safety requirement is bypassed**.
+- Added Open GitHub release for manual download of the full x64 ZIP. Opening this public link does not submit diagnostic data.
+- Corrected the outdated signed-installer text: updates are unsigned, intentionally manual and verified by SHA-256.
+- WPF offscreen smoke asserts explicit install-eligibility message, release-link action and initially disabled Install state.
+- This is a UX gate only: interactive Windows 11 updates from protected Program Files still require manual VM testing.

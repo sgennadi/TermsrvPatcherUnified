@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-preview.16 — 2026-11-09
+
+- The updater now explains the exact reason when **Install** is disabled: missing live release data, cached results, insufficient elevation, unsupported/unsafe installation path, or previous failure hold.
+- Added **Open GitHub release** as a manual fallback for standalone ZIP installations (no automatic elevation or downloads triggered).
+- Corrected the misleading initial warning about requiring a signed installer: Preview packages remain **unsigned** and are installed only after explicit approval and integrity checks.
+- Enlarged the Updates window and wrapped explanatory text; expanded offscreen WPF QA to check the new eligibility message and release button.
+- This does not relax the administrator/protected Program Files safeguards, and does not modify DLL patching or short-HEX Find behavior. The Manual live Find search remains read-only; full Find/Replace validation still requires four matching byte positions.
+- Real Windows 11 display scaling and protected Apply/Restore remain manual acceptance tasks.
+
+
 ## 0.1.0-preview.15 — 2026-11-09
 
 - **Automatic → Signature evidence:** lists each catalog Find/Replace signature, its exact-match count, offsets and reason for repeated or conflicting results. An ambiguous match stays blocked; none of these read-only findings authorizes Apply.
