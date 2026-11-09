@@ -137,6 +137,35 @@ foreach (var profile in automatic)
     Ensure(patched.State == PatchState.AlreadyPatched, "already-patched recognition: " + profile.Label);
 }
 
+// Last-resort Revert with NO backup/journal can reverse ONLY fully fixed
+// original bytes. Generic wildcard patterns lose information irreversibly.
+foreach (var profile in automatic.Skip(1))
+{
+    var originalBytes = FakeBytes(profile.Groups.Single());
+    var syntheticPatchedPlan = PatchCatalog.Inspect(originalBytes, "fake.dll",
+        "1.0", SystemInfo.Sha256(originalBytes), true, [profile]);
+    Ensure(syntheticPatchedPlan.PatchedBytes is not null, "source-free fixed profile prepares sample");
+    Ensure(ExactCatalogRevert.TryReverseGroups(syntheticPatchedPlan.PatchedBytes!,
+            profile.Groups, out var recoveredOriginal, out var reverseEdits) &&
+           recoveredOriginal.SequenceEqual(originalBytes) && reverseEdits.Length == 1,
+        "13/19 byte fully fixed pattern can be reversed without guessing original bytes");
+    var changed = (byte[])syntheticPatchedPlan.PatchedBytes!.Clone();
+    new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }.CopyTo(changed, 90);
+    var repeatedReplacement = (byte[])syntheticPatchedPlan.PatchedBytes!.Clone();
+    profile.Groups[0].Replace.CopyTo(repeatedReplacement, 100);
+    Ensure(!ExactCatalogRevert.TryReverseGroups(repeatedReplacement, profile.Groups,
+            out _, out _), "duplicate replacement signature cannot be automatically reversed");
+}
+var genericSource = FakeBytes(automatic[0].Groups.Single());
+var genericPatched = PatchCatalog.Inspect(genericSource, "fake.dll", "1.0",
+    SystemInfo.Sha256(genericSource), true, [automatic[0]]);
+Ensure(genericPatched.PatchedBytes is not null &&
+       !ExactCatalogRevert.TryReverseGroups(genericPatched.PatchedBytes,
+           automatic[0].Groups, out _, out _),
+    "generic wildcard loses original bytes: no reverse without evidence");
+Ensure(!ExactCatalogRevert.TryReverseGroups(new byte[256], automatic[1].Groups,
+        out _, out _), "unknown file never gets a reverse candidate");
+
 var old = PatchCatalog.Parse("# Windows 10 22H2\nx64, 11 22 33 44, AA BB CC DD\n");
 Ensure(old.Count == 1 && old[0].Label.StartsWith("Windows 10"), "manual catalog labels");
 var made = FakeBytes(new BytePattern("11 22 33 44", "AA BB CC DD"));
