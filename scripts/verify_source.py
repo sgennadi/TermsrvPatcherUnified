@@ -171,3 +171,5 @@ for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow"):
                 check(bool(re.search(r"\bvoid\s+" + re.escape(value) + r"\s*\(", source)),
                       f"{view_name}: GUI handler exists for {value}")
 print("PASS: secondary WPF window event handler guards.")
+
+check("global using System.Net.Http;" in (ROOT / 'GlobalUsings.cs').read_text(), 'WPF project explicitly imports System.Net.Http for GitHub Issues API')
