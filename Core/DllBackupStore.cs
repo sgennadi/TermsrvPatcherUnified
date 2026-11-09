@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace TermsrvPatcherUnified.Core;
 
@@ -115,6 +117,75 @@ internal static class DllBackupStore
             }
         }
         return found.OrderByDescending(File.GetCreationTimeUtc).ToArray();
+    }
+
+    /// <summary>
+    /// Production-only guard. A checksum named by an attacker is not proof that
+    /// its file is an authentic original DLL. Require the application state root
+    /// AND the backup directory to be controlled only by trusted administrators.
+    /// No ACLs are repaired automatically: legacy/untrusted locations fail closed.
+    /// </summary>
+    internal static void RequireTrustedLocation(string directory, bool create)
+    {
+        if (!OperatingSystem.IsWindows())
+            throw new PlatformNotSupportedException("NTFS backup trust requires Windows.");
+        var root = Path.GetFullPath(directory);
+        var parent = Path.GetDirectoryName(root)
+            ?? throw new InvalidOperationException("Backup directory has no application state root.");
+        if (create) Directory.CreateDirectory(parent);
+        if (!Directory.Exists(parent))
+            throw new DirectoryNotFoundException("The backup parent directory does not exist.");
+        RejectLinkedParents(parent);
+        RequireTrustedAcl(parent);
+        if (create) Directory.CreateDirectory(root);
+        if (!Directory.Exists(root))
+            throw new DirectoryNotFoundException("The backup directory does not exist.");
+        RejectLinkedParents(root);
+        RequireTrustedAcl(root);
+    }
+
+    private static void RequireTrustedAcl(string path)
+    {
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var trustedInstaller = new SecurityIdentifier(
+            "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464");
+        using var identity = WindowsIdentity.GetCurrent();
+        var current = identity.User;
+        var elevated = SystemInfo.IsAdministrator();
+        var acl = new DirectoryInfo(path).GetAccessControl(
+            AccessControlSections.Owner | AccessControlSections.Access);
+        var owner = acl.GetOwner(typeof(SecurityIdentifier)) as SecurityIdentifier;
+        // Existing application state may be owned by the elevated administrator
+        // who created it, rather than by the Administrators group.
+        bool ownerIsCurrentElevatedAdmin = elevated && current is not null &&
+                                           owner is not null && owner.Equals(current);
+        if (owner is null ||
+            (!owner.Equals(administrators) && !owner.Equals(system) &&
+             !owner.Equals(trustedInstaller) && !ownerIsCurrentElevatedAdmin))
+            throw new UnauthorizedAccessException(
+                "Backup storage owner is not a trusted administrator; restore is blocked.");
+
+        foreach (FileSystemAccessRule rule in acl.GetAccessRules(true, true,
+                     typeof(SecurityIdentifier)))
+        {
+            if (rule.AccessControlType != AccessControlType.Allow ||
+                !UpdateInstallBridge.HasMutatingRights(rule.FileSystemRights))
+                continue;
+            if (rule.IdentityReference is not SecurityIdentifier sid)
+                throw new UnauthorizedAccessException("Unknown writable backup ACL entry.");
+            // CREATOR OWNER applies to future objects; InheritOnly does not
+            // grant access to this directory itself.
+            if (sid.Equals(new SecurityIdentifier(WellKnownSidType.CreatorOwnerSid, null)) &&
+                rule.PropagationFlags.HasFlag(PropagationFlags.InheritOnly))
+                continue;
+            if (sid.Equals(administrators) || sid.Equals(system) ||
+                sid.Equals(trustedInstaller) ||
+                (ownerIsCurrentElevatedAdmin && current is not null && sid.Equals(current)))
+                continue;
+            throw new UnauthorizedAccessException(
+                "Backup directory grants modification rights to an untrusted account.");
+        }
     }
 
     private static string FileName(string version, string sha)
