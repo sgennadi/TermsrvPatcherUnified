@@ -12,7 +12,23 @@ $temp = Join-Path ([IO.Path]::GetTempPath()) ('nsudo-8.2-' + [guid]::NewGuid().T
 New-Item -ItemType Directory -Path $temp | Out-Null
 try {
     $archive = Join-Path $temp 'NSudo_8.2_All_Components.zip'
-    Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 5
+    # Archived GitHub release CDN can transiently return HTTP 504.
+    # Retry only transport failures; a downloaded archive must still match
+    # the pinned SHA-256 before it can be used as executable native code.
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $archive) {
+                Remove-Item -LiteralPath $archive -Force
+            }
+            Invoke-WebRequest -Uri $source -OutFile $archive -MaximumRedirection 5 -TimeoutSec 90 -ErrorAction Stop
+            break
+        }
+        catch {
+            if ($attempt -ge 5) { throw "NSudo official archive was unavailable after repeated attempts: $($_.Exception.GetType().Name)" }
+            Write-Warning "NSudo official archive temporarily unavailable; retry attempt $($attempt + 1) of 5."
+            Start-Sleep -Seconds ([Math]::Min(20, 3 * $attempt))
+        }
+    }
     $sha256 = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($sha256 -ne $archiveSha256) {
         throw "NSudo 8.2 release ZIP checksum differs from pinned expected value. No DLL will be staged."
