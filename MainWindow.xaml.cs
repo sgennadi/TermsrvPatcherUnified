@@ -13,6 +13,7 @@ public partial class MainWindow : Window
     private readonly TermsrvEngine engine;
     private PatchPlan? autoPlan;
     private PatchPlan? manualPlan;
+    private OfflineDllPreview? offlinePlan;
     private ScanReport? lastScan;
     private string? importedFile;
     private IReadOnlyList<PatchProfile> imported = [];
@@ -177,7 +178,13 @@ public partial class MainWindow : Window
 
     private async void Restore_Click(object sender, RoutedEventArgs e)
     {
-        Directory.CreateDirectory(TermsrvEngine.BackupDirectory);
+        var verified = engine.BackupsForCurrentVersion();
+        if (verified.Count == 0)
+        {
+            MessageBox.Show(this, "No trusted backup for the currently installed DLL.",
+                "Restore unavailable", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         var dialog = new OpenFileDialog
         {
             Title = "Choose a verified DLL backup to restore",
@@ -195,7 +202,12 @@ public partial class MainWindow : Window
 
     private void OpenBackups_Click(object sender, RoutedEventArgs e)
     {
-        Directory.CreateDirectory(TermsrvEngine.BackupDirectory);
+        if (!Directory.Exists(TermsrvEngine.BackupDirectory))
+        {
+            MessageBox.Show(this, "No backup directory has been created yet.",
+                "Backups", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
         Process.Start(new ProcessStartInfo(TermsrvEngine.BackupDirectory) { UseShellExecute = true });
     }
 
@@ -292,6 +304,114 @@ public partial class MainWindow : Window
             ApplyManualButton.IsEnabled = manualPlan.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             FooterText.Text = $"Imported manual profile: {manualPlan.State}";
         });
+    }
+
+    private void OfflineInputChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        offlinePlan = null;
+        if (OfflineSaveButton is not null) OfflineSaveButton.IsEnabled = false;
+        if (OfflineDetails is not null)
+            OfflineDetails.Text = "Input changed. Check the selected DLL again.";
+    }
+
+    private void BrowseOffline_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select a local termsrv.dll (x86 or x64)",
+            Filter = "termsrv.dll|termsrv.dll|DLL files (*.dll)|*.dll",
+            CheckFileExists = true
+        };
+        if (dialog.ShowDialog(this) == true) OfflineFile.Text = dialog.FileName;
+    }
+
+    private async void OfflineCheck_Click(object sender, RoutedEventArgs e)
+    {
+        string source = OfflineFile.Text;
+        string find = OfflineFind.Text;
+        string replace = OfflineReplace.Text;
+        await RunBusy(async () =>
+        {
+            offlinePlan = await Task.Run(() => OfflineDllPatcher.Inspect(source, find, replace));
+            OfflineDetails.Text = offlinePlan.Summary();
+            OfflineSaveButton.IsEnabled = offlinePlan.Plan.State == PatchState.Ready;
+            FooterText.Text = $"Offline DLL: {offlinePlan.Architecture}, {offlinePlan.Plan.State}. Original CRC32: {offlinePlan.OriginalCrc32}";
+        });
+    }
+
+    private async void OfflineSave_Click(object sender, RoutedEventArgs e)
+    {
+        var preview = offlinePlan;
+        if (preview?.Plan.State != PatchState.Ready) return;
+        var dialog = new SaveFileDialog
+        {
+            Title = "Save a separate patched DLL (source is never replaced)",
+            Filter = "Patched DLL (*.dll)|*.dll",
+            FileName = "termsrv.patched.dll",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        if (!Confirm(this, "Create OFFLINE patched copy?",
+                "The original termsrv.dll will remain unchanged. A separate DLL will be written and " +
+                "verified by SHA-256 and CRC32. The output is not installed. Continue?")) return;
+
+        OfflineDllResult? completed = null;
+        await RunBusy(async () =>
+        {
+            completed = await Task.Run(() => OfflineDllPatcher.SavePatched(preview, dialog.FileName));
+            OfflineDetails.Text = preview.Summary() +
+                $"\nSAVED: {Path.GetFileName(completed.OutputPath)}" +
+                $"\nVerified SHA-256: {completed.FinalSha256}" +
+                $"\nVerified CRC32: {completed.FinalCrc32}";
+            FooterText.Text = "Offline patched copy saved and verified; original file unchanged.";
+        });
+        if (completed is not null)
+        {
+            try
+            {
+                new SuccessfulFixWindow(completed.PublicMetadata()) { Owner = this }.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                DiagnosticsBridge.Remember("Offline compatibility reporting", ex);
+                AuditLog.Append("Offline report dialog failed: " + ex.GetType().Name);
+            }
+        }
+    }
+
+    private void ExportAutoDryRun_Click(object sender, RoutedEventArgs e) => ExportDryRun(autoPlan);
+    private void ExportManualDryRun_Click(object sender, RoutedEventArgs e) => ExportDryRun(manualPlan);
+
+    private void ExportDryRun(PatchPlan? plan)
+    {
+        if (plan is null)
+        {
+            MessageBox.Show(this, "Check the DLL first.", "DryRun", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+        try
+        {
+            var report = PatchDryRun.Build(plan, engine.EnvironmentInfo(),
+                CreateBackupCheck.IsChecked != false);
+            var dialog = new SaveFileDialog
+            {
+                Title = "Save read-only DryRun JSON",
+                Filter = "JSON (*.json)|*.json",
+                FileName = "termsrv-dryrun.json",
+                AddExtension = true
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            report.SaveNew(dialog.FileName, plan.FilePath);
+            FooterText.Text = "Read-only DryRun exported; no system changes.";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("DryRun export", ex);
+            MessageBox.Show(this, ex.Message, "DryRun export refused",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void BrowseDll_Click(object sender, RoutedEventArgs e)
