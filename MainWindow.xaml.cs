@@ -56,6 +56,11 @@ public partial class MainWindow : Window
             }
             catch (Exception e) { FooterText.Text = "Settings read: " + e.Message; }
             await CheckAsync();
+            var independent = IsolatedApplyExecutor.ReadLatestStatus();
+            if (independent is not null)
+                FooterText.Text = "Independent Apply: " + independent.State +
+                                  " (job " + independent.Id[..8] + "). " +
+                                  independent.Details;
             // Background metadata-only update check: no download or installation.
             _ = BackgroundUpdateCheckAsync();
         };
@@ -89,7 +94,9 @@ public partial class MainWindow : Window
             RefreshButton.IsEnabled = true;
             MainTabs.IsEnabled = true;
             RestoreButton.IsEnabled = true;
-            ApplyAutoButton.IsEnabled = autoPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
+            ApplyAutoButton.IsEnabled = autoPlan?.State == PatchState.Ready &&
+                NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator() &&
+                IsolatedApplyExecutor.ReadLatestStatus()?.State is not ("Queued" or "Running");
             ApplyManualButton.IsEnabled = manualPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             OfflineSaveButton.IsEnabled = offlinePreview?.Plan.State == PatchState.Ready;
         }
@@ -348,21 +355,43 @@ public partial class MainWindow : Window
     {
         if (plan?.State != PatchState.Ready || !NsudoDevilModeScope.IsBundled || !SystemInfo.IsAdministrator()) return;
         bool createBackup = CreateBackupCheck.IsChecked != false;
+        // Independent automatic Apply always makes a durable trusted backup.
+        if (!manual && !createBackup)
+        {
+            CreateBackupCheck.IsChecked = true;
+            createBackup = true;
+        }
         string message = "This operation modifies the protected Windows termsrv.dll file and stops " +
             "Remote Desktop services temporarily. Active RDP connections may be disconnected. " +
             "Windows updates may revert the change. Proceed only on a system you administer and " +
             "where permitted by the applicable license.";
         if (manual)
             message += "\n\nMANUAL MODE: You supplied the replacement bytes. No automatic analysis " +
-                "can guarantee that this patch is safe. Continue?";
+                "can guarantee that this patch is safe. Manual Apply is not yet independent " +
+                "of the user session; use console access. Continue?";
+        else
+            message += "\n\nAUTOMATIC MODE: The operation will be queued under SYSTEM " +
+                "with a mandatory protected backup; closing RDP will not terminate its process.";
         if (!createBackup)
             message += "\n\nCREATE BACKUP IS OFF: No persistent DLL backup will be saved. " +
                        "After the operation, Restore will not be available unless an earlier " +
                        "valid backup exists. A failed write still attempts in-memory rollback.";
         if (!Confirm(this, manual ? "Apply manual patch?" : "Apply verified patch?", message)) return;
+        if (!manual)
+        {
+            await RunBusy(async () =>
+            {
+                string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan));
+                FooterText.Text = "Independent SYSTEM Apply queued (" + jobId[..8] +
+                                  "). You may disconnect RDP. Reopen to check the result.";
+            }, "Apply");
+            return;
+        }
         if (!createBackup && !Confirm(this, "Confirm: no backup",
                 "Continue WITHOUT creating a backup? A later Restore is not guaranteed. " +
                 "Use a VM snapshot or an independent trusted backup for recovery.")) return;
+        // Manual Apply still runs in the interactive context: do not imply
+        // that it is independent of the user session.
         // A compatibility report is offered ONLY if the protected write, byte
         // verification and RDP-service recovery all returned successfully.
         bool applied = false;

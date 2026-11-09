@@ -51,6 +51,17 @@ public partial class App : Application
             finally { Shutdown(); }
             return;
         }
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.WorkerArgument, StringComparison.Ordinal))
+        {
+            // This branch runs before any interactive GUI or RDP session setup.
+            // Only an approved LocalSystem scheduled task can run the worker.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2
+                ? IsolatedApplyExecutor.RunWorker(e.Args[1]) : 2);
+            return;
+        }
+
         if (e.Args.Any(a => a.Equals("--reapply", StringComparison.OrdinalIgnoreCase)))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -106,6 +117,28 @@ public partial class App : Application
             {
                 MessageBox.Show("Could not request administrator elevation: " + ex.Message,
                     "TermsrvPatcher Unified", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        if (!offlineStartup && SystemInfo.IsAdministrator() && NsudoDevilModeScope.IsBundled)
+        {
+            try
+            {
+                using var engine = new TermsrvEngine(null);
+                var candidate = engine.Inspect();
+                if (candidate.State == PatchState.Ready && !candidate.IsManual)
+                {
+                    var compact = new QuickApplyWindow();
+                    compact.SetInitialPlan(candidate);
+                    MainWindow = compact;
+                    compact.Show();
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                AuditLog.Append("Compact startup inspection unavailable: " +
+                                ex.GetType().Name);
+                // Advanced manager is still available for read-only evidence.
             }
         }
         MainWindow = new MainWindow(offlineStartup);

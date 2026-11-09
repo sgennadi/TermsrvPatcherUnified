@@ -24,6 +24,13 @@ internal static class DllBackupIntegrityTests
         var folder = Path.Combine(Path.GetTempPath(),
             "Termsrv-DllBackup-Tests-" + Guid.NewGuid().ToString("N"));
         var backupDir = Path.Combine(folder, "backups");
+        var expectedProtectedRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+            "TermsrvPatcherUnified.Secure");
+        var expectedProtectedBackups = Path.Combine(expectedProtectedRoot, "Backups");
+        // The old audit directory may be writable by ordinary users.
+        // It must never be used as a source of trusted Restore bytes.
+
         var assertions = 0;
 
         void Check(bool condition, string reason)
@@ -42,6 +49,19 @@ internal static class DllBackupIntegrityTests
 
         try
         {
+            // Path-only checks are safe without administrative rights; the
+            // protected storage itself is never created in this QA run.
+            Check(TermsrvEngine.BackupDirectory.Equals(expectedProtectedBackups,
+                    StringComparison.OrdinalIgnoreCase),
+                "protected backups use their own ProgramData state root");
+            Check(!Path.GetFullPath(TermsrvEngine.BackupDirectory).StartsWith(
+                    Path.GetFullPath(AuditLog.Root).TrimEnd(Path.DirectorySeparatorChar) +
+                    Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase),
+                "protected backups are not children of the writable audit root");
+            Check(TermsrvEngine.LegacyBackupDirectory.Equals(
+                    Path.Combine(AuditLog.Root, "Backups"),
+                    StringComparison.OrdinalIgnoreCase),
+                "legacy backup location is identified but never auto-trusted");
             // No-backup mode MUST NOT create even a backup directory.
             Check(DllBackupStore.Save(backupDir, version, source, sourceHash,
                 createBackup: false) is null, "disabled backup returns null");
@@ -178,6 +198,30 @@ internal static class DllBackupIntegrityTests
                     if (Directory.Exists(programDataProbe))
                         Directory.Delete(programDataProbe, recursive: true);
                 }
+
+                // Reproduce the reported real-world failure: a legacy
+                // application state root inherits a user-writable ACE. A
+                // protected child must NOT be created inside that root.
+                var unsafeParent = Path.Combine(folder, "unsafe-parent");
+                Directory.CreateDirectory(unsafeParent);
+                var unsafeParentInfo = new DirectoryInfo(unsafeParent);
+                unsafeParentInfo.SetAccessControl(privateAcl);
+                var inheritedAcl = unsafeParentInfo.GetAccessControl();
+                inheritedAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+                    new System.Security.Principal.SecurityIdentifier(
+                        System.Security.Principal.WellKnownSidType.BuiltinUsersSid, null),
+                    System.Security.AccessControl.FileSystemRights.Modify,
+                    System.Security.AccessControl.InheritanceFlags.ContainerInherit |
+                    System.Security.AccessControl.InheritanceFlags.ObjectInherit,
+                    System.Security.AccessControl.PropagationFlags.None,
+                    System.Security.AccessControl.AccessControlType.Allow));
+                unsafeParentInfo.SetAccessControl(inheritedAcl);
+                var unsafeChild = Path.Combine(unsafeParent, "Backups");
+                Refuses<UnauthorizedAccessException>(
+                    () => DllBackupStore.RequireTrustedLocation(unsafeChild, create: true),
+                    "user-writable existing parent is refused without bypassing ACL checks");
+                Check(!Directory.Exists(unsafeChild),
+                    "rejecting an unsafe parent does not create a child backup directory");
 
                 var unsafeDir = Path.Combine(folder, "unsafe-backups");
                 Directory.CreateDirectory(unsafeDir);

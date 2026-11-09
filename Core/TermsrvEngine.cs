@@ -77,7 +77,19 @@ public sealed class TermsrvEngine : IDisposable
             new FileInfo(os.DllPath).Length);
     }
 
-    public static string BackupDirectory => Path.Combine(AuditLog.Root, "Backups");
+    // Security boundary: AuditLog.Root is user-accessible by design and may
+    // inherit normal ProgramData write permissions. Do NOT use it as the
+    // parent of restorable system-DLL backups.
+    // RequireTrustedLocation creates both directories with a protected DACL
+    // for Administrators and SYSTEM only, or rejects pre-planted ACLs.
+    // Existing backups in the legacy log folder are NEVER silently trusted
+    // or imported from a potentially user-writable location.
+    public static string BackupDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+        "TermsrvPatcherUnified.Secure",
+        "Backups");
+
+    internal static string LegacyBackupDirectory => Path.Combine(AuditLog.Root, "Backups");
 
     private void Message(string line)
     {
