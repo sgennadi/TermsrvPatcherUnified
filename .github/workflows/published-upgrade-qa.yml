@@ -20,7 +20,7 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - name: Download and checksum-pin published preview.12 and preview.13 update archives
+      - name: Download and checksum-pin published preview.13 and preview.14 update archives
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -28,8 +28,8 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $name = 'TermsrvPatcherUnified-update-win-x64.zip'
           $published = @(
-            @{ Version = '0.1.0-preview.12'; Sha256 = 'a95d7f7ea685bc5f6642c3bfe08b22d682f8591bdc570d897e3f4450b60b25ff' },
-            @{ Version = '0.1.0-preview.13'; Sha256 = '504a371266dc45ee99a89538f9833ce994ad96f8764524d1b628ea45b8004ee8' }
+            @{ Version = '0.1.0-preview.13'; Sha256 = '504a371266dc45ee99a89538f9833ce994ad96f8764524d1b628ea45b8004ee8' },
+            @{ Version = '0.1.0-preview.14'; Sha256 = '30e91a533877860b8d4f82f5d694a6dd4849f66c8ad7be613fd88434bbf25632' }
           )
           foreach ($release in $published) {
             $folder = Join-Path $PWD ('qa/' + $release.Version)
@@ -50,7 +50,7 @@ jobs:
         shell: pwsh
         run: |
           $name = 'TermsrvPatcherUnified-update-win-x64.zip'
-          $previous = Join-Path $PWD ('qa/0.1.0-preview.12/' + $name)
-          $candidate = Join-Path $PWD ('qa/0.1.0-preview.13/' + $name)
-          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --published-upgrade-check $previous $candidate 0.1.0-preview.12 0.1.0-preview.13
+          $previous = Join-Path $PWD ('qa/0.1.0-preview.13/' + $name)
+          $candidate = Join-Path $PWD ('qa/0.1.0-preview.14/' + $name)
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --published-upgrade-check $previous $candidate 0.1.0-preview.13 0.1.0-preview.14
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

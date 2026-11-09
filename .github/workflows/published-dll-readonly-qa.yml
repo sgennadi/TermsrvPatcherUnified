@@ -16,15 +16,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: Download published preview.13 and verify exact release checksum
+      - name: Download published preview.14 and verify exact release checksum
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = 'v0.1.0-preview.13'
+          $tag = 'v0.1.0-preview.14'
           $asset = 'TermsrvPatcherUnified-win-x64.zip'
-          $expected = 'cb99903ff0033670d6bfdce912a95657cfd2d46e4322d69c3a365e8dea714d1b'
+          $expected = '62aff47538d323d40a95aa769215e89a793319d9f938b8238e97298018a159f4'
           $qa = Join-Path $env:RUNNER_TEMP 'termsrv-real-dll-readonly'
           New-Item -ItemType Directory -Path $qa -Force | Out-Null
           gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $asset --dir $qa --clobber
@@ -35,7 +35,7 @@ jobs:
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $qa 'app') -Force
           $exe = Join-Path $qa 'app/TermsrvPatcherUnified.exe'
           if (-not (Test-Path -LiteralPath $exe)) { throw 'Expected application EXE is absent.' }
-          Write-Host 'PASS: authentic published preview.13 full-distribution ZIP SHA-256.'
+          Write-Host 'PASS: authentic published preview.14 full-distribution ZIP SHA-256.'
       - name: Verify real installed DLL SHA-256, ACL and TermService unchanged
         shell: pwsh
         run: |

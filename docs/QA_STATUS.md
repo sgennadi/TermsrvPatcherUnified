@@ -117,3 +117,11 @@ Version: 0.1.0-preview.10
 - ServiceGuard preflights TermService and optional RDP services, refuses transitional states, stops only previously running services and makes a best effort to recover even after a partial Stop failure. Failed recovery is reported explicitly.
 - Windows CI includes `--rdp-transaction-qa` fault injection and the release workflow requires it. These are **synthetic** operations: no live TermService, Windows Firewall, registry or system DLL is written by these tests.
 - Real Windows 11 VM protected Apply/Restore and RDP-session recovery, GPO/firewall effectiveness, and actual 200%-DPI visual review remain unverified acceptance tasks.
+
+## Published Preview.13 -> Preview.14 release-asset QA (2026-11-09)
+
+- Published `v0.1.0-preview.14` is an **unsigned prerelease**, not Stable.
+- Independent GitHub Releases SHA-256 digests are pinned: updater-only ZIP = `30e91a533877860b8d4f82f5d694a6dd4849f66c8ad7be613fd88434bbf25632`; full x64 distribution ZIP = `62aff47538d323d40a95aa769215e89a793319d9f938b8238e97298018a159f4`.
+- [Published Preview.13 -> Preview.14 EXE replacement/rollback](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42609330936): **PASS** on Windows 2025 in disposable directories with the actual release ZIPs and EXEs. Checks version probe, protected-package SHA-256, backup preservation, replacement, failure-injected health-probe rollback and tampered staged-file refusal.
+- [Published Preview.14 real system-DLL read-only inspection](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42609330997): **PASS** on a real Windows 2025 system `termsrv.dll`; verified report data plus original file SHA-256, SDDL ACL, TermService state and native cache unchanged.
+- Both are **non-destructive** Windows Server 2025 checks, not Windows 11 live Apply/Restore, user-session or firewall/GPO end-to-end acceptance. Those remain manual VM gates.
