@@ -152,6 +152,11 @@ public partial class MainWindow : Window
             AutoSignatureGrid.ItemsSource = signatureSnapshot.Inspection.Rows;
             AutoProfileGrid.ItemsSource = signatureSnapshot.Inspection.Profiles;
             AutoSignatureSummary.Text = signatureSnapshot.Inspection.Summary +
+                (autoPlan.State == PatchState.Ready &&
+                 autoPlan.Description.Contains("specific profile over", StringComparison.Ordinal)
+                    ? " AUTO TARGET SELECTED: " + autoPlan.ProfileId +
+                      ". Generic fallback matches are excluded from this Apply preview."
+                    : "") +
                 " Verified SHA-256: " + signatureSnapshot.Sha256;
             AutoSignatureDetails.Text = signatureSnapshot.Inspection.AsText();
             AutoEvidenceExportButton.IsEnabled = true;

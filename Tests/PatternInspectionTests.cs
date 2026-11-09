@@ -165,6 +165,27 @@ internal static class PatternInspectionTests
                reportedPlan.Edits.Count == 0 &&
                reportedPlan.PatchedBytes is null,
             "reported signature combination must remain blocked from automatic Apply");
+        // With trusted Windows 11 26H2 context, select the alternate-specific
+        // pattern at the operator's original location. The generic is ignored.
+        var resolvedReportPlan = PatchCatalog.Inspect(reportedShape, "synthetic.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(reportedShape), true, upstream,
+            selectionContext: new AutomaticSelectionContext("Windows 11", "26H2", "Client"));
+        Verify(resolvedReportPlan.State == PatchState.Ready &&
+               resolvedReportPlan.Edits.Count == 1 &&
+               resolvedReportPlan.Edits[0].Offset == 0xA6896,
+            "on 26H2, two reported matching profiles resolve to specific-target preview");
+        Verify(resolvedReportPlan.PatchedBytes is not null &&
+               resolvedReportPlan.PatchedBytes.AsSpan(0x6D20A, 12).SequenceEqual(
+                   reportedShape.AsSpan(0x6D20A, 12)),
+            "the real-report generic-location bytes stay unchanged in the automatic preview");
+        var afterReportedPreview = PatchCatalog.Inspect(
+            resolvedReportPlan.PatchedBytes!, "synthetic.dll", "10.0.26100.8115",
+            SystemInfo.Sha256(resolvedReportPlan.PatchedBytes!), true, upstream,
+            selectionContext: new AutomaticSelectionContext("Windows 11", "26H2", "Client"));
+        Verify(afterReportedPreview.State == PatchState.AlreadyPatched &&
+               afterReportedPreview.Edits.Single().Offset == 0xA6896,
+            "after selecting specific profile, original generic hit is not applied a second time");
+
 
         // Regression: old generic pattern accidentally treated opcode 84 as
         // a wildcard. JE/JZ near jump is 0F 84 followed by four rel32 bytes,
