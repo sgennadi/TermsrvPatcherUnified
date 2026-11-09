@@ -5,7 +5,8 @@ namespace TermsrvPatcherUnified;
 
 public partial class SuccessfulFixWindow : Window
 {
-    private readonly SuccessfulFixMetadata metadata;
+    private readonly SuccessfulFixMetadata? metadata;
+    private readonly OfflineFixMetadata? offlineMetadata;
     private bool sending;
 
     internal SuccessfulFixWindow(SuccessfulFixMetadata metadata)
@@ -13,6 +14,20 @@ public partial class SuccessfulFixWindow : Window
         InitializeComponent();
         this.metadata = metadata;
         Preview.Text = metadata.AsComment();
+        Closed += (_, _) => TokenInput.Clear();
+    }
+
+    internal SuccessfulFixWindow(OfflineFixMetadata report)
+    {
+        InitializeComponent();
+        offlineMetadata = report;
+        Preview.Text = report.AsComment();
+        ReportHeading.Text = "Offline DLL copy saved";
+        ReportExplanation.Text = "The file was patched OFFLINE, not installed or tested for RDP functionality. " +
+            "The metadata below includes CRC32, SHA-256, DLL version, architecture and edited bytes. " +
+            "This report is PUBLIC if you choose Send; Skip sends nothing. No source DLL, paths, " +
+            "hostnames, usernames or tokens are included.";
+        Title = "Offline DLL report — " + UpdateIntegration.Version;
         Closed += (_, _) => TokenInput.Clear();
     }
 
@@ -27,8 +42,12 @@ public partial class SuccessfulFixWindow : Window
             return;
         }
         if (MessageBox.Show(this,
-            "Send the displayed Windows versions, original/patched SHA-256 and changed byte ranges " +
-            "to the PUBLIC GitHub compatibility issue? The token is used for this request only.",
+            offlineMetadata is null
+                ? "Send the displayed Windows versions, SHA-256 and changed byte ranges to " +
+                  "the PUBLIC GitHub compatibility issue? The token is used only for this request."
+                : "Send the OFFLINE file's architecture, DLL version, original and patched " +
+                  "CRC32/SHA-256 and changed bytes to PUBLIC GitHub? This does NOT confirm " +
+                  "the file will work in Windows. The token is not stored.",
             "Confirm public version report", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
@@ -41,9 +60,14 @@ public partial class SuccessfulFixWindow : Window
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             using var reporter = new SuccessfulFixPublisher();
-            await reporter.PublishAsync(metadata, token, cts.Token);
-            AuditLog.Append("Successful fix compatibility metadata was submitted to GitHub Issues.");
-            Status.Text = "GitHub accepted the report. The repository workflow will update the CSV.";
+            if (offlineMetadata is not null)
+                await reporter.PublishAsync(offlineMetadata, token, cts.Token);
+            else
+                await reporter.PublishAsync(metadata!, token, cts.Token);
+            AuditLog.Append(offlineMetadata is null
+                ? "Successful fix compatibility metadata was submitted to GitHub Issues."
+                : "Offline DLL compatibility metadata was submitted to GitHub Issues.");
+            Status.Text = "GitHub accepted the report. Repository aggregation is separate.";
             MessageBox.Show(this, Status.Text, "Compatibility report", MessageBoxButton.OK,
                 MessageBoxImage.Information);
             DialogResult = true;

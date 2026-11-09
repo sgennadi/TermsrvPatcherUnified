@@ -74,3 +74,11 @@ Version: 0.1.0-preview.10
 - Restore rejects incorrect version recorded in filename, file-size mismatch, malformed extension/name, path outside storage, nested path and damaged copy. A valid backup appears in Restore list; invalid ones are hidden.
 - The protected storage trust check refuses user-writable NTFS ACEs or untrusted owner and accepts an explicitly administrator-controlled test directory.
 - Remaining: manual Windows 11 live Apply/Restore and TermService recovery from a VM snapshot, full 200% DPI desktop QA, and operator-approved GitHub Issues report submission.
+
+## Preview.11 offline DLL acceptance
+
+- The application remains Windows x64. Offline PE parsing accepts a selected x86/PE32 or x64/PE32+ `termsrv.dll`; it cannot load NSudo or modify the live system DLL.
+- A unique exact match in executable PE code may be saved as a different `termsrv.patched.dll`. Source CRC32/SHA-256 is rechecked and output SHA-256 is verified. Existing targets or original-file overwrite are refused.
+- Isolated x86/x64 test fixtures cover CRC32 `123456789 = CBF43926`, version/architecture metadata, SHA-256, duplicate/unknown patterns, stale preview, source preservation and refusal to edit resources/headers.
+- An optional public `termsrv-offline/v1` report includes architecture, DLL/app versions, CRC32/SHA-256 and bounded changes. It requires user review and a temporary GitHub token; `data/offline-fixes.csv` is distinct from confirmed system Apply reports.
+- Cross-process protected operation lock and read-only JSON DryRun export are included, with synthetic CI checks. Real Windows 11 protected Apply/Restore, RDP service restart, and 200% DPI still require manually controlled VM testing.

@@ -113,11 +113,23 @@ internal sealed class SuccessfulFixPublisher : IDisposable
         ownsHttp = injectedClient is null;
     }
 
-    internal async Task PublishAsync(SuccessfulFixMetadata metadata, string sessionToken,
+    internal Task PublishAsync(SuccessfulFixMetadata metadata, string sessionToken,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(metadata);
-        var report = metadata.AsComment();
+        return PublishBodyAsync(metadata.AsComment(), sessionToken, cancellationToken);
+    }
+
+    internal Task PublishAsync(OfflineFixMetadata metadata, string sessionToken,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+        return PublishBodyAsync(metadata.AsComment(), sessionToken, cancellationToken);
+    }
+
+    private async Task PublishBodyAsync(string report, string sessionToken,
+        CancellationToken cancellationToken)
+    {
         if (string.IsNullOrWhiteSpace(sessionToken) || sessionToken.Length is < 20 or > 512 ||
             sessionToken.Any(c => c < '!' || c > '~'))
             throw new ArgumentException("Provide a GitHub Issues write token for this session.");

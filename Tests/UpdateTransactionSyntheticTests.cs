@@ -38,7 +38,7 @@ internal static class UpdateTransactionSyntheticTests
             {
                 ProductId = "TermsrvUpdaterSynthetic",
                 Repository = "sgennadi/TermsrvPatcherUnified",
-                InstalledVersion = "0.1.0-preview.10",
+                InstalledVersion = "0.1.0-preview.11",
                 Architecture = "win-x64",
                 Channel = UpdateChannel.Prerelease,
                 StateDirectory = Path.Combine(root, "state"),
@@ -54,12 +54,12 @@ internal static class UpdateTransactionSyntheticTests
                 "Synthetic test only: this is not a downloadable release ZIP."));
             var archiveHash = Sha(archive);
             var stagedExeHash = Sha(stagedExe);
-            var nextVersion = SemanticVersion.Parse("0.1.0-preview.11");
+            var nextVersion = SemanticVersion.Parse("0.1.0-preview.12");
             var release = new UpdateRelease(options.Repository, nextVersion,
-                "v0.1.0-preview.11",
-                "https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v0.1.0-preview.11",
+                "v0.1.0-preview.12",
+                "https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v0.1.0-preview.12",
                 "Synthetic transactional test", null, rule,
-                new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/releases/download/v0.1.0-preview.11/TermsrvPatcherUnified-update-win-x64.zip"),
+                new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/releases/download/v0.1.0-preview.12/TermsrvPatcherUnified-update-win-x64.zip"),
                 new FileInfo(archive).Length, archiveHash);
             var package = new StagedPackage(release, archive, archiveHash,
                 stagedExe, stagedExeHash);

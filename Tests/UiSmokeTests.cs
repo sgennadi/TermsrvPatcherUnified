@@ -30,6 +30,12 @@ internal static class UiSmokeTests
                 if (main.FindName("CreateBackupCheck") is not CheckBox backup ||
                     backup.IsChecked != true)
                     throw new Exception("Create backup must be checked by default.");
+                var tabs = main.FindName("MainTabs") as TabControl;
+                if (tabs is null || tabs.Items.OfType<TabItem>()
+                        .Count(tab => (tab.Header as string) == "Offline DLL") != 1 ||
+                    main.FindName("OfflineSource") is not TextBox ||
+                    main.FindName("OfflineSaveButton") is not Button)
+                    throw new Exception("Expected exactly one offline DLL patch tab and its controls.");
                 var windows = new Window[]
                 {
                     main,

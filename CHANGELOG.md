@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-preview.11 — 2026-11-09
+
+- Added independent Offline DLL tab to select an arbitrary folder's `termsrv.dll`, detect x86/PE32 or x64/PE32+ and save an independent modified DLL file, never overwriting the original or touching Windows services.
+- Added original/output CRC32 and SHA-256, DLL version, architecture, edit offsets and before/after bytes; optional user-reviewed public GitHub report stored separately in `data/offline-fixes.csv`.
+- x86 DLLs require an exact manual signature until independently validated automatic x86 patterns exist; **no x86 program or system patcher is added**.
+- Added administrator-protected cross-process operation mutex for Apply/Restore/RDP Settings, and read-only DryRun JSON export.
+- Added README liability and user-risk notice, consistent with GPLv3 and applicable law.
+- Extended Windows CI with synthetic x86/x64 PE file tests, source integrity/no-overwrite, signature rejection and checksum validation.
+- Real protected DLL Apply/Restore and actual Windows 11 RDP connections remain manual VM acceptance gates; unsigned Preview only.
+
+
 ## 0.1.0-preview.10 — 2026-11-09
 
 - Refactored the persistent DLL backup/Restore path into a shared, independently tested validator.

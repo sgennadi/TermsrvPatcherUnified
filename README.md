@@ -1,4 +1,4 @@
-# TermsrvPatcherUnified — 0.1.0-preview.10
+# TermsrvPatcherUnified — 0.1.0-preview.11
 
 This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from:
 
@@ -6,6 +6,14 @@ This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from
 - https://github.com/fabianosrc/TermsrvPatcher — MIT, newer Windows DLL signature families.
 
 The automatic catalog adapts the three signature families used by `fabianosrc/TermsrvPatcher.ps1` instead of using the PowerShell script's build-number branching. Full license texts and attribution are included. User-provided legacy patterns live in `Patterns/LegacyUserPatterns.MANUAL.txt` and are **never applied automatically**. Example patterns are excluded from production entirely.
+
+## Disclaimer — use entirely at your own risk
+
+**THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT ANY WARRANTY, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.** Neither the authors, maintainers nor contributors guarantee functionality, compatibility, safety, successful recovery or availability. This software does not grant any right to bypass Microsoft licensing terms.
+
+**All use is at the operator's own risk.** You are responsible for lawful and licensed operation, independent tested backups and VM snapshots, local/console recovery, checking every pattern, and deciding whether the selected DLL is safe to modify. Modifying Remote Desktop system components may interrupt service, disconnect users, prevent logon, trigger Windows security protections or cause data loss. Do not rely on an RDP-only connection during modifications.
+
+**To the maximum extent permitted by law, the maintainers and contributors disclaim liability** for outages, loss of remote access, data loss, system damage and other direct or indirect consequences. Nothing here excludes liability where exclusion is prohibited, or overrides the license in [LICENSE](LICENSE) (GPLv3). See [SECURITY.md](SECURITY.md) and third-party notices.
 
 ## User workflow
 
@@ -145,3 +153,21 @@ Prepare manually on Windows with PowerShell 7: `pwsh ./scripts/prepare-nsudo.ps1
 ## RDPControl upstream comparison
 
 See [RDPControl source comparison and prioritized adoption plan](docs/RDPCONTROL_SOURCE_COMPARISON.md). The review identifies independent improvements we can implement in C# while preserving our strict PE checks, protected Backup/Restore path and operator approval. No upstream code was copied and no runtime dependencies were added.
+
+## Offline DLL patching (x86/x64 files, x64 program)
+
+The **Offline DLL** tab lets you select a `termsrv.dll` from any ordinary folder, inspect its PE32/x86 or PE32+/x64 architecture, and generate a *separate* patched copy. The original file is never overwritten; this operation never loads NSudo, stops services, patches the system DLL or changes RDP configuration.
+
+For x64 files, recognized automatic profiles can be used. For x86 files, an operator must supply a suitable exact Find/Replace hexadecimal pattern; there are **no unverified built-in x86 patterns**. Unknown, ambiguous, mismatched and non-executable-section matches are blocked.
+
+After **Check selected DLL**, the program shows architecture, file version, original CRC32 and SHA-256, proposed output CRC32 and SHA-256 and changed byte offsets. **Save patched copy...** defaults to `termsrv.patched.dll`; it never replaces an existing file. A verified output can be reported to a public GitHub issue **only with explicit preview, confirmation and a temporary Issues-write token**. The server aggregates these reports in `data/offline-fixes.csv`, distinct from confirmed installed changes. Public metadata is not evidence the DLL was installed or is operational.
+
+**The program remains Windows x64 only.** Supporting x86 files offline does not introduce an x86 EXE, NSudo x86, system Apply/Restore x86 or Windows 10 x86 support. Automatic and Manual tabs also provide read-only DryRun JSON export. A process-wide lock protects the system Apply/Restore/setting mutations against concurrent use.
+
+Start without a UAC prompt for offline file work:
+
+```powershell
+.\TermsrvPatcherUnified.exe --offline
+```
+
+The normal GUI still requests elevation when starting in the live system-management mode; Apply/Restore and protected settings are checked independently. The offline-only startup option does not grant permission to change the system DLL.

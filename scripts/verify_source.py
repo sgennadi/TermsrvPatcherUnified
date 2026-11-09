@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.10" in version, "version consistency")
+    check("0.1.0-preview.11" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.10" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.11" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -190,6 +190,15 @@ check("original_sha256,patched_sha256,edits" in (ROOT / "data/successful-fixes.c
 check("CreateBackupCheck" in (ROOT / "MainWindow.xaml").read_text(encoding="utf-8"), "backup checkbox exists")
 check("Apply(PatchPlan preview, bool createBackup" in (ROOT / "Core/TermsrvEngine.cs").read_text(encoding="utf-8"), "optional backup wired into apply")
 check("termsrv-success/v2" in (ROOT / "Core/SuccessfulFixPublisher.cs").read_text(encoding="utf-8"), "v2 compatibility report is supported")
+check((ROOT / "Core/OfflineDllPatcher.cs").exists(), "offline x86/x64 DLL patcher source exists")
+check((ROOT / "Core/OfflineFixMetadata.cs").exists(), "offline CRC32/SHA-256 report schema exists")
+check((ROOT / "scripts/record_offline_fix.py").exists(), "offline report parser is present")
+check("original_crc32,patched_sha256,patched_crc32" in (ROOT / "data/offline-fixes.csv").read_text(encoding="utf-8"), "separate public offline CRC32 CSV schema exists")
+check("OfflineSaveButton" in (ROOT / "MainWindow.xaml").read_text(encoding="utf-8"), "offline copy Save button exists in GUI")
+check("--offline" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"), "offline GUI can bypass startup UAC request")
+check("OperationLock.Acquire()" in (ROOT / "Core/TermsrvEngine.cs").read_text(encoding="utf-8"), "protected Apply and Restore use a cross-process lock")
+check("## Disclaimer" in (ROOT / "README.md").read_text(encoding="utf-8"), "README includes liability and risk notice")
+
 print("PASS: compatibility report source guards.")
 
 check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8")), "source validator uses explicit UTF-8 on Windows")
