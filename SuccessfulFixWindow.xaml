@@ -13,10 +13,10 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <TextBlock Grid.Row="0" Text="Successful fix confirmed" FontSize="21"
+    <TextBlock Grid.Row="0" x:Name="ReportHeading" Text="Successful fix confirmed" FontSize="21"
                FontWeight="SemiBold" Margin="0,0,0,12"/>
     <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,13"
-               Text="Review the version, original/patched SHA-256, and exact changed byte ranges below. This report is PUBLIC on GitHub. No hostnames, usernames, IPs, file paths, complete DLL files or logs are sent. Choose Skip to keep it local."/>
+               x:Name="ReportExplanation" Text="Review the version, original/patched SHA-256, and exact changed byte ranges below. This report is PUBLIC on GitHub. No hostnames, usernames, IPs, file paths, complete DLL files or logs are sent. Choose Skip to keep it local."/>
     <TextBox Grid.Row="2" x:Name="Preview" IsReadOnly="True"
              FontFamily="Consolas" FontSize="13" TextWrapping="NoWrap"
              VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"

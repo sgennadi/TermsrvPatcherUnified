@@ -22,6 +22,11 @@ public partial class SuccessfulFixWindow : Window
         InitializeComponent();
         offlineMetadata = report;
         Preview.Text = report.AsComment();
+        ReportHeading.Text = "Offline DLL copy saved";
+        ReportExplanation.Text = "The file was patched OFFLINE, not installed or tested for RDP functionality. " +
+            "The metadata below includes CRC32, SHA-256, DLL version, architecture and edited bytes. " +
+            "This report is PUBLIC if you choose Send; Skip sends nothing. No source DLL, paths, " +
+            "hostnames, usernames or tokens are included.";
         Title = "Offline DLL report — " + UpdateIntegration.Version;
         Closed += (_, _) => TokenInput.Clear();
     }
@@ -59,8 +64,10 @@ public partial class SuccessfulFixWindow : Window
                 await reporter.PublishAsync(offlineMetadata, token, cts.Token);
             else
                 await reporter.PublishAsync(metadata!, token, cts.Token);
-            AuditLog.Append("Successful fix compatibility metadata was submitted to GitHub Issues.");
-            Status.Text = "GitHub accepted the report. The repository workflow will update the CSV.";
+            AuditLog.Append(offlineMetadata is null
+                ? "Successful fix compatibility metadata was submitted to GitHub Issues."
+                : "Offline DLL compatibility metadata was submitted to GitHub Issues.");
+            Status.Text = "GitHub accepted the report. Repository aggregation is separate.";
             MessageBox.Show(this, Status.Text, "Compatibility report", MessageBoxButton.OK,
                 MessageBoxImage.Information);
             DialogResult = true;

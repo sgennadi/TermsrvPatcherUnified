@@ -166,6 +166,44 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
+      <TabItem Header="Offline DLL">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="15,18,15,14">
+            <TextBlock Text="Patch a selected termsrv.dll copy" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Text="Choose a file from any folder. No NSudo, service restart, or system DLL replacement. The original is never overwritten."
+                       Foreground="{StaticResource MutedBrush}" Margin="0,7,0,16" TextWrapping="Wrap"/>
+            <TextBlock Text="Source DLL" FontWeight="SemiBold"/>
+            <Grid Margin="0,5,0,13">
+              <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+              <TextBox x:Name="OfflineSource" Grid.Column="0" IsReadOnly="True" MinHeight="36"
+                       VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+              <Button Grid.Column="1" Tag="&#xE8B7;" Content="Browse termsrv.dll..." Click="OfflineBrowse_Click"/>
+            </Grid>
+            <TextBlock Text="Automatic signatures are checked for the DLL's own x86/x64 architecture. If no signature matches, enter a known manual pair below; unknown bytes are not guessed."
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,12"/>
+            <TextBlock Text="Optional manual Find HEX (* wildcard, | separates groups)" FontWeight="SemiBold"/>
+            <TextBox x:Name="OfflineFind" TextChanged="OfflineInputsChanged" MinHeight="46" MaxHeight="85"
+                     AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas" Margin="0,5,0,12"/>
+            <TextBlock Text="Optional manual Replace HEX (same number of bytes)" FontWeight="SemiBold"/>
+            <TextBox x:Name="OfflineReplace" TextChanged="OfflineInputsChanged" MinHeight="46" MaxHeight="85"
+                     AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas" Margin="0,5,0,13"/>
+            <WrapPanel Margin="0,0,0,12">
+              <Button x:Name="OfflineInspectButton" Tag="&#xE721;" Content="Check selected DLL"
+                      Style="{StaticResource PrimaryButton}" Click="OfflineInspect_Click"/>
+              <Button x:Name="OfflineSaveButton" Tag="&#xE74E;" Content="Save patched copy..."
+                      IsEnabled="False" Click="OfflineSave_Click"/>
+              <Button Tag="&#xE8C8;" Content="Copy report" Click="OfflineCopy_Click"/>
+              <Button Tag="&#xEDE1;" Content="Export report..." Click="OfflineExport_Click"/>
+            </WrapPanel>
+            <TextBox x:Name="OfflineDetails" Height="220" IsReadOnly="True" TextWrapping="Wrap"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" FontSize="12"
+                     Text="Choose termsrv.dll to see architecture, version, original CRC32/SHA-256 and detected changes."/>
+            <TextBlock Text="After saving a new DLL copy, review the report before optionally sending its CRC32, SHA-256, file version, architecture and modified byte ranges to GitHub. Nothing uploads automatically."
+                       TextWrapping="Wrap" Foreground="#8B531A" Margin="0,12,0,0"/>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
       <TabItem Header="RDP Settings">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <StackPanel Margin="15,18,15,10">

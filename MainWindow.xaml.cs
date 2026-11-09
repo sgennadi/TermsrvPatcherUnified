@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     private PatchPlan? manualPlan;
     private OfflineDllPreview? offlinePlan;
     private ScanReport? lastScan;
+    private OfflineDllPreview? offlinePreview;
     private string? importedFile;
     private IReadOnlyList<PatchProfile> imported = [];
     private bool busy;
@@ -52,6 +53,7 @@ public partial class MainWindow : Window
         RestoreButton.IsEnabled = false;
         ApplyAutoButton.IsEnabled = false;
         ApplyManualButton.IsEnabled = false;
+        OfflineSaveButton.IsEnabled = false;
         try { await job(); }
         catch (Exception e)
         {
@@ -68,6 +70,7 @@ public partial class MainWindow : Window
             RestoreButton.IsEnabled = true;
             ApplyAutoButton.IsEnabled = autoPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             ApplyManualButton.IsEnabled = manualPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
+            OfflineSaveButton.IsEnabled = offlinePreview?.Plan.State == PatchState.Ready;
         }
     }
 
@@ -412,6 +415,116 @@ public partial class MainWindow : Window
             MessageBox.Show(this, ex.Message, "DryRun export refused",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
+    }
+
+    private async void OfflineBrowse_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        var dlg = new OpenFileDialog
+        {
+            Title = "Choose a termsrv.dll file for offline patching",
+            Filter = "Windows Terminal Services DLL (termsrv.dll)|termsrv.dll",
+            FileName = "termsrv.dll",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        OfflineSource.Text = dlg.FileName;
+        await CheckOfflineAsync();
+    }
+
+    private void OfflineInputsChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        offlinePreview = null;
+        if (OfflineSaveButton is not null) OfflineSaveButton.IsEnabled = false;
+        if (OfflineDetails is not null)
+            OfflineDetails.Text = "Pattern changed. Check the selected DLL again.";
+    }
+
+    private async Task CheckOfflineAsync()
+    {
+        if (string.IsNullOrWhiteSpace(OfflineSource.Text))
+        {
+            MessageBox.Show(this, "Choose termsrv.dll first.", "Offline DLL");
+            return;
+        }
+        var path = OfflineSource.Text;
+        var find = OfflineFind.Text;
+        var replace = OfflineReplace.Text;
+        offlinePreview = null;
+        await RunBusy(async () =>
+        {
+            var result = await Task.Run(() => OfflineDllPatcher.Inspect(path, find, replace));
+            offlinePreview = result;
+            OfflineDetails.Text = result.Summary();
+            FooterText.Text = $"Offline DLL: {result.Architecture} | {result.Plan.State} | CRC32 {result.OriginalCrc32}";
+        });
+    }
+
+    private async void OfflineInspect_Click(object sender, RoutedEventArgs e) => await CheckOfflineAsync();
+
+    private async void OfflineSave_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || offlinePreview?.Plan.State != PatchState.Ready) return;
+        var source = offlinePreview;
+        var save = new SaveFileDialog
+        {
+            Title = "Save patched DLL as a NEW file (original is never replaced)",
+            Filter = "Patched DLL (*.dll)|*.dll",
+            FileName = "termsrv.patched.dll",
+            InitialDirectory = Path.GetDirectoryName(source.SourcePath),
+            AddExtension = true,
+            DefaultExt = ".dll",
+            OverwritePrompt = false
+        };
+        if (save.ShowDialog(this) != true) return;
+        if (!Confirm(this, "Save offline DLL copy?",
+                $"Write a new {source.Architecture} DLL copy? The source will remain unchanged. " +
+                "Do not install this DLL on a production Windows system without an independent recovery plan."))
+            return;
+        OfflineDllResult? saved = null;
+        await RunBusy(async () =>
+        {
+            saved = await Task.Run(() => OfflineDllPatcher.SavePatched(source, save.FileName));
+            offlinePreview = null;
+            OfflineDetails.Text = source.Summary() +
+                $"\nSaved: {Path.GetFileName(saved.OutputPath)}" +
+                $"\nVerified CRC32: {saved.FinalCrc32}" +
+                $"\nVerified SHA-256: {saved.FinalSha256}" +
+                "\nOriginal DLL not modified.";
+            FooterText.Text = "Offline patched copy saved and verified. Original preserved.";
+        });
+        if (saved is null) return;
+        try
+        {
+            var report = saved.PublicMetadata();
+            new SuccessfulFixWindow(report) { Owner = this }.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Offline compatibility reporting", ex);
+            FooterText.Text = "Offline file saved; GitHub report unavailable: " + ex.GetType().Name;
+        }
+    }
+
+    private void OfflineCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(OfflineDetails.Text))
+            Clipboard.SetText(OfflineDetails.Text);
+    }
+
+    private void OfflineExport_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(OfflineDetails.Text)) return;
+        var dlg = new SaveFileDialog
+        {
+            Title = "Export offline DLL metadata",
+            Filter = "Text report (*.txt)|*.txt",
+            FileName = "termsrv-offline-report.txt"
+        };
+        if (dlg.ShowDialog(this) != true) return;
+        File.WriteAllText(dlg.FileName, OfflineDetails.Text, new UTF8Encoding(false));
+        FooterText.Text = "Offline report saved locally; no data was uploaded.";
     }
 
     private void BrowseDll_Click(object sender, RoutedEventArgs e)
