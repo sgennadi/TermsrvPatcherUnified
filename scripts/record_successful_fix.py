@@ -93,7 +93,7 @@ def apply_comment(event: dict, existing: str) -> tuple[str, bool]:
     )
     changed = False
     for row in rows:
-        current = tuple(row[name] for name in COLUMNS[:7])
+        current = tuple(row[name] for name in COLUMNS[:8])
         if current == key:
             try:
                 count = int(row["report_count"])
