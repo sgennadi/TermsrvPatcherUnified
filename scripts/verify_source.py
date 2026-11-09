@@ -331,8 +331,10 @@ check("RecoveryJournalStore.SaveBeforeApply" in engine_src and
 check("IsolatedApplyExecutor.RevertWorkerArgument" in app_src and
       "RunRevertWorker" in executor_src and
       "SameApproval" in executor_src and
-      "ProtectedData.Protect" in (ROOT / "Core/RecoveryJournalStore.cs").read_text(encoding="utf-8"),
-      "isolated Revert requires SYSTEM worker and DPAPI protected recovery")
+      "ProtectedData.Protect" in (ROOT / "Core/RecoveryJournalStore.cs").read_text(encoding="utf-8") and
+      'or "ExactCatalog"' in executor_src and
+      '"RevertReconstructed"' in engine_src,
+      "isolated Revert permits only approved source types and audits source-free reconstruction")
 check("System32BackupStore.ReadVerified" in
       (ROOT / "Core/AutomaticRevertSafety.cs").read_text(encoding="utf-8") and
       "ArchiveOld" in (ROOT / "Core/System32BackupStore.cs").read_text(encoding="utf-8"),
