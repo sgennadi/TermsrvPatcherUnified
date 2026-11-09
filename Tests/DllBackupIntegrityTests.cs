@@ -129,7 +129,7 @@ internal static class DllBackupIntegrityTests
             // become an eligible Restore source.
             var forged = Path.Combine(backupDir, "unknown-" + sourceHash + ".dll");
             File.Copy(saved, forged);
-            Refuses<IOException>(
+            Refuses<InvalidOperationException>(
                 () => DllBackupStore.ReadVerified(backupDir, forged,
                     version, source.LongLength),
                 "reject an unrecognized backup file name");
