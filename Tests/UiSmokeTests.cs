@@ -101,6 +101,7 @@ internal static class UiSmokeTests
                     quick.FindName("QuickNoBackupCheck") is not CheckBox noBackup ||
                     noBackup.IsChecked != false ||
                     quick.FindName("QuickBackupInfoText") is not TextBlock ||
+                    quick.FindName("QuickLastJobText") is not TextBlock ||
                     quick.FindName("QuickCancelButton") is not Button ||
                     quick.FindName("QuickAdvancedButton") is not Button ||
                     quick.FindName("QuickCheckButton") is not Button ||
