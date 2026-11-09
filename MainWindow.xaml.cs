@@ -17,6 +17,8 @@ public partial class MainWindow : Window
     private OfflineDllPreview? offlinePreview;
     private string? importedFile;
     private IReadOnlyList<PatchProfile> imported = [];
+    private CancellationTokenSource? fragmentLookup;
+    private ImportedCatalogReport? importedReport;
     private bool busy;
     private readonly UpdateIntegration updates = new();
 
@@ -26,7 +28,13 @@ public partial class MainWindow : Window
         if (offlineStartup) MainTabs.SelectedIndex = 3;
         engine = new TermsrvEngine(text => Dispatcher.BeginInvoke(() => FooterText.Text = text));
         WindowSettings.Restore(this);
-        Closing += (_, _) => { WindowSettings.Save(this); updates.Dispose(); };
+        Closing += (_, _) =>
+        {
+            fragmentLookup?.Cancel();
+            fragmentLookup?.Dispose();
+            WindowSettings.Save(this);
+            updates.Dispose();
+        };
         updates.Get(UpdateChannel.Prerelease).NoticeChanged += (_, _) =>
             Dispatcher.BeginInvoke(RefreshUpdateIndicator);
         RefreshUpdateIndicator();
@@ -96,6 +104,11 @@ public partial class MainWindow : Window
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
+            var evidence = await Task.Run(() => SignatureInspector.Analyze(
+                File.ReadAllBytes(os.DllPath), PatchCatalog.LoadAutomatic()));
+            AutoSignatureGrid.ItemsSource = evidence.Rows;
+            AutoSignatureSummary.Text = evidence.Summary;
+            AutoSignatureDetails.Text = evidence.AsText();
             ApplyAutoButton.IsEnabled = autoPlan.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             if (autoPlan.State is PatchState.Unknown or PatchState.Ambiguous)
             {
@@ -223,11 +236,42 @@ public partial class MainWindow : Window
         Process.Start(new ProcessStartInfo(TermsrvEngine.BackupDirectory) { UseShellExecute = true });
     }
 
-    private void ManualEdited(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    private async void ManualEdited(object sender, System.Windows.Controls.TextChangedEventArgs e)
     {
         manualPlan = null;
         if (ApplyManualButton is not null) ApplyManualButton.IsEnabled = false;
         if (ManualResult is not null) ManualResult.Text = "Pattern changed. Check again before applying.";
+        if (ManualFragmentSummary is null || ManualFragmentGrid is null || ManualFind is null) return;
+
+        fragmentLookup?.Cancel();
+        fragmentLookup?.Dispose();
+        fragmentLookup = new CancellationTokenSource();
+        var cancellation = fragmentLookup.Token;
+        var find = ManualFind.Text;
+        ManualFragmentGrid.ItemsSource = null;
+        if (string.IsNullOrWhiteSpace(find))
+        {
+            ManualFragmentSummary.Text = "Type at least two complete HEX bytes for read-only lookup.";
+            return;
+        }
+        ManualFragmentSummary.Text = "Searching installed termsrv.dll...";
+        try
+        {
+            await Task.Delay(300, cancellation);
+            string path = await Task.Run(() => engine.EnvironmentInfo().DllPath, cancellation);
+            var found = await Task.Run(() => ManualFragmentSearch.SearchFile(path, find), cancellation);
+            if (cancellation.IsCancellationRequested) return;
+            ManualFragmentSummary.Text = found.Summary;
+            ManualFragmentGrid.ItemsSource = found.Hits;
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException or
+                                   ArgumentException or InvalidOperationException)
+        {
+            if (cancellation.IsCancellationRequested) return;
+            ManualFragmentSummary.Text = "Lookup unavailable: " + ex.GetType().Name +
+                ". The manual patch preview remains disabled.";
+        }
     }
 
     private void ImportedSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -290,14 +334,68 @@ public partial class MainWindow : Window
         try
         {
             imported = PatchCatalog.Parse(File.ReadAllText(dialog.FileName), "Imported user patterns");
+            if (imported.Count > 256)
+                throw new FormatException("Imported catalogs are limited to 256 profiles for responsive read-only analysis.");
             importedFile = dialog.FileName;
+            importedReport = null;
+            ImportedResultsGrid.ItemsSource = null;
+            ImportedCheckDetails.Clear();
             ImportSelector.ItemsSource = imported;
-            if (imported.Count > 0) ImportSelector.SelectedIndex = 0;
-            ImportedInfo.Text = $"Imported {imported.Count} patterns. Select one then Check selected.";
+            ImportSelector.SelectedIndex = -1;
+            ImportedInfo.Text = $"Imported {imported.Count} patterns. Checking all entries against the installed DLL...";
             manualPlan = null;
             ApplyManualButton.IsEnabled = false;
+            _ = CheckAllImportedAsync();
         }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Invalid pattern file"); }
+    }
+
+    private async void CheckAllImported_Click(object sender, RoutedEventArgs e)
+        => await CheckAllImportedAsync();
+
+    private async Task CheckAllImportedAsync()
+    {
+        if (busy || imported.Count == 0) return;
+        var patterns = imported.ToArray();
+        var source = importedFile;
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(() =>
+            {
+                var os = engine.EnvironmentInfo();
+                var data = File.ReadAllBytes(os.DllPath);
+                return ImportedCatalogInspector.Inspect(data, os.DllVersion, os, patterns);
+            });
+            // Discard stale results if a new import occurred while inspection ran.
+            if (source != importedFile) return;
+            importedReport = report;
+            ImportedResultsGrid.ItemsSource = report.Results;
+            ImportedCatalogSummary.Text = report.Summary;
+            ImportedInfo.Text = report.ExactMatches + " exact byte match(es); " +
+                report.VersionHintMatches + " compatible Windows/build hints. " +
+                "A version label never authorizes a patch.";
+            if (report.SuggestedIndex is int index)
+            {
+                ImportSelector.SelectedIndex = index;
+                ImportedCheckDetails.Text = report.Results.First(x => x.Index == index).Description;
+                FooterText.Text = "Unique imported candidate selected for review (NOT applied).";
+            }
+            else
+            {
+                ImportSelector.SelectedIndex = -1;
+                ImportedCheckDetails.Text = report.AsText();
+                FooterText.Text = "Imported catalog inspection complete; no automatic Apply enabled.";
+            }
+        });
+    }
+
+    private void ImportedResultSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ImportedResultsGrid?.SelectedItem is not ImportedProfileCheck result) return;
+        if (ImportSelector is not null) ImportSelector.SelectedIndex = result.Index;
+        if (ImportedCheckDetails is not null) ImportedCheckDetails.Text = result.Description;
+        manualPlan = null;
+        if (ApplyManualButton is not null) ApplyManualButton.IsEnabled = false;
     }
 
     private async void CheckImported_Click(object sender, RoutedEventArgs e)

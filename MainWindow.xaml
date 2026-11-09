@@ -57,8 +57,30 @@
             <GroupBox Header="Match and preview">
               <StackPanel>
                 <TextBlock x:Name="AutoSummary" Text="Press Check DLL to inspect the installed file."/>
-                <TextBox x:Name="AutoDetails" Height="150" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
+                <TextBox x:Name="AutoDetails" Height="145" IsReadOnly="True" FontFamily="Consolas" FontSize="12"
                          Margin="0,12,0,0" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
+                <TextBlock Text="Exact signature evidence — read-only" FontWeight="SemiBold"
+                           Margin="0,14,0,5"/>
+                <TextBlock x:Name="AutoSignatureSummary" Text="Press Check DLL to inspect each exact catalog signature."
+                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,7"/>
+                <DataGrid x:Name="AutoSignatureGrid" IsReadOnly="True" CanUserAddRows="False"
+                          AutoGenerateColumns="False" HeadersVisibility="Column"
+                          Height="178" GridLinesVisibility="Horizontal">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Profile" Binding="{Binding Profile}" Width="220"/>
+                    <DataGridTextColumn Header="Group" Binding="{Binding Group}" Width="55"/>
+                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="205"/>
+                    <DataGridTextColumn Header="Find" Binding="{Binding FindHits}" Width="65"/>
+                    <DataGridTextColumn Header="Find offsets" Binding="{Binding FindOffsets}" Width="160"/>
+                    <DataGridTextColumn Header="Replace" Binding="{Binding ReplaceHits}" Width="75"/>
+                    <DataGridTextColumn Header="Replace offsets" Binding="{Binding ReplaceOffsets}" Width="160"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBox x:Name="AutoSignatureDetails" IsReadOnly="True" Height="130" FontFamily="Consolas"
+                         FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"/>
+                <TextBlock Text="Duplicate/overlapping signatures remain blocked, even if the Windows version looks compatible."
+                           Foreground="#8B531A" TextWrapping="Wrap" Margin="0,9,0,0"/>
               </StackPanel>
             </GroupBox>
             <WrapPanel Margin="0,4,0,0">
@@ -81,7 +103,24 @@
                        Margin="0,7,0,17" Foreground="{StaticResource MutedBrush}"/>
             <TextBlock Text="Find HEX pattern" FontWeight="SemiBold"/>
             <TextBox x:Name="ManualFind" TextChanged="ManualEdited" MinHeight="64" MaxHeight="110" TextWrapping="Wrap" AcceptsReturn="True"
-                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Margin="0,5,0,12"/>
+                     VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Margin="0,5,0,8"/>
+            <GroupBox Header="Find fragment in installed DLL — read-only" Margin="0,0,0,12">
+              <StackPanel>
+                <TextBlock x:Name="ManualFragmentSummary" Text="Type at least two complete bytes, e.g. 44 8B or 448B. Matches appear as you type."
+                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,6"/>
+                <DataGrid x:Name="ManualFragmentGrid" IsReadOnly="True" CanUserAddRows="False"
+                          AutoGenerateColumns="False" Height="150" HeadersVisibility="Column">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Group" Binding="{Binding Group}" Width="65"/>
+                    <DataGridTextColumn Header="Offset" Binding="{Binding Offset, StringFormat={}{0:X8}}" Width="110"/>
+                    <DataGridTextColumn Header="Actual bytes" Binding="{Binding ActualHex}" Width="225"/>
+                    <DataGridTextColumn Header="Context (before [matched] after)" Binding="{Binding Context}" Width="520"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Text="Live lookup does not generate Replace bytes or authorize Apply."
+                           Foreground="#8B531A" TextWrapping="Wrap" Margin="0,6,0,0"/>
+              </StackPanel>
+            </GroupBox>
             <TextBlock Text="Replace HEX pattern (same byte count)" FontWeight="SemiBold"/>
             <TextBox x:Name="ManualReplace" TextChanged="ManualEdited" MinHeight="64" MaxHeight="110" TextWrapping="Wrap" AcceptsReturn="True"
                      VerticalScrollBarVisibility="Auto" FontFamily="Consolas" Margin="0,5,0,12"/>
@@ -98,9 +137,30 @@
                 <WrapPanel>
                   <Button Tag="&#xE8B5;" Content="Import patterns..." Click="Import_Click"/>
                   <Button Tag="&#xE73E;" Content="Check selected" Click="CheckImported_Click"/>
+                  <Button x:Name="CheckAllImportedButton" Tag="&#xE721;" Content="Check all imported"
+                          Click="CheckAllImported_Click"/>
                 </WrapPanel>
                 <ComboBox x:Name="ImportSelector" SelectionChanged="ImportedSelectionChanged" DisplayMemberPath="Label" MinHeight="32"/>
-                <TextBlock x:Name="ImportedInfo" Foreground="{StaticResource MutedBrush}" Margin="0,8,0,0"/>
+                <TextBlock x:Name="ImportedInfo" Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap" Margin="0,8,0,0"/>
+                <TextBlock x:Name="ImportedCatalogSummary" Text="Import a pattern catalog to compare all entries."
+                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,5,0,7"/>
+                <DataGrid x:Name="ImportedResultsGrid" IsReadOnly="True" CanUserAddRows="False"
+                          AutoGenerateColumns="False" Height="190" HeadersVisibility="Column"
+                          SelectionChanged="ImportedResultSelectionChanged">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="#" Binding="{Binding Index}" Width="42"/>
+                    <DataGridTextColumn Header="Pattern / version" Binding="{Binding Label}" Width="255"/>
+                    <DataGridTextColumn Header="Bytes" Binding="{Binding Bytes}" Width="225"/>
+                    <DataGridTextColumn Header="OS/release" Binding="{Binding WindowsHint}" Width="225"/>
+                    <DataGridTextColumn Header="DLL version" Binding="{Binding DllVersionHint}" Width="225"/>
+                    <DataGridTextColumn Header="Offsets" Binding="{Binding Offsets}" Width="135"/>
+                    <DataGridTextColumn Header="Assessment" Binding="{Binding Verdict}" Width="330"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBox x:Name="ImportedCheckDetails" IsReadOnly="True" Height="130"
+                         FontFamily="Consolas" FontSize="12" Margin="0,8,0,0"
+                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"/>
               </StackPanel>
             </GroupBox>
           </StackPanel>

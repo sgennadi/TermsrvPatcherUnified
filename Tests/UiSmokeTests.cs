@@ -44,6 +44,14 @@ internal static class UiSmokeTests
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
                     !historyGrid.IsReadOnly)
                     throw new Exception("Read-only policy and history controls are missing.");
+                if (main.FindName("AutoSignatureGrid") is not DataGrid automaticEvidence ||
+                    !automaticEvidence.IsReadOnly ||
+                    main.FindName("ManualFragmentGrid") is not DataGrid fragmentGrid ||
+                    !fragmentGrid.IsReadOnly ||
+                    main.FindName("ImportedResultsGrid") is not DataGrid importedGrid ||
+                    !importedGrid.IsReadOnly ||
+                    main.FindName("CheckAllImportedButton") is not Button)
+                    throw new Exception("Signature evidence, partial HEX and Check all imported controls missing.");
                 var windows = new Window[]
                 {
                     main,
