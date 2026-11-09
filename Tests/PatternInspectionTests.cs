@@ -1,3 +1,4 @@
+using System.IO;
 using System.Buffers.Binary;
 using TermsrvPatcherUnified.Core;
 
@@ -162,6 +163,97 @@ internal static class PatternInspectionTests
         var unsupported = ImportedCatalogInspector.Inspect(badPe, os.DllVersion, os, [named]);
         Verify(unsupported.ExactMatches == 0 && unsupported.SuggestedIndex is null,
             "matching bytes in malformed PE cannot suggest Apply");
+        // Snapshot and export must be bound to the *same* file hash as
+        // the engine's preview. These tests never modify a real Windows DLL.
+        var originalHash = SystemInfo.Sha256(dll);
+        var evidencePlan = new PatchPlan(PatchState.Ambiguous, "conflicting signatures", "",
+            @"C:\Users\SensitiveUser\termsrv.dll", os.DllVersion, originalHash, [], null);
+        var evidence = VerifiedSignatureSnapshot.Capture(dll, evidencePlan, [named]);
+        Verify(evidence.Sha256 == originalHash, "captured evidence matches plan hash");
+        Verify(evidence.Inspection.Rows.Count == 1 &&
+            evidence.Inspection.Rows[0].FindOffsets == "0x00000230",
+            "captured profile and offsets originate from verified bytes");
+
+        var reportText = SignatureEvidenceExport.Build(os, evidencePlan, evidence);
+        Verify(reportText.StartsWith("termsrv-signature-evidence/v1", StringComparison.Ordinal),
+            "report has a versioned read-only schema");
+        Verify(reportText.Contains("Automatic result: Ambiguous") &&
+               reportText.Contains("Find mask: 11 22 33 44") &&
+               reportText.Contains("Replace signature: AA BB CC DD"),
+            "report shows the exact catalog signatures and status");
+        Verify(reportText.Contains("0x00000230") && reportText.Contains(originalHash),
+            "report includes bound hash and matching offset");
+        Verify(!reportText.Contains(@"C:\Users\SensitiveUser", StringComparison.Ordinal) &&
+               !reportText.Contains("SensitiveUser", StringComparison.Ordinal),
+            "report excludes the absolute DLL path and user profile");
+        Verify(!reportText.Contains("localhost", StringComparison.OrdinalIgnoreCase),
+            "report excludes host identity");
+
+        var tamperedPlan = evidencePlan with { OriginalSha256 = new string('a', 64) };
+        bool mismatchRejected = false;
+        try { VerifiedSignatureSnapshot.Capture(dll, tamperedPlan, [named]); }
+        catch (InvalidOperationException) { mismatchRejected = true; }
+        Verify(mismatchRejected, "mismatched engine preview and second file read are rejected");
+
+        bool corruptRejected = false;
+        evidence.Bytes[0x230] ^= 0x01;
+        try { SignatureEvidenceExport.Build(os, evidencePlan, evidence); }
+        catch (InvalidDataException) { corruptRejected = true; }
+        Verify(corruptRejected, "report refuses mutated cached evidence");
+        evidence.Bytes[0x230] ^= 0x01;
+
+        string testRoot = Path.Combine(Path.GetTempPath(),
+            "termsrv-evidence-qa-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testRoot);
+        try
+        {
+            string sampleFile = Path.Combine(testRoot, "mock-termsrv.dll");
+            File.WriteAllBytes(sampleFile, dll);
+            evidence.RequireCurrentFile(sampleFile);
+            Verify(File.ReadAllBytes(sampleFile).SequenceEqual(dll),
+                "read-only snapshot inspection never writes the source");
+            var alternative = (byte[])dll.Clone();
+            alternative[0x230] ^= 0x01;
+            File.WriteAllBytes(sampleFile, alternative);
+            bool staleRejected = false;
+            try { evidence.RequireCurrentFile(sampleFile); }
+            catch (InvalidOperationException) { staleRejected = true; }
+            Verify(staleRejected, "file change after preview disables evidence reuse");
+
+            string savedFile = Path.Combine(testRoot, "evidence.txt");
+            SignatureEvidenceExport.SaveNew(reportText, savedFile);
+            Verify(File.ReadAllText(savedFile).Contains(originalHash),
+                "explicit local text export preserves report");
+            bool overwriteRejected = false;
+            try { SignatureEvidenceExport.SaveNew(reportText, savedFile); }
+            catch (IOException) { overwriteRejected = true; }
+            Verify(overwriteRejected, "export never overwrites an existing report");
+            bool extensionRejected = false;
+            try
+            {
+                SignatureEvidenceExport.SaveNew(reportText,
+                    Path.Combine(testRoot, "evidence.dll"));
+            }
+            catch (ArgumentException) { extensionRejected = true; }
+            Verify(extensionRejected, "export rejects a target DLL extension");
+        }
+        finally
+        {
+            Directory.Delete(testRoot, recursive: true);
+        }
+
+        var untrustedNamed = named with
+        {
+            Label = @"Windows 11 C:\Users\SensitiveUser\termsrv.dll"
+        };
+        var untrustedEvidence = VerifiedSignatureSnapshot.Capture(
+            dll, evidencePlan, [untrustedNamed]);
+        var sanitizedReport = SignatureEvidenceExport.Build(
+            os, evidencePlan, untrustedEvidence);
+        Verify(!sanitizedReport.Contains("SensitiveUser") &&
+               sanitizedReport.Contains("Group 1: (unavailable)"),
+            "unsafe catalog labels are redacted before report export");
+
         Console.WriteLine("PASS: " + checks +
             " read-only signature, partial HEX, OS/DLL version and Check all imported assertions.");
         return checks;

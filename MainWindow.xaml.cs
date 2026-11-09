@@ -12,6 +12,7 @@ public partial class MainWindow : Window
 {
     private readonly TermsrvEngine engine;
     private PatchPlan? autoPlan;
+    private VerifiedSignatureSnapshot? signatureSnapshot;
     private PatchPlan? manualPlan;
     private ScanReport? lastScan;
     private OfflineDllPreview? offlinePreview;
@@ -96,33 +97,147 @@ public partial class MainWindow : Window
 
     private async Task CheckAsync()
     {
+        if (busy) return;
+        // Never preserve an old Ready plan if the second read, scan, or hash
+        // verification fails: RunBusy's finally must not re-enable stale Apply.
+        autoPlan = null;
+        signatureSnapshot = null;
+        lastScan = null;
+        AutoSignatureGrid.ItemsSource = null;
+        AutoSignatureGrid.SelectedItem = null;
+        AutoSignatureSummary.Text = "Checking actual DLL bytes and verifying SHA-256 consistency...";
+        AutoSignatureDetails.Clear();
+        AutoInspectFindButton.IsEnabled = false;
+        AutoInspectReplaceButton.IsEnabled = false;
+        AutoEvidenceExportButton.IsEnabled = false;
+        ApplyAutoButton.IsEnabled = false;
+
         await RunBusy(async () =>
         {
-            var result = await Task.Run(() => (Info: engine.EnvironmentInfo(), Preview: engine.Inspect()));
+            var result = await Task.Run(() =>
+            {
+                var os = engine.EnvironmentInfo();
+                var plan = engine.Inspect();
+                // An independent read binds diagnostic evidence to exactly the
+                // same SHA-256 as the engine's protected-write preview.
+                var evidence = VerifiedSignatureSnapshot.Capture(
+                    File.ReadAllBytes(os.DllPath), plan, PatchCatalog.LoadAutomatic(),
+                    os.Is64Bit ? "x64" : "x86");
+                ScanReport? fallback = plan.State is PatchState.Unknown or PatchState.Ambiguous
+                    ? engine.ScanDll(os.DllPath, null)
+                    : null;
+                if (fallback is not null &&
+                    !fallback.Sha256.Equals(evidence.Sha256,
+                        StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException(
+                        "DLL changed before structural scanning; recheck the file.");
+                evidence.RequireCurrentFile(os.DllPath);
+                return (Info: os, Preview: plan, Evidence: evidence, Fallback: fallback);
+            });
             var os = result.Info;
             autoPlan = result.Preview;
+            signatureSnapshot = result.Evidence;
+            lastScan = result.Fallback;
             SystemText.Text = os.Display + (os.Is64Bit ? " | x64" : " | x86");
             DllText.Text = $"termsrv.dll: {os.DllVersion}  |  {os.DllPath}";
             StatusText.Text = $"Automatic status: {autoPlan.State}  |  {autoPlan.Description}";
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
-            var evidence = await Task.Run(() => SignatureInspector.Analyze(
-                File.ReadAllBytes(os.DllPath), PatchCatalog.LoadAutomatic()));
-            AutoSignatureGrid.ItemsSource = evidence.Rows;
-            AutoSignatureSummary.Text = evidence.Summary;
-            AutoSignatureDetails.Text = evidence.AsText();
-            ApplyAutoButton.IsEnabled = autoPlan.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
-            if (autoPlan.State is PatchState.Unknown or PatchState.Ambiguous)
+            AutoSignatureGrid.ItemsSource = signatureSnapshot.Inspection.Rows;
+            AutoSignatureSummary.Text = signatureSnapshot.Inspection.Summary +
+                " Verified SHA-256: " + signatureSnapshot.Sha256;
+            AutoSignatureDetails.Text = signatureSnapshot.Inspection.AsText();
+            AutoEvidenceExportButton.IsEnabled = true;
+            if (lastScan is not null)
             {
-                lastScan = await Task.Run(() => engine.ScanDll(os.DllPath, null));
                 ScanDetails.Text = lastScan.AsText();
                 AutoDetails.Text += $"\nFallback scan: {lastScan.Similar.Count} near matches and " +
                     $"{lastScan.Hits.Count} structural markers. See Search DLL for details. " +
                     "No replacement bytes were generated.";
             }
-            FooterText.Text = $"Check completed: {autoPlan.State}.";
+            FooterText.Text = $"Check completed: {autoPlan.State}. Evidence SHA-256 verified.";
         });
+    }
+
+    private void AutoSignatureSelectionChanged(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (AutoInspectFindButton is null || AutoInspectReplaceButton is null) return;
+        var selected = AutoSignatureGrid?.SelectedItem as SignatureGroupFinding;
+        AutoInspectFindButton.IsEnabled = signatureSnapshot is not null && selected is not null &&
+            selected.FindOffsets != "(none)";
+        AutoInspectReplaceButton.IsEnabled = signatureSnapshot is not null && selected is not null &&
+            selected.ReplaceOffsets != "(none)";
+    }
+
+    private void AutoInspectFind_Click(object sender, RoutedEventArgs e)
+        => OpenAutomaticSignatureInManual(false);
+
+    private void AutoInspectReplace_Click(object sender, RoutedEventArgs e)
+        => OpenAutomaticSignatureInManual(true);
+
+    private void OpenAutomaticSignatureInManual(bool useReplace)
+    {
+        if (busy || AutoSignatureGrid.SelectedItem is not SignatureGroupFinding selected ||
+            signatureSnapshot is null || autoPlan is null) return;
+        string offsets = useReplace ? selected.ReplaceOffsets : selected.FindOffsets;
+        if (offsets == "(none)") return;
+        try
+        {
+            signatureSnapshot.RequireCurrentFile(autoPlan.FilePath);
+            string findMask = useReplace ? selected.ReplaceHex : selected.FindHex;
+            // This is a Find-only inspection. Do not transfer any replacement
+            // byte sequence into the Manual Replace field.
+            ManualReplace.Clear();
+            ManualFind.Text = findMask;
+            MainTabs.SelectedIndex = 1;
+            FooterText.Text = (useReplace ? "Replace-state bytes" : "Original Find mask") +
+                " loaded for read-only HEX inspection. Check manual pattern is still required.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   InvalidOperationException or ArgumentException)
+        {
+            autoPlan = null;
+            signatureSnapshot = null;
+            AutoInspectFindButton.IsEnabled = false;
+            AutoInspectReplaceButton.IsEnabled = false;
+            AutoEvidenceExportButton.IsEnabled = false;
+            ApplyAutoButton.IsEnabled = false;
+            FooterText.Text = "DLL changed or became unreadable; Check DLL again. " +
+                              ex.GetType().Name;
+        }
+    }
+
+    private void AutoEvidenceExport_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || signatureSnapshot is null || autoPlan is null) return;
+        try
+        {
+            signatureSnapshot.RequireCurrentFile(autoPlan.FilePath);
+            var report = SignatureEvidenceExport.Build(engine.EnvironmentInfo(),
+                autoPlan, signatureSnapshot, lastScan);
+            var dialog = new SaveFileDialog
+            {
+                Title = "Save local read-only signature evidence",
+                Filter = "Text reports (*.txt)|*.txt",
+                FileName = "termsrv-signature-evidence.txt",
+                AddExtension = true
+            };
+            if (dialog.ShowDialog(this) != true) return;
+            signatureSnapshot.RequireCurrentFile(autoPlan.FilePath);
+            SignatureEvidenceExport.SaveNew(report, dialog.FileName);
+            FooterText.Text = "Local signature evidence exported. Review before sharing.";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   InvalidOperationException or ArgumentException or
+                                   InvalidDataException)
+        {
+            FooterText.Text = "Evidence export refused: " + ex.GetType().Name;
+            MessageBox.Show(this, "The DLL changed, report was invalid, or the file could " +
+                "not be saved. Run Check DLL again and choose a new .txt path.",
+                "Signature evidence not exported", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private static string PlanText(PatchPlan plan)

@@ -73,7 +73,7 @@ public static class SignatureInspector
                 findings.Add(new SignatureGroupFinding(
                     profile.Label, index + 1, state,
                     string.Join(" ", g.Search.Select(x => x.HasValue ? x.Value.ToString("X2") : "*")),
-                    Convert.ToHexString(g.Replace.AsSpan()),
+                    string.Join(" ", g.Replace.Select(x => x.ToString("X2"))),
                     Count(before), Count(after), Locations(before), Locations(after)));
             }
             if (everyOriginal || everyReplacement) complete++;
