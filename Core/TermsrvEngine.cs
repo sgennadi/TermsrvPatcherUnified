@@ -198,10 +198,14 @@ public sealed class TermsrvEngine : IDisposable
         PeSafety.ReadAmd64DllSections(snapshot.OriginalBytes);
         WriteTransactional(os.DllPath, approved.InstalledSha256, current,
             snapshot.OriginalBytes);
-        OperationHistory.TryRecord("Revert", "Success", os.DllVersion,
-            approved.InstalledSha256, approved.OriginalSha256);
-        Message("Reverted exact original DLL from " + approved.RecoverySource +
-                " with verified SHA-256. Backup archive and recovery journal retained.");
+        bool reconstructed = approved.RecoverySource == "ExactCatalog";
+        OperationHistory.TryRecord(reconstructed ? "RevertReconstructed" : "Revert",
+            "Success", os.DllVersion, approved.InstalledSha256, approved.OriginalSha256);
+        Message(reconstructed
+            ? "Exact fixed-signature bytes reconstructed and SHA-256 verified. " +
+              "Authentic Microsoft original is NOT independently verified."
+            : "Reverted protected original DLL from " + approved.RecoverySource +
+              " with verified SHA-256; recovery records retained.");
     }
 
     private void WriteTransactional(string file, string expectedSha, byte[] before, byte[] after)
