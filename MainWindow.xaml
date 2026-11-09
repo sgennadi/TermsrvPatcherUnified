@@ -63,6 +63,19 @@
                            Margin="0,14,0,5"/>
                 <TextBlock x:Name="AutoSignatureSummary" Text="Press Check DLL to inspect each exact catalog signature."
                            TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,0,0,7"/>
+                <TextBlock Text="Profile-level classification" FontWeight="SemiBold" Margin="0,10,0,5"/>
+                <DataGrid x:Name="AutoProfileGrid" IsReadOnly="True" CanUserAddRows="False"
+                          AutoGenerateColumns="False" HeadersVisibility="Column" Height="132"
+                          GridLinesVisibility="Horizontal">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Catalog profile" Binding="{Binding Profile}" Width="260"/>
+                    <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="350"/>
+                    <DataGridTextColumn Header="Offsets" Binding="{Binding Offsets}" Width="155"/>
+                    <DataGridTextColumn Header="Fixed bytes" Binding="{Binding FixedBytes}" Width="95"/>
+                    <DataGridTextColumn Header="Groups" Binding="{Binding Groups}" Width="65"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Text="Exact Find / Replace groups" FontWeight="SemiBold" Margin="0,10,0,5"/>
                 <DataGrid x:Name="AutoSignatureGrid" IsReadOnly="True" CanUserAddRows="False"
                           AutoGenerateColumns="False" HeadersVisibility="Column"
                           Height="178" GridLinesVisibility="Horizontal"

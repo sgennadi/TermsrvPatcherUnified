@@ -168,3 +168,10 @@ Version: 0.1.0-preview.10
 - SHA-256 updater-only ZIP: Preview.16 `f529e337b733d593bfe6ae657c215fe5e4f0c283eef2438e35f06c33591ec477`, Preview.17 `9e34b8b976a7ec9c0200e55f32a506289619372ed5eb4def70cacb69b46a9baf`.
 - SHA-256 full Preview.17 x64 ZIP: `a58088407684fe6b0400d2f683f68592af0c60c486a97a98d9c895a0b45402e0`.
 - These are **non-destructive Windows Server 2025** checks. They do **not** certify actual Windows 11 26H2 pattern compatibility, protected Apply/Restore, active RDP sessions, Group Policy/firewall effects or physical 200%-DPI GUI rendering.
+
+## Cross-profile ambiguity diagnosis — Windows 11 26H2 evidence
+
+- Operator-provided `termsrv-signature-evidence/v1`: Windows 11 26H2 OS build `26300.9711`, `termsrv.dll` version `10.0.26100.8115`, SHA-256 `e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456`.
+- Existing generic x64 Find mask matched once at `0x0006D20A` (8 fixed bytes), and the 25H2/26H2 alternate layout matched once at `0x000A6896` (19 fixed bytes). The 24H2 family did not match. **This is two distinct full-profile matches, not a repeated match of one signature.** Neither replacement was present.
+- New read-only profile-level classification reports the two candidates, their offsets and fixed-byte counts separately from within-profile repeats/mixed states, and the export does the same without copying arbitrary untrusted profile labels verbatim.
+- Regression fixtures reproduce both the operator's reported offsets and the match pattern using **synthetic data**, not the original Windows DLL. No auto-selection or protected DLL modification. The exact source file has not been independently provided for binary/PE semantic analysis; a longer signature is not proof of safe applicability.

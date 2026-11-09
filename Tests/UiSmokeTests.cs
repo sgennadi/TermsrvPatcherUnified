@@ -44,7 +44,9 @@ internal static class UiSmokeTests
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
                     !historyGrid.IsReadOnly)
                     throw new Exception("Read-only policy and history controls are missing.");
-                if (main.FindName("AutoSignatureGrid") is not DataGrid automaticEvidence ||
+                if (main.FindName("AutoProfileGrid") is not DataGrid profileEvidence ||
+                    !profileEvidence.IsReadOnly ||
+                    main.FindName("AutoSignatureGrid") is not DataGrid automaticEvidence ||
                     !automaticEvidence.IsReadOnly ||
                     main.FindName("AutoInspectFindButton") is not Button fromFind ||
                     fromFind.IsEnabled ||

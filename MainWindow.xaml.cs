@@ -104,6 +104,7 @@ public partial class MainWindow : Window
         signatureSnapshot = null;
         lastScan = null;
         AutoSignatureGrid.ItemsSource = null;
+        AutoProfileGrid.ItemsSource = null;
         AutoSignatureGrid.SelectedItem = null;
         AutoSignatureSummary.Text = "Checking actual DLL bytes and verifying SHA-256 consistency...";
         AutoSignatureDetails.Clear();
@@ -149,6 +150,7 @@ public partial class MainWindow : Window
                     signatureSnapshot.Inspection.AmbiguityReason +
                     "\nNo automatic profile chosen or Apply authorized.";
             AutoSignatureGrid.ItemsSource = signatureSnapshot.Inspection.Rows;
+            AutoProfileGrid.ItemsSource = signatureSnapshot.Inspection.Profiles;
             AutoSignatureSummary.Text = signatureSnapshot.Inspection.Summary +
                 " Verified SHA-256: " + signatureSnapshot.Sha256;
             AutoSignatureDetails.Text = signatureSnapshot.Inspection.AsText();
