@@ -55,3 +55,16 @@ No live Windows VM test has been performed as part of the preview. GitHub Action
 - An isolated GitHub Actions Windows test copies the runner's real `termsrv.dll` into a temporary folder and checks the same backup store used for actual Apply/Restore. It never invokes the elevated DLL writer.
 - Verify on an authorized disposable Windows 11 VM with snapshot: with **Create backup** on, a checksum-named original DLL exists; with it off, no new persistent backup is created. Validate Restore after a completed Apply, original DLL hash, file permissions and RDP service state. Avoid remote-only recovery paths.
 - Check that a corrupted, renamed, version-mismatched, or externally located backup never becomes a selectable Restore source.
+
+## Preview.14 transactional RDP Settings acceptance (disposable Windows 11 VM)
+
+**Only on a disposable Windows 11 x64 VM with snapshot and local/console access.** Automated Windows Server 2025 CI exercises synthetic service and setting failures; it cannot prove the real RDP service and Group Policy lifecycle.
+
+1. Record the original `fDenyTSConnections`, `fSingleSessionPerUser` and `RDP-Tcp\UserAuthentication` DWORD values **including whether each value is absent**, plus the enabled state/profile scope of actual Windows Firewall Remote Desktop inbound rules. Capture the applied Group Policy separately.
+2. Open **RDP Health → Check RDP configuration** first. Verify the policy/local discrepancy, current TermService state, missing values and unsupported policy settings are reported as evidence, not proof of effective Group Policy.
+3. On a VM with a known conflicting RDP Group Policy value, try the **RDP Settings → Save** path with a mismatched selection. Expected: an explicit conflict error and **no changes** to any RDP registry value or firewall rule.
+4. With a known policy-compatible test configuration, use **Save settings** and verify the resulting DWORDs and applicable Domain/Private inbound rule state independently. Verify current values are shown after Save, not just the requested checkboxes.
+5. Repeat with an intentionally invalid/unsupported local DWORD type in the disposable VM. Save must refuse **before modifying any other setting**. Restore the clean VM snapshot afterward.
+6. Exercise the provided `--rdp-transaction-qa` synthetic fault injection and verify the error distinguishes completely verified rollback from **incomplete** recovery. Do not inject actual service/registry failures on production computers.
+7. For authorized protected DLL Apply/Restore testing, separately record original DLL hash/ACL and running/stopped RDP companion service states, take another snapshot, keep local console access, and verify service states and file contents after both operations. These live tests are **not covered** by GitHub-hosted CI.
+8. Verify actual Windows desktop scaling at 100%, 125%, 150% and 200% on-screen, including the RDP Health and History tabs. CI tests only offscreen WPF layouts.
