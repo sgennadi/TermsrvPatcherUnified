@@ -134,3 +134,13 @@ Version: 0.1.0-preview.10
 - Imported Patches.txt catalogs now support one-click read-only inspection of all entries with separate OS and DLL build evidence and exact PE safety checks. Unique candidates are suggestions until a separate operator-selected manual verification; version labels alone never authorize Apply.
 - GitHub Issues require account sign-in or a write token. No unauthenticated upload endpoint is deployed; users can copy a reviewed report without sending it.
 - `--pattern-inspection-qa` and offscreen WPF control smoke are CI/release gates. **Actual 200%-DPI layout, live RDP sessions, protected Apply/Restore and Windows 11 VM acceptance are not certified here.**
+
+## Published Preview.14 -> Preview.15 release-asset QA (2026-11-09)
+
+- Release: [v0.1.0-preview.15](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v0.1.0-preview.15), **unsigned prerelease**, not Stable.
+- [Published upgrade/rollback Windows 2025 QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42618817127): **PASS**. Pinned and downloaded real Preview.14/Preview.15 EXE-update ZIPs; tested actual executable replacement, pre-upgrade backup, post-update version probe, injected health-probe rollback, and tamper rejection in disposable directories.
+- [Published genuine system DLL read-only QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42618817040): **PASS**. Pinned full Preview.15 x64 distribution, ran the released EXE against an installed Windows 2025 `termsrv.dll` and independently verified original DLL SHA-256, SDDL ACL, TermService state and NSudo cache are unchanged. Invalid report extensions and nonexistent DLL paths are rejected.
+- Pinned release SHA-256 digests:
+  - Full Windows x64 ZIP: `a81007d454fccad0a2285bae43fb5265924bdc19ef95e1c6e6690dd7c8da25b4`.
+  - Updater-only EXE ZIP: `2d73cc716358161d8822cbd8c4c0cd7b054d3a994a4006909a5ad24fd99eebcb`.
+- The published-asset tests are deliberately **non-destructive Windows Server 2025** jobs. They do not certify live Windows 11 26H2 RDP function, physical 200%-DPI HEX viewer appearance, real protected Apply/Restore or firewall/GPO behavior. Manual Windows 11 GUI acceptance is specified in `docs/WINDOWS_SMOKE_TEST.md`.
