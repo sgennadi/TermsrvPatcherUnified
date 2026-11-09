@@ -123,6 +123,7 @@ public partial class DiagnosticsWindow : Window
         SessionToken.Clear(); // Token never persists in the report or application settings.
         publishing = true;
         PublishButton.IsEnabled = false;
+        AnonymousButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         Uri? created = null;
@@ -156,6 +157,7 @@ public partial class DiagnosticsWindow : Window
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
+            AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
         }
     }
 
@@ -168,8 +170,8 @@ public partial class DiagnosticsWindow : Window
         if (MessageBox.Show(this,
                 "Only the following typed fields will be sent over HTTPS to the configured " +
                 "relay and may become a PUBLIC GitHub Issue. No description, logs, " +
-                "passwords or paths are uploaded. Review all fields.\\n\\n" + payload.Json +
-                "\\n\\nSend anonymously?",
+                "passwords or paths are uploaded. Review all fields.\n\n" + payload.Json +
+                "\n\nSend anonymously?",
                 "Review anonymous diagnostic report", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
         publishing = true;
