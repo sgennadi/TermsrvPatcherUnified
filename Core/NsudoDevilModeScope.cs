@@ -135,7 +135,7 @@ internal sealed class NsudoDevilModeScope : IDisposable
             throw new InvalidDataException("Native library must be an AMD64 DLL.");
     }
 
-    private static void EnsurePrivateDirectory(string path)
+    internal static void EnsurePrivateDirectory(string path)
     {
         if (File.Exists(path) && !Directory.Exists(path))
             throw new IOException("Native runtime folder is occupied by a file.");

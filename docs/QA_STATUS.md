@@ -1,28 +1,24 @@
-# Preview QA status — 2026-11-08
+# Preview QA status — 2026-11-09
 
-Version: 0.1.0-preview.6
+Version: 0.1.0-preview.7
 
-## Verified already for preview.5 (GitHub Actions)
+## Existing verified baseline
 
-- Windows x64 build, .NET 10 restore, synthetic signature and PE safety tests passed.
-- Official NSudo 8.2 x64 archive downloaded from pinned source and verified with SHA-256.
-- Self-contained single-file x64 EXE published, read-only CLI inspection smoke-tested.
-- Result: https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42525859642
+- Preview.6 Windows GitHub Actions succeeded: .NET 10 WPF build, synthetic signature and PE-range tests, NSudo 8.2 archive SHA-256 verification, single-file EXE publish, and read-only DLL scan. Run: https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42562651909
 
-## Changes being verified for preview.6
+## Preview.7 acceptance gates
 
-- Opt-in GitHub Issue creation using a temporary Issues:write token, no automatic delivery.
-- Response URL pinned to this repository, unknown or redirect statuses fail closed.
-- Local diagnostics queue is acknowledged only after confirmed successful submission.
-- GitHub requests are tested with a fake HTTP handler; CI makes no real Issue POST.
-- The WPF diagnostics window captures description text on the UI thread before background processing.
-- NSudo extraction uses a dedicated admin-protected `%ProgramData%\TermsrvPatcherUnified.NativeProtected` directory, separate from audit logs.
-- XML/XAML checks, source-format verification and mocked transport tests are run in Windows CI.
+- The main theme and all five windows must compile and render at 100%, 125%, 150% and 200% scaling; version in titles, icons readable, action buttons not clipped.
+- Successful-fix reports must be generated only after Apply returns successfully, and GitHub Issues POST must use a temporary token and a fixed public issue URL. Compatibility workflow validates an allowlisted version-only schema and aggregates into `data/successful-fixes.csv`.
+- GitHub CI must build the Windows EXE, run synthetic checks, and verify the exact single-x64-EXE update ZIP and offline update probe.
+- The user-triggered updater installs only from an administrator-protected Program Files folder. The helper is a protected copy of the current binary; the replacement is backed up and probed before acknowledging success. Unsigned preview updates are never silent.
 
-## Not verified / must remain Preview
+## Important work still requiring manual Windows VM validation
 
-- No actual patch, restore, remote login, service stop/restart or NSudo hook lifetime test on a real Windows 11 VM.
-- No end-to-end GitHub Issue publication with a real operator-owned token (the workflow uses offline stubs).
-- No Authenticode signer-validated updater installer; Install remains disabled.
-- Automatic signatures from upstream are byte-pattern matches, not guarantees for all Windows builds.
-- This preview should not be deployed broadly or made Stable without a manually supervised isolated VM acceptance test.
+- Actual NSudo hook loading against a protected Windows DLL and TermService stop/restart.
+- Live patch + restore using the exact machine's DLL version, ownership/ACL and rollback validation.
+- A genuine GitHub Issues POST with the user's Issues write token and an observed CSV aggregation job.
+- A genuine newer-version EXE install and forced-failure recovery test from protected Program Files.
+- Authenticode signature/publisher validation: preview EXE is unsigned, manually approved only.
+
+**Status: Preview / not authorized for broad deployment.**

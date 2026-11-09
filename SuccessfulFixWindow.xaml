@@ -1,0 +1,37 @@
+<Window x:Class="TermsrvPatcherUnified.SuccessfulFixWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Successful fix — 0.1.0-preview.7" Width="650" Height="480"
+        MinWidth="540" MinHeight="425" WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize" Background="{StaticResource BackgroundBrush}"
+        FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
+  <Grid Margin="22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <TextBlock Grid.Row="0" Text="Successful fix confirmed" FontSize="21"
+               FontWeight="SemiBold" Margin="0,0,0,12"/>
+    <TextBlock Grid.Row="1" TextWrapping="Wrap" Margin="0,0,0,13"
+               Text="Share only the following version metadata on the PUBLIC GitHub compatibility issue. No hostname, username, IP, path, file contents or logs. The repository workflow updates data/successful-fixes.csv."/>
+    <TextBox Grid.Row="2" x:Name="Preview" IsReadOnly="True"
+             FontFamily="Consolas" FontSize="13" TextWrapping="NoWrap"
+             VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+             Padding="12" Margin="0,0,0,14"/>
+    <StackPanel Grid.Row="3" Margin="0,0,0,12">
+      <TextBlock Text="Temporary GitHub token (Issues: write); never stored"
+                 FontWeight="SemiBold" Margin="0,0,0,5"/>
+      <PasswordBox x:Name="TokenInput" MinHeight="36"/>
+      <TextBlock x:Name="Status" Foreground="#64748B" Margin="0,8,0,0"
+                 Text="Optional: choose Skip to keep this successful fix local."/>
+    </StackPanel>
+    <WrapPanel Grid.Row="4" HorizontalAlignment="Right">
+      <Button x:Name="SendButton" Tag="&#xE8B5;" Content="Send report" Click="Send_Click"
+              Style="{StaticResource PrimaryButton}" MinWidth="125"/>
+      <Button x:Name="SkipButton" Tag="&#xE8BB;" Content="Skip" Click="Skip_Click" MinWidth="100"/>
+    </WrapPanel>
+  </Grid>
+</Window>

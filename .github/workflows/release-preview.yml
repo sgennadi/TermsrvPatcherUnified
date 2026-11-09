@@ -1,0 +1,119 @@
+name: Publish Preview Release
+
+on:
+  push:
+    branches: [main]
+    paths: [VERSION]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-preview-main
+  cancel-in-progress: false
+
+jobs:
+  publish-preview:
+    if: github.repository == 'sgennadi/TermsrvPatcherUnified' && github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate explicit preview tag
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^0\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*$') { throw 'Only explicit preview versions can be published.' }
+          $project = [xml](Get-Content TermsrvPatcher.Unified.csproj -Raw)
+          if ($project.Project.PropertyGroup.Version -ne $version) { throw 'The project version does not match VERSION.' }
+          if (-not (Get-Content Core/UpdateIntegration.cs -Raw).Contains('Version = "' + $version + '"')) { throw 'The updater version does not match VERSION.' }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+      - name: Stage pinned official NSudo 8.2 x64
+        shell: pwsh
+        run: ./scripts/prepare-nsudo.ps1
+      - name: Check source and updater ZIP validator
+        shell: pwsh
+        run: |
+          python scripts/verify_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/verify_update_package.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile and execute synthetic tests
+        shell: pwsh
+        run: |
+          dotnet restore TermsrvPatcher.Unified.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore Tests/TermsrvPatcher.Tests.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish self-contained x64 EXE
+        shell: pwsh
+        run: |
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Read-only EXE and offline update probe smoke tests
+        shell: pwsh
+        run: |
+          $sample = Join-Path $PWD 'sample.dll'
+          $report = Join-Path $PWD 'report.txt'
+          [System.IO.File]::WriteAllBytes($sample, [byte[]](0x39,0x81,0x3C,0x06,0,0,0x0F,0x84,0x6F,0x66,0x01,0))
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
+          if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
+          $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
+          $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
+          if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }
+      - name: Package full distribution and exact updater-only EXE ZIP
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE publish/LICENSE -Force
+          Copy-Item NOTICE.md publish/NOTICE.md -Force
+          New-Item -ItemType Directory -Force publish/licenses | Out-Null
+          Copy-Item licenses/NSudo-MIT.txt publish/licenses/NSudo-MIT.txt -Force
+          Copy-Item licenses/fabianosrc-MIT.txt publish/licenses/fabianosrc-MIT.txt -Force
+          Compress-Archive -Path 'publish/*' -DestinationPath 'TermsrvPatcherUnified-win-x64.zip' -Force
+          Compress-Archive -Path 'publish/TermsrvPatcherUnified.exe' -DestinationPath 'TermsrvPatcherUnified-update-win-x64.zip' -Force
+          python scripts/verify_update_package.py TermsrvPatcherUnified-update-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $assets = @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip')
+          $checksums = foreach ($name in $assets) { '{0}  {1}' -f (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant(), $name }
+          Set-Content SHA256SUMS.txt -Value $checksums -Encoding ascii
+      - name: Publish explicit unsigned prerelease only
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:RELEASE_TAG
+          $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Release $tag exists; refusing to replace an existing artifact." }
+          $notes = @(
+            "TermsrvPatcherUnified $env:RELEASE_VERSION - UNSIGNED PREVIEW (not Stable)."
+            'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
+            'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
+            'No automatic or silent unsigned installation is supported.'
+            'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
+            ''
+            'Full ZIP includes GPLv3 and third-party notices. Update-only ZIP contains exactly one x64 EXE.'
+          )
+          Set-Content release-notes.txt -Value $notes -Encoding utf8
+          gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify published updater release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0 -or $assets -notcontains 'TermsrvPatcherUnified-win-x64.zip' -or $assets -notcontains 'TermsrvPatcherUnified-update-win-x64.zip') {
+            throw 'Published release is missing a required asset.'
+          }

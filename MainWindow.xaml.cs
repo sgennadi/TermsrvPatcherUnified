@@ -136,12 +136,32 @@ public partial class MainWindow : Window
             message += "\n\nMANUAL MODE: You supplied the replacement bytes. No automatic analysis " +
                 "can guarantee that this patch is safe. Continue?";
         if (!Confirm(this, manual ? "Apply manual patch?" : "Apply verified patch?", message)) return;
+        // A compatibility report is offered ONLY if the protected write, byte
+        // verification and RDP-service recovery all returned successfully.
+        bool applied = false;
         await RunBusy(async () =>
         {
             await Task.Run(() => engine.Apply(plan));
+            applied = true;
             FooterText.Text = "Patch applied and verified. Checking current DLL...";
         });
         await CheckAsync();
+        if (applied)
+        {
+            try
+            {
+                var versions = SuccessfulFixMetadata.FromSuccessfulApply(
+                    engine.EnvironmentInfo(), plan);
+                new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                // Reporting never determines the outcome of the local operation.
+                DiagnosticsBridge.Remember("Compatibility reporting", ex);
+                AuditLog.Append("Optional compatibility dialog was unavailable: " +
+                    ex.GetType().Name);
+            }
+        }
     }
 
     private async void ApplyAuto_Click(object sender, RoutedEventArgs e) => await ApplyAsync(autoPlan, false);

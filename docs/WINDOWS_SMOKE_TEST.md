@@ -29,3 +29,11 @@ This checklist is for a throwaway Windows 10/11 x64 VM. It is not a recommendati
 ## Pass/fail
 
 No live Windows VM test has been performed as part of the preview. GitHub Actions on `windows-2025` checks build, synthetic read-only behavior, and packaged executable inspection, **not** live `TermService` stopping or patching.
+
+## Preview.7 GUI and updater manual tests
+
+- At 100%/125%/150%/200% DPI, verify all window titles display the version, toolbar icons are visible, labels do not overlap, and light colors remain readable.
+- On Windows x64, run the preview from a controlled Program Files subfolder. Verify **Check** discovers a newer valid preview release only when GitHub Releases is accessible; missing Releases must not be labelled up to date.
+- Click **Install** only on a disposable VM with a snapshot and administrator rights. Verify explicit unsigned-preview warning, separate single-EXE ZIP SHA-256, old EXE backup, app shutdown, replacement, and successful `--update-probe` validation.
+- Intentionally fail a probe on a disposable VM and verify automatic rollback and a recorded failure hold. Verify attempts from a user-writable folder are blocked.
+- After an explicitly authorized successful Apply, review the compatibility dialog. Confirm it includes only Windows name/release/build/UBR, `termsrv.dll`, DLL version, application version and fix mode. Skip must do no network I/O. A submitted token must never be stored in the local log or report.

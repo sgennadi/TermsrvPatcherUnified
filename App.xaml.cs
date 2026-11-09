@@ -13,6 +13,18 @@ public partial class App : Application
         base.OnStartup(e);
         DispatcherUnhandledException += (_, args) =>
             DiagnosticsBridge.Remember("Application", args.Exception);
+        if (e.Args.Length > 0 && e.Args[0].Equals(UpdateInstallBridge.ProbeArgument, StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2 ? UpdateInstallBridge.Probe(e.Args[1]) : 2);
+            return;
+        }
+        if (e.Args.Length > 0 && e.Args[0].Equals(UpdateInstallBridge.HelperArgument, StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2 ? UpdateInstallBridge.RunHelper(e.Args[1]) : 2);
+            return;
+        }
         if (e.Args.Length > 0 && e.Args[0].Equals("--inspect-file", StringComparison.OrdinalIgnoreCase))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

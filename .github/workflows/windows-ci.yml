@@ -18,7 +18,14 @@ jobs:
         shell: pwsh
         run: ./scripts/prepare-nsudo.ps1
       - name: Validate catalogs, XAML handlers and repository source
-        run: python scripts/verify_source.py
+        shell: pwsh
+        run: |
+          python scripts/verify_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/verify_update_package.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_successful_fix.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore source and tests
         run: |
           dotnet restore TermsrvPatcher.Unified.csproj
@@ -39,6 +46,10 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
           if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
           if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
+          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.7' -Wait -PassThru
+          if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
+          $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
+          if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }
       - name: Include license and third-party notices
         shell: pwsh
         run: |
@@ -52,9 +63,18 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path 'publish/*' -DestinationPath 'TermsrvPatcherUnified-win-x64.zip' -Force
-          Get-FileHash 'TermsrvPatcherUnified-win-x64.zip' -Algorithm SHA256 | Format-List
+          Compress-Archive -Path 'publish/TermsrvPatcherUnified.exe' -DestinationPath 'TermsrvPatcherUnified-update-win-x64.zip' -Force
+          python scripts/verify_update_package.py TermsrvPatcherUnified-update-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $checksums = foreach ($name in @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip')) {
+            '{0}  {1}' -f (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant(), $name
+          }
+          Set-Content SHA256SUMS.txt -Value $checksums -Encoding ascii
       - uses: actions/upload-artifact@v4
         with:
           name: TermsrvPatcherUnified-preview-win-x64
-          path: TermsrvPatcherUnified-win-x64.zip
+          path: |
+            TermsrvPatcherUnified-win-x64.zip
+            TermsrvPatcherUnified-update-win-x64.zip
+            SHA256SUMS.txt
           if-no-files-found: error

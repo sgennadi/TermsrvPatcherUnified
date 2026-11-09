@@ -7,7 +7,7 @@ namespace TermsrvPatcherUnified.Core;
 internal sealed class UpdateIntegration : IDisposable
 {
     public const string Repository = "sgennadi/TermsrvPatcherUnified";
-    public const string Version = "0.1.0-preview.6";
+    public const string Version = "0.1.0-preview.7";
     private readonly Dictionary<UpdateChannel, UpdateNotificationController> controllers = new();
 
     public UpdateIntegration()
@@ -18,7 +18,7 @@ internal sealed class UpdateIntegration : IDisposable
 
     public UpdateNotificationController Get(UpdateChannel channel) => controllers[channel];
 
-    private static UpdateOptions Options(UpdateChannel channel) => new()
+    internal static UpdateOptions Options(UpdateChannel channel) => new()
     {
         ProductId = "TermsrvPatcherUnified",
         Repository = Repository,
@@ -28,7 +28,7 @@ internal sealed class UpdateIntegration : IDisposable
         StateDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
             "TermsrvPatcherUnified", "Updates", channel.ToString()),
-        Assets = [new UpdateAssetRule("win-x64", "TermsrvPatcherUnified-win-x64.zip",
+        Assets = [new UpdateAssetRule("win-x64", "TermsrvPatcherUnified-update-win-x64.zip",
             PackageKind.SingleExeZip, "TermsrvPatcherUnified.exe")]
     };
 

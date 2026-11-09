@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.6" in version, "version consistency")
+    check("0.1.0-preview.7" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.6" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.7" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -162,7 +162,7 @@ check("SessionToken.Clear()" in (ROOT / "DiagnosticsWindow.xaml.cs").read_text()
 check("TermsrvPatcherUnified.NativeProtected" in (ROOT / "Core/NsudoDevilModeScope.cs").read_text(), "NSudo extraction is isolated from audit logs")
 print("PASS: reviewed GitHub Issue delivery and private native cache checks.")
 
-for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow"):
+for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow", "SuccessfulFixWindow"):
     view = ET.parse(ROOT / (view_name + ".xaml")).getroot()
     source = (ROOT / (view_name + ".xaml.cs")).read_text(encoding="utf-8")
     for element in view.iter():
@@ -173,3 +173,17 @@ for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow"):
 print("PASS: secondary WPF window event handler guards.")
 
 check("global using System.Net.Http;" in (ROOT / 'GlobalUsings.cs').read_text(), 'WPF project explicitly imports System.Net.Http for GitHub Issues API')
+
+check((ROOT / "Core/UpdateInstallBridge.cs").exists(), "manual self-update bridge exists")
+check("PortableExeTransaction" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(), "self-update uses shared transactional rollback")
+check("TermsrvPatcherUnified-update-win-x64.zip" in (ROOT / "Core/UpdateIntegration.cs").read_text(), "update channel expects single-executable release asset")
+check("PrepareAndLaunchAsync" in (ROOT / "UpdateCenterWindow.xaml.cs").read_text(), "manual Install launches checked updater")
+check("--update-probe" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(), "updater health probe exists")
+print("PASS: self-update integration source guards.")
+
+check((ROOT / "scripts/record_successful_fix.py").exists(), "version-only compatibility CSV aggregation script exists")
+check("SuccessfulFixMetadata.FromSuccessfulApply" in (ROOT / "MainWindow.xaml.cs").read_text(), "compatibility report is offered after successful protected apply")
+check("SuccessfulFixPublisher" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(), "user-confirmed GitHub Issues compatibility reporting is wired")
+check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").read_text(), "GitHub event handler updates compatibility CSV")
+check((ROOT / "data/successful-fixes.csv").exists(), "version-only CSV exists")
+print("PASS: compatibility report source guards.")

@@ -218,6 +218,52 @@ finally
     if (Directory.Exists(scratch)) Directory.Delete(scratch, recursive: true);
 }
 
+Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease)
+    .Assets.Single().AssetName == "TermsrvPatcherUnified-update-win-x64.zip",
+    "Updater points to exact single-EXE GitHub asset");
+Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
+    "Version-mismatched update probes are rejected");
+Ensure(UpdateInstallBridge.Probe("0.1.0-preview.7") is 0 or 5,
+    "Update probe returns only explicit success or unavailable");
+// Successful-fix reports contain only version metadata. They are offered
+// after a confirmed GUI Apply; the network path here is always stubbed.
+var versionOnly = SuccessfulFixMetadata.FromSuccessfulApply(
+    new WindowsDetails("Windows 11", "24H2", 26100, 1234, "Client",
+        true, @"C:\\Windows\\System32\\termsrv.dll", "10.0.26100.1234"), ready);
+var successBody = versionOnly.AsComment();
+Ensure(successBody.StartsWith("termsrv-success/v1", StringComparison.Ordinal),
+    "compatibility report uses canonical marker");
+Ensure(successBody.Contains("windows=Windows 11", StringComparison.Ordinal) &&
+       successBody.Contains("build=26100", StringComparison.Ordinal) &&
+       successBody.Contains("dll=1.0", StringComparison.Ordinal) &&
+       successBody.Contains("app=0.1.0-preview.7", StringComparison.Ordinal),
+    "compatibility metadata includes only requested version values");
+Ensure(!successBody.Contains("C:\\", StringComparison.Ordinal) &&
+       !successBody.Contains("hostname=", StringComparison.Ordinal),
+    "compatibility comment excludes paths and machine identity");
+var successHandler = new IssueStubHandler(HttpStatusCode.Created, "{}");
+using (var client = new HttpClient(successHandler))
+using (var sender = new SuccessfulFixPublisher(client))
+{
+    sender.PublishAsync(versionOnly, syntheticToken).GetAwaiter().GetResult();
+    Ensure(successHandler.RequestCount == 1 &&
+           successHandler.LastUrl ==
+             "https://api.github.com/repos/sgennadi/TermsrvPatcherUnified/issues/1/comments",
+        "successful-fix report is posted only to the pinned public compatibility issue");
+    Ensure(successHandler.LastBody.Contains("termsrv-success/v1", StringComparison.Ordinal) &&
+           !successHandler.LastBody.Contains(syntheticToken, StringComparison.Ordinal),
+        "compatibility comment contains no GitHub token");
+    Expect<ArgumentException>(() => sender.PublishAsync(versionOnly, "bad token")
+        .GetAwaiter().GetResult(), "reject invalid compatibility report credential");
+}
+using (var client = new HttpClient(new IssueStubHandler(HttpStatusCode.Forbidden, "{}")))
+using (var sender = new SuccessfulFixPublisher(client))
+    Expect<InvalidOperationException>(() => sender.PublishAsync(versionOnly, syntheticToken)
+        .GetAwaiter().GetResult(), "failed GitHub Issues authorization does not imply success");
+Expect<InvalidDataException>(() => new SuccessfulFixMetadata(
+    "Windows 11", "24H2", 26100, 1234, "10.0.1234.0",
+    "0.1.0-preview.7", "manual\\nprivate-data=1").AsComment(),
+    "reject unapproved compatibility fields");
 Console.WriteLine($"PASS: {assertions} TermsrvPatcher Unified read-only and preflight assertions.");
 
 internal sealed class IssueStubHandler : HttpMessageHandler

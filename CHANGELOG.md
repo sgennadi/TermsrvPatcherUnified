@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.7 — 2026-11-09
+
+- Applied a consistent light blue/navy theme based on the user's DISM-GUI and BitKeyBridge design, with rounded controls and Segoe MDL2 icons.
+- Added the version to every window title and the ICO to all dialogs; improved main toolbar wrapping and layout.
+- Implemented administrator-confirmed EXE replacement from a protected Program Files folder: SHA-256 verified, versioned GitHub preview asset, current-version helper, pre-replacement backup, offline health probe and attempted rollback on failure.
+- Added opt-in successful-fix compatibility metadata, manual GitHub Issues submission, and aggregated version CSV workflow. No device/user identities, addresses or raw files are sent.
+- Expanded Windows CI: updater ZIP and CLI probe smoke tests, version-only report parser, and new XAML views.
+
 ## 0.1.0-preview.6 — 2026-11-08
 
 - Added opt-in, reviewed diagnostics submission to a pinned GitHub Issues endpoint, using only a temporary session token.

@@ -1,4 +1,4 @@
-# TermsrvPatcherUnified — 0.1.0-preview.6
+# TermsrvPatcherUnified — 0.1.0-preview.7
 
 This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from:
 
@@ -71,7 +71,7 @@ The combined source is released under **GPLv3**. Contributions include adapted s
 - Added synthetic tests for all automatic signature families, ambiguous/multi-group patterns, near matches and PE boundaries.
 - CI includes a packaged-EXE read-only smoke test; it still must be run on GitHub/Windows.
 
-## Changes in 0.1.0-preview.6
+## Changes in 0.1.0-preview.7
 
 - Prepared a GitHub repository layout, contribution/security policy, issue template and `gh` CLI setup scripts.
 - Split read-only CLI execution from elevated GUI mode: read-only inspection no longer needs UAC.
@@ -82,7 +82,7 @@ The combined source is released under **GPLv3**. Contributions include adapted s
 
 The GitHub destination is [sgennadi/TermsrvPatcherUnified](https://github.com/sgennadi/TermsrvPatcherUnified).
 
-## Integrated Updates and Diagnostics (0.1.0-preview.6)
+## Integrated Updates and Diagnostics (0.1.0-preview.7)
 
 The application **embeds source** from the author's existing shared projects:
 
@@ -93,7 +93,7 @@ Each upstream module remains independently maintained in its original private re
 
 The Windows workflow compiles both module references and app code; the previous preview.5 job succeeded on Windows. The current preview.6 must pass its own workflow before a compiled EXE is claimed. No real system DLL is modified during CI.
 
-## NSudo Devil Mode (0.1.0-preview.6)
+## NSudo Devil Mode (0.1.0-preview.7)
 
 The **official NSudo 8.2 stable x64 native DLL** is an opt-in component built **inside** the CI-published single-file EXE. No NSudo installer is required. GitHub Actions stages the official release archive using `scripts/prepare-nsudo.ps1`, verifies its pinned SHA-256, validates the x64 NSudo DLL identity and embeds it as a private resource. On explicit administrator-approved Apply/Restore, the app extracts it to an administrator-restricted folder, verifies the embedded SHA-256 and DLL architecture, loads it only around the protected write, and unloads it. It is never used while checking releases, inspecting binaries or collecting diagnostics.
 
@@ -102,9 +102,16 @@ The previous `takeown.exe` / `icacls.exe` fallback was **removed**: unknown or m
 Prepare manually on Windows with PowerShell 7: `pwsh ./scripts/prepare-nsudo.ps1`, then `dotnet publish ... -p:RequireNSudo=true`. The CI workflow performs this automatically. No automatic privilege escalation, blank-password RDP or automatic DLL modification is introduced.
 
 
-## Changes in 0.1.0-preview.6
+## Changes in 0.1.0-preview.7
 
 - Diagnostics can now submit a **reviewed** `universal-diagnostics/v1` report directly to a fixed GitHub Issue endpoint. The token is supplied per submission and cleared from the UI; it is never saved, logged, copied into the report, or sent to any redirect. A public-repository warning and second confirmation are mandatory. Manual copy/open Issue remains available.
 - A successful GitHub response is validated against this repository's issue URL and recorded locally in the diagnostic queue. Failures or ambiguous responses are never retried automatically. Mocked GitHub response tests require no network or credentials.
 - NSudo extraction uses a separate protected native-code directory rather than the ordinary audit/log folder, avoiding a conflict with inherited ACLs.
 - This preview still has no trusted self-install updater and no real-system-DLL patch test. **Install stays disabled** until signer verification and rollback are implemented.
+
+## Changes in 0.1.0-preview.7
+
+- New unified light-blue WPF theme, rounded controls, Segoe MDL2 button icons, app ICO in all windows, adaptive main toolbar, and preview version in every window title.
+- Manual **Check / Install** updater: download the separate single-EXE GitHub Release asset, validate GitHub SHA-256/ZIP/x64 PE, and use a protected, current-EXE update helper to replace the app after exit. Previous EXE is backed up; replacement is probed and rolled back on failure. Unsigned previews require explicit confirmation; no automatic install. Available only when installed in an administrator-protected Program Files subdirectory.
+- Successful *GUI Apply* offers an optional version-only compatibility submission through a temporary GitHub Issues token. A GitHub workflow aggregates accepted reports to `data/successful-fixes.csv` with Windows name/release/build/UBR, fixed file name (`termsrv.dll`), DLL and application versions, and manual/automatic mode. This is self-reported telemetry, not proof of system compatibility. No hostname, username, IP, file path, DLL bytes, or raw logs are sent.
+- GitHub CI now checks the updater ZIP structure, CLI health probe, diagnostics tests and the compatibility CSV aggregation tests. Release publication remains prerelease-only. Live system DLL modification, service recovery, and end-to-end updater rollback require operator-supervised isolated Windows VM acceptance tests.

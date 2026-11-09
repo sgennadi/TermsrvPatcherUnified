@@ -3,31 +3,133 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              ShutdownMode="OnMainWindowClose">
   <Application.Resources>
-    <SolidColorBrush x:Key="BackgroundBrush" Color="#F6F8FB"/>
-    <SolidColorBrush x:Key="PrimaryBrush" Color="#28589D"/>
-    <SolidColorBrush x:Key="ContentBrush" Color="#25364E"/>
-    <SolidColorBrush x:Key="BorderBrush" Color="#DCE4EE"/>
+    <!-- Shared light palette adapted from DISM-GUI ModernTheme and BitKeyBridge. -->
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#F4F7FD"/>
+    <SolidColorBrush x:Key="PrimaryBrush" Color="#0E6AE6"/>
+    <SolidColorBrush x:Key="NavyBrush" Color="#0B2E5A"/>
+    <SolidColorBrush x:Key="ContentBrush" Color="#142744"/>
+    <SolidColorBrush x:Key="MutedBrush" Color="#5E708E"/>
+    <SolidColorBrush x:Key="BorderBrush" Color="#C3D7EE"/>
+    <SolidColorBrush x:Key="SoftBlueBrush" Color="#E9F3FE"/>
+    <SolidColorBrush x:Key="AccentBrush" Color="#1EC2FF"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="#10AA5D"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="#FFDF9E"/>
+    <SolidColorBrush x:Key="SurfaceBrush" Color="White"/>
+
     <Style TargetType="TextBlock">
       <Setter Property="Foreground" Value="{StaticResource ContentBrush}"/>
       <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
+
     <Style TargetType="Button">
       <Setter Property="Margin" Value="0,0,10,10"/>
       <Setter Property="Padding" Value="15,9"/>
-      <Setter Property="MinHeight" Value="38"/>
+      <Setter Property="MinHeight" Value="39"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
       <Setter Property="Background" Value="White"/>
       <Setter Property="Foreground" Value="{StaticResource ContentBrush}"/>
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
+      <Setter Property="VerticalContentAlignment" Value="Center"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Chrome" CornerRadius="9"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}"
+                    Padding="{TemplateBinding Padding}" SnapsToDevicePixels="True">
+              <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
+                          VerticalAlignment="Center">
+                <TextBlock x:Name="Glyph" Text="{TemplateBinding Tag}"
+                           FontFamily="Segoe MDL2 Assets" FontSize="15"
+                           Foreground="{TemplateBinding Foreground}"
+                           Margin="0,0,9,0" VerticalAlignment="Center"/>
+                <ContentPresenter RecognizesAccessKey="True"
+                                  Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}"
+                                  VerticalAlignment="Center" HorizontalAlignment="Center"/>
+              </StackPanel>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="Tag" Value="{x:Null}">
+                <Setter TargetName="Glyph" Property="Visibility" Value="Collapsed"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Chrome" Property="Opacity" Value="0.86"/>
+              </Trigger>
+              <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Chrome" Property="Opacity" Value="0.72"/>
+              </Trigger>
+              <Trigger Property="IsEnabled" Value="False">
+                <Setter TargetName="Chrome" Property="Opacity" Value="0.45"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
-    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Style x:Key="PrimaryButton" TargetType="Button"
+           BasedOn="{StaticResource {x:Type Button}}">
       <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
       <Setter Property="Foreground" Value="White"/>
+      <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
     </Style>
+
     <Style TargetType="GroupBox">
       <Setter Property="Margin" Value="0,0,0,15"/>
       <Setter Property="Padding" Value="12"/>
       <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
       <Setter Property="Background" Value="White"/>
+      <Setter Property="Foreground" Value="{StaticResource NavyBrush}"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="MinHeight" Value="35"/>
+      <Setter Property="Padding" Value="9,6"/>
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="Foreground" Value="{StaticResource ContentBrush}"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+    </Style>
+    <Style TargetType="PasswordBox">
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="Padding" Value="9,6"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="MinHeight" Value="36"/>
+      <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+    </Style>
+    <Style TargetType="TabItem">
+      <Setter Property="Padding" Value="16,11"/>
+      <Setter Property="FontWeight" Value="SemiBold"/>
+      <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+      <Setter Property="Background" Value="{StaticResource SoftBlueBrush}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="TabItem">
+            <Border x:Name="TabBackground"
+                    Background="{TemplateBinding Background}"
+                    CornerRadius="9,9,0,0" Margin="0,0,4,0">
+              <ContentPresenter ContentSource="Header" RecognizesAccessKey="True"
+                                Margin="{TemplateBinding Padding}"
+                                HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource NavyBrush}"/>
+                <Setter TargetName="TabBackground" Property="Background" Value="White"/>
+              </Trigger>
+              <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="TabBackground" Property="Opacity" Value="0.85"/>
+              </Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
     </Style>
   </Application.Resources>
 </Application>
