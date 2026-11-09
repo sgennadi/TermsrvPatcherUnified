@@ -46,6 +46,12 @@ internal static class UiSmokeTests
                     throw new Exception("Read-only policy and history controls are missing.");
                 if (main.FindName("AutoSignatureGrid") is not DataGrid automaticEvidence ||
                     !automaticEvidence.IsReadOnly ||
+                    main.FindName("AutoInspectFindButton") is not Button fromFind ||
+                    fromFind.IsEnabled ||
+                    main.FindName("AutoInspectReplaceButton") is not Button fromReplace ||
+                    fromReplace.IsEnabled ||
+                    main.FindName("AutoEvidenceExportButton") is not Button exportEvidence ||
+                    exportEvidence.IsEnabled ||
                     main.FindName("ManualFragmentGrid") is not DataGrid fragmentGrid ||
                     !fragmentGrid.IsReadOnly ||
                     main.FindName("ImportedResultsGrid") is not DataGrid importedGrid ||

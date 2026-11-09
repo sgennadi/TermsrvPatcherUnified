@@ -152,3 +152,10 @@ Version: 0.1.0-preview.10
 - Corrected the outdated signed-installer text: updates are unsigned, intentionally manual and verified by SHA-256.
 - WPF offscreen smoke asserts explicit install-eligibility message, release-link action and initially disabled Install state.
 - This is a UX gate only: interactive Windows 11 updates from protected Program Files still require manual VM testing.
+
+## Preview.17 — SHA-bound signature evidence and Automatic → Manual HEX navigation
+
+- **Automatic → Check DLL:** binds its signature and fallback evidence to the preview SHA-256 and independently revalidates the installed DLL before cached results are reused. On mismatch, stale Apply and report-export controls are refused.
+- **Inspect selected Find / Replace in HEX:** transfers only the selected existing masked sequence to Manual's read-only viewer, clears Replace and requires a separate operator check before any action.
+- **Export signature evidence:** creates a new local `.txt` report with DLL version/hash and bounded exact/near-match results. No anonymous upload and no overwrite. Unsafe imported label metadata is filtered.
+- Functional SHA `04c216e1b9ca4c211f512293f117ea5f436557f6` passed CI: 55 signature tests, 91 core assertions and 20 offscreen WPF layouts. Final Preview.17 CI and release must be checked again. No live Windows 11 Apply/Restore or physical 200%-DPI acceptance has been verified.

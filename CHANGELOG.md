@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-preview.17 — 2026-11-09
+
+- **Automatic → Manual HEX:** select a matching Find or Replace signature and inspect its existing bytes in Manual's read-only 16-column HEX/ASCII viewer. The workflow clears the Manual Replace input; no replacement is inferred, approved or applied automatically.
+- **Export signature evidence:** save a locally reviewed `termsrv-signature-evidence/v1` text file with Windows/DLL versions, SHA-256, masked Find and exact Replace signatures, hit counts, offsets and bounded near-match details. No anonymous upload; source paths, usernames and host identifiers are not included as report fields.
+- **SHA-256 consistency:** compare the engine preview, separately read signature snapshot and fallback scan; reject outdated evidence when the DLL changes. A failed check must not leave an old Ready plan available.
+- **Windows QA:** simulated hash mismatch, file change, report-label redaction, CRLF/LF, no overwrite, TXT-only output; 55 signature tests and 20 offscreen WPF viewports passed in earlier CI. The final Preview.17 build and release still require their own checks.
+- Preserves Preview.16 updater eligibility explanations and the safe **Open GitHub release** fallback. No real Windows 11 protected Apply/Restore or physical 200%-DPI acceptance yet. Unsigned Preview, not Stable.
+
+
 ## 0.1.0-preview.16 — 2026-11-09
 
 - The updater now explains the exact reason when **Install** is disabled: missing live release data, cached results, insufficient elevation, unsupported/unsafe installation path, or previous failure hold.
