@@ -182,8 +182,8 @@ public partial class DiagnosticsWindow : Window
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            using var sender = new UniversalDiagnosticsRelayClient();
-            var issue = await sender.SendAsync(payload, relayEndpoint, deadline.Token);
+            using var relayClient = new UniversalDiagnosticsRelayClient();
+            var issue = await relayClient.SendAsync(payload, relayEndpoint, deadline.Token);
             submittedIssue = issue;
             try
             {
