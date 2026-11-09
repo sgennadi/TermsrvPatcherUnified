@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-preview.14 — 2026-11-09
+
+- RDP Settings now stages original registry values and supported inbound firewall-rule states before writing anything. Conflicting Group Policy values or unexpected registry data fail closed.
+- Apply/verify each requested change as a reversible transaction. If any write or readback fails, reverse all attempted mutations, including a setter that failed after writing, and explicitly report incomplete rollback when needed.
+- Run RDP Settings from a controlled asynchronous task; reload the actual registry settings following success or failure so the UI does not imply unverified changes succeeded.
+- Strengthened TermService/SessionEnv/UmRdpService lifecycle: preflight all service states before any stop, reject transitional states, restore only originally running services, and preserve both stop and failed-restart errors.
+- New fault-injection suite exercises registry/firewall-style transaction failures and service stop/start recovery without modifying live Windows services, protected DLL files or firewall rules.
+- Windows 11 VM acceptance for real system DLL Apply/Restore, service recovery, firewall policy and true 200% desktop DPI remains outstanding. This is an **unsigned Preview**, not Stable.
+
+
 ## 0.1.0-preview.13 — 2026-11-09
 
 - Refocused README on current features and installation; per-build details remain here.

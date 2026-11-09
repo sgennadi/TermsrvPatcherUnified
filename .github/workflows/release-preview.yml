@@ -62,6 +62,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-policy-history-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-transaction-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish self-contained x64 EXE
         shell: pwsh
         run: |

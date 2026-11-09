@@ -584,23 +584,45 @@ public partial class MainWindow : Window
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Read settings failed"); }
     }
 
-    private void SaveSettings_Click(object sender, RoutedEventArgs e)
+    private async void SaveSettings_Click(object sender, RoutedEventArgs e)
     {
-        if (!Confirm(this, "Change RDP settings?", "These changes affect remote access and can be overridden by Group Policy. " +
+        if (busy) return;
+        // Capture all WPF input on the UI thread BEFORE Task.Run.
+        bool enableRdp = RdpEnabled.IsChecked == true;
+        bool enforceNla = NlaEnabled.IsChecked == true;
+        bool oneSession = SingleSession.IsChecked == true;
+        bool syncFirewall = FirewallEnabled.IsChecked == true;
+        if (!Confirm(this, "Change RDP settings?",
+            "This operation checks policy conflicts, then updates RDP settings " +
+            "and optionally Windows Firewall rules. Partial failures trigger a verified rollback. " +
+            "A rollback failure will require local-console recovery. " +
             "Network Level Authentication should remain enabled. Proceed?")) return;
-        try
+
+        bool completed = false;
+        await RunBusy(async () =>
         {
-            RdpConfiguration.Save(RdpEnabled.IsChecked == true, NlaEnabled.IsChecked == true,
-                SingleSession.IsChecked == true, FirewallEnabled.IsChecked == true);
-            ReadRdp();
-            FooterText.Text = "RDP settings saved. Verify effective Group Policy and firewall scope.";
-        }
-        catch (Exception ex)
+            await Task.Run(() =>
+                RdpConfiguration.Save(enableRdp, enforceNla, oneSession, syncFirewall));
+            completed = true;
+            ReadRdp(); // UI-thread readback, not a guess based on the requested values.
+            FooterText.Text = "RDP settings verified. Check resultant Group Policy and firewall scope.";
+        }, "RdpSettings");
+
+        if (!completed)
         {
-            DiagnosticsBridge.Remember("RDP Settings", ex);
-            AuditLog.Append("RDP settings failure: " + ex.GetType().Name);
-            OperationHistory.TryRecord("RdpSettings", "Failure", failureType: ex.GetType().Name);
-            MessageBox.Show(this, ex.Message, "Settings error", MessageBoxButton.OK, MessageBoxImage.Error);
+            // A failed save can be followed by a successful rollback. Never leave
+            // the requested checkbox values looking as though they were applied.
+            try
+            {
+                ReadRdp();
+                RdpDetails.Text = "Settings change failed. Current local values reloaded; " +
+                    "read the error and RDP policy diagnostics before retrying.";
+            }
+            catch (Exception error)
+            {
+                RdpDetails.Text = "Settings change failed; current registry values could not be read (" +
+                    error.GetType().Name + "). Recover from the local console if necessary.";
+            }
         }
     }
 

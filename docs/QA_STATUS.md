@@ -109,3 +109,11 @@ Version: 0.1.0-preview.10
 - [Published EXE upgrade/rollback QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42606117672): **PASS** on a disposable Windows 2025 runner: verify both downloaded ZIP digests, launch real Preview.12/Preview.13 EXEs, exercise upgrade, retained EXE backup, health-probe failure/rollback and staged-file tamper refusal.
 - [Real Windows termsrv.dll read-only QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42606117680): **PASS** using the actual Preview.13 release EXE: inspect a real installed DLL, validate report version/hash, reject invalid paths/extensions, and independently confirm DLL bytes, NTFS ACL, TermService status and NSudo cache remain unchanged.
 - Neither workflow applies a DLL patch, changes Windows services or proves interactive Windows 11 RDP functionality. Manual protected Apply/Restore and 200% physical DPI remain open acceptance gates.
+
+## Preview.14 — transactional RDP Settings and service recovery
+
+- Registry and recognized inbound Windows Firewall rule states are snapshotted before any Save writes. Policy conflicts, unsupported registry types and missing/unknown target rules fail closed.
+- A sequential transaction verifies each write; on any failure it attempts reverse-order rollback of *every attempted* operation, including a partially successful setter. Incomplete rollback is surfaced as a separate critical error. The GUI refreshes current local values rather than treating attempted checkboxes as confirmed state.
+- ServiceGuard preflights TermService and optional RDP services, refuses transitional states, stops only previously running services and makes a best effort to recover even after a partial Stop failure. Failed recovery is reported explicitly.
+- Windows CI includes `--rdp-transaction-qa` fault injection and the release workflow requires it. These are **synthetic** operations: no live TermService, Windows Firewall, registry or system DLL is written by these tests.
+- Real Windows 11 VM protected Apply/Restore and RDP-session recovery, GPO/firewall effectiveness, and actual 200%-DPI visual review remain unverified acceptance tasks.
