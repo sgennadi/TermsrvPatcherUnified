@@ -156,6 +156,25 @@ jobs:
             }
           }
           if ($profiles -ne 3) { throw "Expected three trusted automatic catalog profiles, got $profiles." }
+          # External haojiezhe12345 hotpatch pattern, inspected ONLY.
+          # One-byte branch difference; this experiment never writes process memory.
+          $hotpatchFind = '44 8B 8F 38 06 00 00 45 3B C1 75 14'
+          $hotpatchReplace = '44 8B 8F 38 06 00 00 45 3B C1 EB 14'
+          $hotpatchFound = @(Find-Matches -Data $bytes -Hex $hotpatchFind)
+          $hotpatchAlready = @(Find-Matches -Data $bytes -Hex $hotpatchReplace)
+          Write-Host 'UPSTREAM_HOTPATCH_RESULT: haojiezhe12345 26100.8737+'
+          Write-Host ("  Find hits: {0}; offsets: {1}" -f $hotpatchFound.Count, (Show-Offsets $hotpatchFound))
+          Write-Host ("  Replace hits: {0}; offsets: {1}" -f $hotpatchAlready.Count, (Show-Offsets $hotpatchAlready))
+          if ($hotpatchFound.Count -eq 1 -and $hotpatchAlready.Count -eq 0) {
+            Write-Host '  Classification: EXACT ORIGINAL MATCH (READ-ONLY)'
+          } elseif ($hotpatchFound.Count -eq 0 -and $hotpatchAlready.Count -eq 1) {
+            Write-Host '  Classification: EXACT REPLACEMENT MATCH (READ-ONLY)'
+          } elseif ($hotpatchFound.Count -eq 0 -and $hotpatchAlready.Count -eq 0) {
+            Write-Host '  Classification: NOT FOUND'
+          } else {
+            Write-Host '  Classification: AMBIGUOUS'
+          }
+          Write-Host 'LIMIT: No memory writes, and no inference of hotpatch safety from byte matches.'
           $shaAfter = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($shaBefore -ne $shaAfter) { throw "Read-only signature check found modified DLL bytes." }
           Write-Host 'PASS: exact three-profile Server 2025 signature evidence; DLL SHA-256 unchanged.'
