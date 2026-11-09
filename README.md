@@ -1,4 +1,4 @@
-# TermsrvPatcherUnified — 0.1.0-preview.10
+# TermsrvPatcherUnified — 0.1.0-preview.11
 
 This is a **C#/.NET 10 WPF source preview**, integrating features and ideas from:
 
@@ -163,3 +163,11 @@ For x64 files, recognized automatic profiles can be used. For x86 files, an oper
 After **Check selected DLL**, the program shows architecture, file version, original CRC32 and SHA-256, proposed output CRC32 and SHA-256 and changed byte offsets. **Save patched copy...** defaults to `termsrv.patched.dll`; it never replaces an existing file. A verified output can be reported to a public GitHub issue **only with explicit preview, confirmation and a temporary Issues-write token**. The server aggregates these reports in `data/offline-fixes.csv`, distinct from confirmed installed changes. Public metadata is not evidence the DLL was installed or is operational.
 
 **The program remains Windows x64 only.** Supporting x86 files offline does not introduce an x86 EXE, NSudo x86, system Apply/Restore x86 or Windows 10 x86 support. Automatic and Manual tabs also provide read-only DryRun JSON export. A process-wide lock protects the system Apply/Restore/setting mutations against concurrent use.
+
+Start without a UAC prompt for offline file work:
+
+```powershell
+.\TermsrvPatcherUnified.exe --offline
+```
+
+The normal GUI still requests elevation when starting in the live system-management mode; Apply/Restore and protected settings are checked independently. The offline-only startup option does not grant permission to change the system DLL.
