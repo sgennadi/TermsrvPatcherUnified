@@ -183,7 +183,9 @@
               <Button Tag="&#xE8A7;" Content="Read settings" Click="ReadSettings_Click"/>
               <Button Tag="&#xE74E;" Content="Save settings" Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click"/>
             </WrapPanel>
-            <TextBlock x:Name="RdpDetails" Foreground="{StaticResource MutedBrush}" Margin="0,12,0,0"/>
+            <TextBlock x:Name="RdpDetails" Foreground="{StaticResource MutedBrush}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+            <TextBlock Text="For Group Policy conflicts, open RDP Health and choose Check RDP configuration."
+                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/>
             <TextBlock Text="For security, this manager does not offer blank-password RDP logon." Foreground="#8B531A" Margin="0,15,0,0"/>
           </StackPanel>
         </ScrollViewer>
@@ -233,8 +235,64 @@
                            Text="Read-only: no disconnect, logoff, impersonation or session control. Account names are displayed locally only; they are never sent to GitHub."/>
               </StackPanel>
             </GroupBox>
+            <GroupBox Header="RDP configuration and Group Policy — read-only" Margin="0,12,0,0">
+              <StackPanel>
+                <Button Tag="&#xE721;" Content="Check RDP configuration" Click="CheckRdpPolicy_Click"
+                        Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"/>
+                <TextBlock x:Name="RdpPolicySummary" Text="No configuration diagnostic yet." Margin="0,9,0,8"
+                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"/>
+                <DataGrid x:Name="RdpPolicyGrid" IsReadOnly="True" CanUserAddRows="False"
+                          AutoGenerateColumns="False" Height="215" HeadersVisibility="Column"
+                          GridLinesVisibility="Horizontal">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Setting" Binding="{Binding Setting}" Width="170"/>
+                    <DataGridTextColumn Header="Local" Binding="{Binding LocalValue}" Width="155"/>
+                    <DataGridTextColumn Header="Policy" Binding="{Binding PolicyValue}" Width="155"/>
+                    <DataGridTextColumn Header="Assessment" Binding="{Binding Assessment}" Width="140"/>
+                    <DataGridTextColumn Header="Explanation" Binding="{Binding Explanation}" Width="320"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBox x:Name="RdpPolicyDetails" IsReadOnly="True" Height="105"
+                         TextWrapping="Wrap" FontSize="12" Margin="0,9,0,0"
+                         VerticalScrollBarVisibility="Auto"
+                         Text="Read-only registry evidence. No Group Policy refresh, service or firewall modification."/>
+                <TextBlock Text="Policy values do not prove Group Policy has refreshed. Firewall rule effectiveness is not checked."
+                           TextWrapping="Wrap" Foreground="#8B531A" Margin="0,8,0,0"/>
+              </StackPanel>
+            </GroupBox>
           </StackPanel>
         </ScrollViewer>
+      </TabItem>
+      <TabItem Header="History">
+        <Grid Margin="15,18,15,14">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <TextBlock Text="Local operation history" FontSize="18" FontWeight="SemiBold"/>
+          <TextBlock Grid.Row="1" Margin="0,7,0,12" TextWrapping="Wrap"
+                     Foreground="{StaticResource MutedBrush}"
+                     Text="User-local metadata only: no accounts, hostnames, paths or raw exception messages. History never authorizes Apply/Restore."/>
+          <Button Grid.Row="2" Tag="&#xE72C;" Content="Refresh history" Click="RefreshOperationHistory_Click"
+                  Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left" Margin="0,0,0,9"/>
+          <DataGrid x:Name="OperationHistoryGrid" Grid.Row="3" IsReadOnly="True"
+                    CanUserAddRows="False" AutoGenerateColumns="False"
+                    HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="UTC" Binding="{Binding AtUtc, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="165"/>
+              <DataGridTextColumn Header="Operation" Binding="{Binding Operation}" Width="105"/>
+              <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="90"/>
+              <DataGridTextColumn Header="DLL version" Binding="{Binding DllVersion}" Width="130"/>
+              <DataGridTextColumn Header="Application" Binding="{Binding AppVersion}" Width="125"/>
+              <DataGridTextColumn Header="Failure type" Binding="{Binding FailureType}" Width="135"/>
+            </DataGrid.Columns>
+          </DataGrid>
+          <TextBlock Grid.Row="4" x:Name="OperationHistorySummary" Text="Press Refresh history to load local records."
+                     TextWrapping="Wrap" Margin="0,9,0,0" Foreground="{StaticResource MutedBrush}"/>
+        </Grid>
       </TabItem>
     </TabControl>
     <Grid Grid.Row="3" Margin="0,15,0,0">

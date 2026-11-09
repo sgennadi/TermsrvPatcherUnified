@@ -52,6 +52,11 @@ jobs:
         run: |
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-health-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: RDP policy registry and privacy-safe history regression (read-only)
+        shell: pwsh
+        run: |
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-policy-history-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Real DLL copy backup, Restore, tamper and no-backup integrity tests
         shell: pwsh
         run: |

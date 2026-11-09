@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--rdp-policy-history-qa"])
+{
+    Environment.ExitCode = RdpPolicyHistoryTests.Run() >= 20 ? 0 : 2;
+    return;
+}
+
 if (args is ["--rdp-health-qa"])
 {
     Environment.ExitCode = RdpHealthTests.Run() >= 12 ? 0 : 2;
