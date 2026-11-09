@@ -109,14 +109,137 @@
                 <TextBlock x:Name="ManualFragmentSummary" Text="Type at least two complete bytes, e.g. 44 8B or 448B. Matches appear as you type."
                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,3,0,6"/>
                 <DataGrid x:Name="ManualFragmentGrid" IsReadOnly="True" CanUserAddRows="False"
-                          AutoGenerateColumns="False" Height="150" HeadersVisibility="Column">
+                          AutoGenerateColumns="False" Height="150" HeadersVisibility="Column"
+                          SelectionChanged="ManualFragmentSelectionChanged">
                   <DataGrid.Columns>
                     <DataGridTextColumn Header="Group" Binding="{Binding Group}" Width="65"/>
-                    <DataGridTextColumn Header="Offset" Binding="{Binding Offset, StringFormat={}{0:X8}}" Width="110"/>
+                    <DataGridTextColumn Header="Offset" Binding="{Binding Address}" Width="110"/>
                     <DataGridTextColumn Header="Actual bytes" Binding="{Binding ActualHex}" Width="225"/>
                     <DataGridTextColumn Header="Context (before [matched] after)" Binding="{Binding Context}" Width="520"/>
                   </DataGrid.Columns>
                 </DataGrid>
+                <GroupBox Header="HEX Viewer — actual DLL bytes" Margin="0,12,0,7">
+                  <GroupBox.Resources>
+                    <Style x:Key="ManualHexCellStyle" TargetType="{x:Type TextBlock}">
+                      <Setter Property="Foreground" Value="{StaticResource ContentBrush}"/>
+                      <Setter Property="Background" Value="Transparent"/>
+                      <Setter Property="FontFamily" Value="Consolas"/>
+                      <Setter Property="FontSize" Value="12"/>
+                      <Setter Property="TextAlignment" Value="Center"/>
+                      <Setter Property="VerticalAlignment" Value="Center"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsFixedMatch}" Value="True">
+                          <Setter Property="Background" Value="#CBAAF6"/>
+                          <Setter Property="Foreground" Value="#31135A"/>
+                          <Setter Property="FontWeight" Value="Bold"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding IsWildcardMatch}" Value="True">
+                          <Setter Property="Background" Value="#B4EBEF"/>
+                          <Setter Property="Foreground" Value="#064F62"/>
+                          <Setter Property="FontWeight" Value="Bold"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </GroupBox.Resources>
+                  <StackPanel>
+                    <TextBlock x:Name="ManualHexHeader"
+                               Text="Select a match above to inspect actual DLL bytes at that address."
+                               TextWrapping="Wrap" Margin="0,0,0,6"/>
+                    <TextBlock x:Name="ManualHexMask"
+                               Text="Find mask: (not selected)"
+                               FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                               Foreground="{StaticResource NavyBrush}" Margin="0,0,0,8"/>
+                    <WrapPanel Margin="0,0,0,5">
+                      <Button x:Name="ManualHexPrevious" Content="Previous match"
+                              Click="ManualHexPrevious_Click" IsEnabled="False"/>
+                      <Button x:Name="ManualHexNext" Content="Next match"
+                              Click="ManualHexNext_Click" IsEnabled="False"/>
+                      <Button x:Name="ManualHexCopy" Content="Copy actual HEX"
+                              Click="ManualHexCopy_Click" IsEnabled="False"/>
+                    </WrapPanel>
+                    <WrapPanel Margin="0,0,0,8">
+                      <Border Background="#CBAAF6" Width="17" Height="13" Margin="0,0,5,0"/>
+                      <TextBlock Text="Exact matched bytes" Margin="0,0,16,0"
+                                 Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                      <Border Background="#B4EBEF" Width="17" Height="13" Margin="0,0,5,0"/>
+                      <TextBlock Text="Wildcard (actual byte)" Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                    </WrapPanel>
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="5" Background="#F8FBFF">
+                      <ScrollViewer Height="320" VerticalScrollBarVisibility="Auto"
+                                    HorizontalScrollBarVisibility="Auto" CanContentScroll="True">
+                        <StackPanel Margin="8,7,8,7" HorizontalAlignment="Left">
+                          <Grid Margin="0,0,0,7">
+                            <Grid.ColumnDefinitions>
+                              <ColumnDefinition Width="91"/>
+                              <ColumnDefinition Width="480"/>
+                              <ColumnDefinition Width="22"/>
+                              <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="ADDRESS" FontFamily="Consolas"
+                                       FontSize="12" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="1" FontFamily="Consolas" FontSize="12"
+                                       FontWeight="Bold"
+                                       Text="00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F"/>
+                            <TextBlock Grid.Column="2" Text="|" FontFamily="Consolas"
+                                       FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="3" Text="DUMP / ASCII" FontFamily="Consolas"
+                                       FontWeight="Bold"/>
+                          </Grid>
+                          <ItemsControl x:Name="ManualHexRows">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate>
+                                <Grid Margin="0,0,0,2" Height="19">
+                                  <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="91"/>
+                                    <ColumnDefinition Width="480"/>
+                                    <ColumnDefinition Width="22"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                  </Grid.ColumnDefinitions>
+                                  <TextBlock Grid.Column="0" Text="{Binding Address}"
+                                             FontFamily="Consolas" FontSize="12"
+                                             Foreground="{StaticResource MutedBrush}"
+                                             VerticalAlignment="Center"/>
+                                  <ItemsControl Grid.Column="1" ItemsSource="{Binding Bytes}">
+                                    <ItemsControl.ItemsPanel>
+                                      <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                      </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <TextBlock Text="{Binding Hex}" Width="30"
+                                                   Style="{StaticResource ManualHexCellStyle}"/>
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                  <TextBlock Grid.Column="2" Text="|" FontFamily="Consolas"
+                                             FontSize="12" VerticalAlignment="Center"
+                                             HorizontalAlignment="Center"/>
+                                  <ItemsControl Grid.Column="3" ItemsSource="{Binding Bytes}">
+                                    <ItemsControl.ItemsPanel>
+                                      <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                      </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                      <DataTemplate>
+                                        <TextBlock Text="{Binding Ascii}" Width="12"
+                                                   Style="{StaticResource ManualHexCellStyle}"/>
+                                      </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                  </ItemsControl>
+                                </Grid>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                        </StackPanel>
+                      </ScrollViewer>
+                    </Border>
+                    <TextBlock Text="The HEX viewer is read-only. It never guesses replacement bytes or enables Apply."
+                               Foreground="#8B531A" TextWrapping="Wrap" FontSize="12" Margin="0,7,0,0"/>
+                  </StackPanel>
+                </GroupBox>
                 <TextBlock Text="Live lookup does not generate Replace bytes or authorize Apply."
                            Foreground="#8B531A" TextWrapping="Wrap" Margin="0,6,0,0"/>
               </StackPanel>

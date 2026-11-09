@@ -8,7 +8,11 @@ namespace TermsrvPatcherUnified.Core;
 public enum HexByteHighlight { None, FixedMatch, WildcardMatch }
 
 public sealed record HexViewportByte(
-    int Offset, string Hex, char Ascii, HexByteHighlight Highlight);
+    int Offset, string Hex, char Ascii, HexByteHighlight Highlight)
+{
+    public bool IsFixedMatch => Highlight == HexByteHighlight.FixedMatch;
+    public bool IsWildcardMatch => Highlight == HexByteHighlight.WildcardMatch;
+}
 
 public sealed record HexViewportRow(
     string Address, IReadOnlyList<HexViewportByte> Bytes);

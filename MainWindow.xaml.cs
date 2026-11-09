@@ -240,37 +240,113 @@ public partial class MainWindow : Window
     {
         manualPlan = null;
         if (ApplyManualButton is not null) ApplyManualButton.IsEnabled = false;
-        if (ManualResult is not null) ManualResult.Text = "Pattern changed. Check again before applying.";
-        if (ManualFragmentSummary is null || ManualFragmentGrid is null || ManualFind is null) return;
+        if (ManualResult is not null)
+            ManualResult.Text = "Pattern changed. Check again before applying.";
+
+        // Replacing HEX must not restart an unchanged Find lookup.
+        if (sender != ManualFind || ManualFragmentSummary is null ||
+            ManualFragmentGrid is null || ManualFind is null) return;
 
         fragmentLookup?.Cancel();
         fragmentLookup?.Dispose();
         fragmentLookup = new CancellationTokenSource();
-        var cancellation = fragmentLookup.Token;
-        var find = ManualFind.Text;
+        CancellationToken cancellation = fragmentLookup.Token;
+        string find = ManualFind.Text;
+        fragmentSnapshot = null;
         ManualFragmentGrid.ItemsSource = null;
+        ClearManualHexViewer();
         if (string.IsNullOrWhiteSpace(find))
         {
-            ManualFragmentSummary.Text = "Type at least two complete HEX bytes for read-only lookup.";
+            ManualFragmentSummary.Text = "Enter at least two complete fixed HEX bytes (e.g. 44 8B).";
             return;
         }
-        ManualFragmentSummary.Text = "Searching installed termsrv.dll...";
+
+        ManualFragmentSummary.Text = "Searching installed termsrv.dll (read-only)...";
         try
         {
             await Task.Delay(300, cancellation);
             string path = await Task.Run(() => engine.EnvironmentInfo().DllPath, cancellation);
-            var found = await Task.Run(() => ManualFragmentSearch.SearchFile(path, find), cancellation);
+            var snapshot = await Task.Run(
+                () => ManualFragmentSearch.SearchFileSnapshot(path, find), cancellation);
             if (cancellation.IsCancellationRequested) return;
-            ManualFragmentSummary.Text = found.Summary;
-            ManualFragmentGrid.ItemsSource = found.Hits;
+            fragmentSnapshot = snapshot;
+            ManualFragmentSummary.Text = snapshot.Report.Summary;
+            ManualFragmentGrid.ItemsSource = snapshot.Report.Hits;
+            if (snapshot.Report.Hits.Count != 0)
+                ManualFragmentGrid.SelectedIndex = 0;
         }
         catch (OperationCanceledException) { }
         catch (Exception ex) when (ex is FormatException or IOException or UnauthorizedAccessException or
                                    ArgumentException or InvalidOperationException)
         {
             if (cancellation.IsCancellationRequested) return;
-            ManualFragmentSummary.Text = "Lookup unavailable: " + ex.GetType().Name +
-                ". The manual patch preview remains disabled.";
+            ManualFragmentSummary.Text = "HEX lookup unavailable (" + ex.GetType().Name +
+                "). Manual patch verification remains disabled.";
+        }
+    }
+
+    private void ClearManualHexViewer()
+    {
+        if (ManualHexRows is null) return;
+        ManualHexRows.ItemsSource = null;
+        if (ManualHexHeader is not null)
+            ManualHexHeader.Text = "Select a match to inspect real DLL bytes at that offset.";
+        if (ManualHexMask is not null)
+            ManualHexMask.Text = "Find mask: (not selected)";
+        if (ManualHexPrevious is not null) ManualHexPrevious.IsEnabled = false;
+        if (ManualHexNext is not null) ManualHexNext.IsEnabled = false;
+        if (ManualHexCopy is not null) ManualHexCopy.IsEnabled = false;
+    }
+
+    private void ManualFragmentSelectionChanged(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (ManualFragmentGrid?.SelectedItem is not ManualFragmentHit selected ||
+            fragmentSnapshot is null)
+        {
+            ClearManualHexViewer();
+            return;
+        }
+
+        var frame = HexViewport.Build(fragmentSnapshot.Bytes, selected.Offset,
+            selected.Length, selected.WildcardPositions);
+        ManualHexRows.ItemsSource = frame.Rows;
+        int position = ManualFragmentGrid.SelectedIndex;
+        int total = fragmentSnapshot.Report.Hits.Count;
+        ManualHexHeader.Text = $"Match {position + 1}/{total}  |  Address: 0x{selected.Offset:X8}  |  " +
+            $"Length: {selected.Length} byte(s)  |  File: {fragmentSnapshot.Bytes.Length:N0} bytes";
+        ManualHexMask.Text = "Find mask: " + selected.MaskHex +
+                             Environment.NewLine + "Actual:    " + selected.ActualHex;
+        ManualHexPrevious.IsEnabled = position > 0;
+        ManualHexNext.IsEnabled = position >= 0 && position < total - 1;
+        ManualHexCopy.IsEnabled = true;
+    }
+
+    private void ManualHexPrevious_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManualFragmentGrid?.SelectedIndex > 0)
+            ManualFragmentGrid.SelectedIndex--;
+    }
+
+    private void ManualHexNext_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManualFragmentGrid is not null && fragmentSnapshot is not null &&
+            ManualFragmentGrid.SelectedIndex >= 0 &&
+            ManualFragmentGrid.SelectedIndex < fragmentSnapshot.Report.Hits.Count - 1)
+            ManualFragmentGrid.SelectedIndex++;
+    }
+
+    private void ManualHexCopy_Click(object sender, RoutedEventArgs e)
+    {
+        if (ManualFragmentGrid?.SelectedItem is not ManualFragmentHit selected) return;
+        try
+        {
+            Clipboard.SetText(selected.ActualHex);
+            FooterText.Text = "Actual matched HEX copied locally (no replacement generated).";
+        }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            FooterText.Text = "Clipboard is currently unavailable.";
         }
     }
 
