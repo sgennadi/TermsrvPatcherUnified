@@ -134,9 +134,12 @@ public sealed class TermsrvEngine : IDisposable
             DllBackupStore.RequireTrustedLocation(BackupDirectory, create: true);
             var saved = DllBackupStore.Save(BackupDirectory, preview.FileVersion, current,
                 preview.OriginalSha256, createBackup: true);
-            System32BackupStore.SyncBeforeApply(preview, current);
-            Message("Original protected backup verified: " + Path.GetFileName(saved) +
-                    "; System32 termsrv.dll.bak verified.");
+            if (!preview.IsManual)
+                System32BackupStore.SyncBeforeApply(preview, current);
+            Message(preview.IsManual
+                ? "Protected manual backup verified: " + Path.GetFileName(saved)
+                : "Original protected backup verified: " + Path.GetFileName(saved) +
+                  "; System32 termsrv.dll.bak verified.");
         }
         else
         {
