@@ -206,3 +206,10 @@ Version: 0.1.0-preview.10
 - Read-only ranked list presents the version-relevant signature before Generic fallback. Exact Find/Replace counts and offsets, chosen/skipped/blocked reasons, and one-target behavior are visible on the Automatic tab.
 - External 12-byte in-memory hotpatch variant is a reference row only, not a fourth trusted disk Apply rule. It may coincide with the trailing 12 bytes of an exact 19-byte Find. On the operator-reported 26H2 fixture (synthetic reproduction only), the 19-byte Find starts at 0x000A6896 and the 12-byte suffix at 0x000A689D.
 - On Server 2025 the system file remains inspection-only despite the authentic read-only 13-byte match at 0x0009C43F. No protected Server Apply or live RDP session testing is claimed.
+
+## Preview.20 — anonymous UniversalDiagnostics relay client
+
+- The canonical `UniversalDiagnosticsRelayClient.cs` is vendored from `sgennadi/UniversalDiagnocticsModule`, draft relay branch `feature/universal-anonymous-relay-v1`.
+- Exact outgoing JSON must be reviewed before a manual send. The local description and other non-allowlisted fields are excluded; GitHub credentials remain server-only.
+- Local pending state changes only after a validated server reply containing the exact event ID, project and GitHub Issue URL.
+- Tests use a fake HTTP handler; no real diagnostic is transmitted. **The relay receiver is not yet deployed.** Before configuration, anonymous sending is disabled and local records remain pending.

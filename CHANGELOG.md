@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-preview.20 — 2026-11-09
+
+- Integrated the **byte-for-byte canonical UniversalDiagnostics v1 anonymous HTTPS relay client** from `sgennadi/UniversalDiagnocticsModule` into the single-EXE application. Existing local capture and user-reviewed authenticated GitHub reporting remain intact.
+- Diagnostics now shows **Send anonymously** and relay configuration state. The button remains disabled without a configured HTTPS endpoint and a locally saved, validated report. A separate confirmation shows the *exact typed JSON* about to be sent; free-text descriptions, raw logs, paths, hostnames and credentials are excluded.
+- The transport disallows HTTP redirects, cookies, plaintext URLs and untrusted receipts; it requires a matching project/event ID and public GitHub Issue URL before recording successful submission. Failed or uncertain submissions stay locally pending.
+- Offline tests cover redacted payloads, no client token, fingerprint/endpoint failure, receipt rejection, WPF state and existing backup/updater safety. **The separate Cloudflare Worker relay is not deployed**, so live anonymous delivery is not claimed.
+
 ## 0.1.0-preview.19 — 2026-11-09
 
 - **Automatic Apply priority list:** fixed read-only ordered rows for trusted 19-byte 25H2/26H2, 13-byte 24H2, Generic 12-byte profiles, plus a separate externally sourced 12-byte Hot Patch reference. Shows exact Find/Replace hit counts, offsets, selected/skipped/blocked decisions and explanations.

@@ -56,6 +56,25 @@ for element in app.iter():
             check(bool(re.search(r"\bvoid\s+" + re.escape(value) + r"\s*\(", code)),
                   f"XAML event handler exists: {value}")
 
+check((ROOT / "Shared/UniversalDiagnostics/UniversalDiagnosticsRelayClient.cs").exists(),
+      "shared .NET anonymous HTTPS relay client is included")
+relay_source = (ROOT / "Shared/UniversalDiagnostics/UniversalDiagnosticsRelayClient.cs").read_text(encoding="utf-8")
+check("UniversalDiagnostics.Transport" in relay_source and
+      "IsApprovedEndpoint" in relay_source and "IsApprovedIssueUri" in relay_source and
+      "AllowAutoRedirect = false" in relay_source,
+      "canonical relay client validates HTTPS endpoint and trusted issue receipt")
+diag_ui = (ROOT / "DiagnosticsWindow.xaml").read_text(encoding="utf-8")
+diag_code = (ROOT / "DiagnosticsWindow.xaml.cs").read_text(encoding="utf-8")
+check('x:Name="AnonymousButton"' in diag_ui and
+      "UniversalDiagnosticsRelayClient.Prepare" in diag_code and
+      "UniversalDiagnosticsRelayClient.ReadConfiguredEndpoint" in diag_code and
+      "relayClient.SendAsync" in diag_code and
+      "DiagnosticsBridge.MarkSubmitted" in diag_code,
+      "anonymous action requires saved reviewed event and validated HTTPS receipt")
+check("UniversalDiagnosticsRelayClient" in (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8") and
+      "AnonymousButton" in (ROOT / "Tests/UiSmokeTests.cs").read_text(encoding="utf-8"),
+      "relay client is bundled into EXE; disabled button is WPF-tested")
+
 auto = parse_catalog("AutomaticPatterns.txt")
 legacy = parse_catalog("LegacyUserPatterns.MANUAL.txt")
 check((ROOT / "Core/AutomaticPriorityPolicy.cs").exists(),
@@ -92,12 +111,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.19" in version, "version consistency")
+    check("0.1.0-preview.20" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.19" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.20" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")

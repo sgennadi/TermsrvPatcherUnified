@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.19` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.20` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
@@ -20,7 +20,7 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 - **Protected Apply/Restore:** explicit administrator approval, default-on persistent backup, version/hash/NTFS checks, cross-process lock and an attempted in-operation rollback. Disabling persistent backup requires extra confirmation.
 - **RDP Settings:** inspect or configure RDP enablement, NLA, single-session-per-user and eligible Domain/Private firewall rules. Before changes, block conflicting policy values and snapshot affected settings; verify writes and attempt reverse-order rollback if any step fails. A Group Policy refresh may still override local settings.
 - **RDP Health:** on-demand local DLL hash/version comparison against an operator-recorded baseline, plus local read-only RDP session inventory via Windows WTS APIs.
-- **Updates and Diagnostics:** visible update indicator, manual Check/Install of verified preview packages with EXE rollback, and optional reviewed diagnostics/compatibility reporting. Reports are never uploaded without consent.
+- **Updates and Diagnostics:** visible update indicator, manual Check/Install of verified preview packages with EXE rollback and reviewed diagnostics. **Send anonymously** uses the canonical UniversalDiagnostics v1 HTTPS relay, sends only a reviewed typed metadata allowlist (no free-text description, raw logs, paths, hostnames or client GitHub token) and requires a validated receipt for a PUBLIC GitHub Issue. Without an administrator-configured HTTPS receiver the button stays disabled and local reports remain pending. Reports are never uploaded without consent.
 
 A unique matching signature does **not** prove Remote Desktop will work after modification or that any additional sessions are licensed.
 
