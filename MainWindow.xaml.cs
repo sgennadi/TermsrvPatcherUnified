@@ -26,6 +26,8 @@ public partial class MainWindow : Window
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        ManualHexColumnHeaders.ItemsSource = Enumerable.Range(0, 16)
+            .Select(i => i.ToString("X2")).ToArray();
         if (offlineStartup) MainTabs.SelectedIndex = 3;
         engine = new TermsrvEngine(text => Dispatcher.BeginInvoke(() => FooterText.Text = text));
         WindowSettings.Restore(this);

@@ -52,7 +52,9 @@ internal static class UiSmokeTests
                     !importedGrid.IsReadOnly ||
                     main.FindName("CheckAllImportedButton") is not Button)
                     throw new Exception("Signature evidence, partial HEX and Check all imported controls missing.");
-                if (main.FindName("ManualHexRows") is not ItemsControl ||
+                if (main.FindName("ManualHexColumnHeaders") is not ItemsControl columns ||
+                    columns.Items.Count != 16 ||
+                    main.FindName("ManualHexRows") is not ItemsControl ||
                     main.FindName("ManualHexMask") is not TextBlock ||
                     main.FindName("ManualHexHeader") is not TextBlock ||
                     main.FindName("ManualHexPrevious") is not Button back ||

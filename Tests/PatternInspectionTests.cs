@@ -73,6 +73,9 @@ internal static class PatternInspectionTests
             "two-byte compact HEX fragment found");
         Verify(fragment.Hits[0].ActualHex == "11 22", "actual bytes printed");
         Verify(fragment.Hits[0].Context.Contains("[11 22]"), "surrounding bytes printed");
+        var fullWildcard = new BytePattern("11 ?? 33 44", "AA BB CC DD");
+        Verify(BytePattern.FindOffsets(dll, fullWildcard.Search).Single() == 0x230,
+            "manual full Find and incremental viewer both support ?? as one-byte wildcard");
         var wildcard = ManualFragmentSearch.SearchBytes(dll, "11 ?? 33");
         Verify(wildcard.Hits.Count == 1 && wildcard.Hits[0].ActualHex == "11 22 33",
             "wildcard reveals actual unknown byte");
