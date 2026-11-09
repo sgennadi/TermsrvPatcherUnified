@@ -84,6 +84,31 @@ byte[] FakeBytes(BytePattern group, int offset = 40)
     return value;
 }
 
+// Preview.22: pure policy regression checks, no protected file writes.
+var syntheticOriginalSha = new string('a', 64);
+var syntheticPatchedSha = new string('b', 64);
+Ensure(!System32BackupStore.NeedsRefresh(syntheticOriginalSha, syntheticOriginalSha),
+    "same original DLL does not overwrite .bak");
+Ensure(System32BackupStore.NeedsRefresh(syntheticOriginalSha, syntheticPatchedSha),
+    "changed Windows Update DLL requires archived old .bak and new verified copy");
+Ensure(System32BackupStore.NeedsRefresh(syntheticOriginalSha, null),
+    "missing .bak is eligible for first full backup");
+var recoveryApproval = new AutomaticRevertPlan(syntheticOriginalSha,
+    syntheticPatchedSha, "10.0.26100.1", "Generic", "Journal");
+Ensure(AutomaticRevertSafety.SameApproval(recoveryApproval, recoveryApproval),
+    "Revert approval is stable only for identical SHA-bound metadata");
+Ensure(!AutomaticRevertSafety.SameApproval(recoveryApproval,
+        recoveryApproval with { InstalledSha256 = new string('c', 64) }),
+    "Windows Update invalidates previous Revert approval");
+Ensure(!AutomaticRevertSafety.SameApproval(recoveryApproval,
+        recoveryApproval with { RecoverySource = "System32Backup" }),
+    "switching a Revert recovery source requires fresh confirmation");
+Ensure(!AutomaticRevertSafety.SameApproval(recoveryApproval, null),
+    "missing protected recovery record fails closed");
+Ensure(IsolatedApplyExecutor.TryNormalizeId(Guid.NewGuid().ToString("N"), out _),
+    "one-shot scheduled recovery identifier accepted");
+Ensure(!IsolatedApplyExecutor.TryNormalizeId("../../System32", out _),
+    "untrusted scheduled recovery identifier refused");
 var signature = new BytePattern("11 * 33 44", "90 90 90 90");
 var bytes = new byte[] { 0x00, 0x11, 0x22, 0x33, 0x44 };
 Ensure(BytePattern.FindOffsets(bytes, signature.Search).SequenceEqual([1]), "wildcard matches");
