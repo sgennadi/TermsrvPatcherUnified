@@ -68,3 +68,18 @@ No live Windows VM test has been performed as part of the preview. GitHub Action
 6. Exercise the provided `--rdp-transaction-qa` synthetic fault injection and verify the error distinguishes completely verified rollback from **incomplete** recovery. Do not inject actual service/registry failures on production computers.
 7. For authorized protected DLL Apply/Restore testing, separately record original DLL hash/ACL and running/stopped RDP companion service states, take another snapshot, keep local console access, and verify service states and file contents after both operations. These live tests are **not covered** by GitHub-hosted CI.
 8. Verify actual Windows desktop scaling at 100%, 125%, 150% and 200% on-screen, including the RDP Health and History tabs. CI tests only offscreen WPF layouts.
+
+## Preview.15 Manual HEX Viewer acceptance — Windows 11 GUI
+
+Use an isolated Windows 11 x64 VM with local console access. Do not test protected DLL modification simply to verify the viewer.
+
+1. Open **Automatic → Check DLL** on a DLL that returns `Ambiguous`. Confirm the read-only evidence table lists all three embedded signature families, exact Find and Replace counts, individual offsets and any repeated/conflicting candidates. **Apply** must stay disabled.
+2. Open **Manual**, type a partial Find such as `39 81 3C 06 00 00 0F` and wait for the live results. The selected result should show a 16-byte `00–0F` grid, eight-digit address column and aligned ASCII dump.
+3. Refine the Find with `*` or `??` (one whole byte). The typed Find mask and the **actual file bytes** must appear separately. Fixed-byte positions and wildcard positions must have different highlight colors, including matches spanning two 16-byte rows.
+4. Select another result, then use **Previous match**, **Next match**, and **Copy actual HEX**. Verify copied bytes represent the chosen file content, not a proposed replacement.
+5. Type only one fixed byte, an incomplete nibble and an invalid HEX token: broad/incomplete input must stay bounded and fail harmlessly, with no guessed replacement bytes or enabled Apply.
+6. **Import patterns...** with a Patches.txt fixture containing multiple OS/DLL build labels. **Check all imported** should examine every imported entry, show exact vs missing bytes and distinct OS-build/DLL-version hints, then at most suggest a uniquely verified compatible candidate for review. **Check selected** must remain a separate operator action.
+7. Repeat at actual Windows display scaling 100%, 125%, 150% and 200%. Confirm the HEX viewer has usable horizontal/vertical scrolling, the header aligns with its 16 byte cells, no text/buttons are clipped, and the view stays responsive to repeated searches.
+8. Verify **Diagnostics → Open GitHub (sign-in needed)** accurately indicates GitHub authentication is required. There is no anonymous intake backend in this Preview.
+
+These are manual GUI acceptance tests. CI supplies synthetic HEX/parser bounds and headless WPF layout checks, but cannot certify the visible 200% screen rendering or Windows 11 protected DLL behavior.
