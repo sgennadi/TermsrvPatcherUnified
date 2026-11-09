@@ -82,6 +82,17 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.RevertWorkerArgument,
+                StringComparison.Ordinal))
+        {
+            // LocalSystem + Session 0 validation is performed by the worker.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2
+                ? IsolatedApplyExecutor.RunRevertWorker(e.Args[1]) : 2);
+            return;
+        }
+
         if (e.Args.Any(a => a.Equals("--reapply", StringComparison.OrdinalIgnoreCase)))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -162,7 +173,7 @@ public partial class App : Application
             {
                 using var engine = new TermsrvEngine(null);
                 var candidate = engine.Inspect();
-                if (candidate.State == PatchState.Ready && !candidate.IsManual)
+                if (candidate.State is PatchState.Ready or PatchState.AlreadyPatched && !candidate.IsManual)
                 {
                     var compact = new QuickApplyWindow();
                     compact.SetInitialPlan(candidate);
