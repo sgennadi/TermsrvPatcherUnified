@@ -213,3 +213,14 @@ Version: 0.1.0-preview.10
 - Exact outgoing JSON must be reviewed before a manual send. The local description and other non-allowlisted fields are excluded; GitHub credentials remain server-only.
 - Local pending state changes only after a validated server reply containing the exact event ID, project and GitHub Issue URL.
 - Tests use a fake HTTP handler; no real diagnostic is transmitted. **The relay receiver is not yet deployed.** Before configuration, anonymous sending is disabled and local records remain pending.
+
+## Preview.21: session-aware independent Automatic Apply
+
+- Verified design intent: current interactive session is read using WTSClientProtocolType and SM_REMOTESESSION. Console (protocol 0, remote metric false) uses the original privileged Apply path. RDP/ICA or unknown uses a noninteractive one-shot SYSTEM task. Inspect again immediately before Queue and again inside the worker.
+- Automatic when Ready opens compact Apply / Check / Advanced / Cancel. No changes on startup. Advanced retains the full feature set and supports ordinary local/console automatic Apply. Manual/Restore are blocked from an RDP GUI until independent executors support them.
+- SYSTEM worker stages a protected self-contained executable, verifies EXE/source/expected output SHA-256, validates approved plan and mandatory protected backup, then uses existing transaction and NSudo privileged writes. A task/job identifier is not a patch signature, file path or replacement byte vector.
+- Saved status is not considered success until after byte verification and service recovery. Closing GUI does not terminate a running session-0 job. The one-shot task can still be interrupted by shutdown/power loss or OS-level termination.
+- Admin-only backup storage moved to `%ProgramData%\\TermsrvPatcherUnified.Secure\\Backups`. Legacy audit-root backups are never automatically trusted or migrated. No ACL bypass or `takeown` fallback.
+- **Not yet certified on a disposable Windows 11 VM:** real SYSTEM task creation and execution, service interruption under RDP, physical 200% display and post-Apply reconnection/Restore.
+- **Verified non-destructive SYSTEM task:** [Windows CI run 42685718489](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42685718489) successfully scheduled and executed the published Preview.21 EXE under LocalSystem in Session 0 with a protected job directory. This smoke does not inspect, write, or restart the installed system DLL/RDP services.
+- Headless `--reapply` is session-aware too: local console / existing SYSTEM Session 0 uses direct Apply; an interactive RDP launch queues the protected job with exit code 6 rather than claiming success.

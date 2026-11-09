@@ -56,6 +56,11 @@ public partial class MainWindow : Window
             }
             catch (Exception e) { FooterText.Text = "Settings read: " + e.Message; }
             await CheckAsync();
+            var independent = IsolatedApplyExecutor.ReadLatestStatus();
+            if (independent is not null)
+                FooterText.Text = "Independent Apply: " + independent.State +
+                                  " (job " + independent.Id[..8] + "). " +
+                                  independent.Details;
             // Background metadata-only update check: no download or installation.
             _ = BackgroundUpdateCheckAsync();
         };
@@ -89,7 +94,9 @@ public partial class MainWindow : Window
             RefreshButton.IsEnabled = true;
             MainTabs.IsEnabled = true;
             RestoreButton.IsEnabled = true;
-            ApplyAutoButton.IsEnabled = autoPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
+            ApplyAutoButton.IsEnabled = autoPlan?.State == PatchState.Ready &&
+                NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator() &&
+                IsolatedApplyExecutor.ReadLatestStatus()?.State is not ("Queued" or "Running");
             ApplyManualButton.IsEnabled = manualPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
             OfflineSaveButton.IsEnabled = offlinePreview?.Plan.State == PatchState.Ready;
         }
@@ -347,22 +354,83 @@ public partial class MainWindow : Window
     private async Task ApplyAsync(PatchPlan? plan, bool manual)
     {
         if (plan?.State != PatchState.Ready || !NsudoDevilModeScope.IsBundled || !SystemInfo.IsAdministrator()) return;
+        if (manual && InteractiveSessionDetector.RequiresIndependentExecutor())
+        {
+            MessageBox.Show(this,
+                "Manual Apply is not yet supported by the isolated SYSTEM executor. " +
+                "Use the local or VM console. Automatic Apply uses Task Scheduler over RDP.",
+                "Manual Apply requires local console", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
         bool createBackup = CreateBackupCheck.IsChecked != false;
+        // Independent automatic Apply always makes a durable trusted backup.
+        if (!manual && !createBackup)
+        {
+            CreateBackupCheck.IsChecked = true;
+            createBackup = true;
+        }
+        bool isolatedAtConfirmation = !manual &&
+            InteractiveSessionDetector.RequiresIndependentExecutor();
         string message = "This operation modifies the protected Windows termsrv.dll file and stops " +
             "Remote Desktop services temporarily. Active RDP connections may be disconnected. " +
             "Windows updates may revert the change. Proceed only on a system you administer and " +
             "where permitted by the applicable license.";
         if (manual)
             message += "\n\nMANUAL MODE: You supplied the replacement bytes. No automatic analysis " +
-                "can guarantee that this patch is safe. Continue?";
+                "can guarantee that this patch is safe. Manual Apply is not yet independent " +
+                "of the user session; use console access. Continue?";
+        else
+            message += isolatedAtConfirmation
+                ? "\n\nRDP/UNCONFIRMED SESSION: The operation will be scheduled as a one-shot SYSTEM task " +
+                  "with a mandatory protected backup; disconnecting RDP will not terminate its process."
+                : "\n\nLOCAL CONSOLE: The operation will use the normal elevated Apply " +
+                  "with mandatory protected backup and in-process verification.";
         if (!createBackup)
             message += "\n\nCREATE BACKUP IS OFF: No persistent DLL backup will be saved. " +
                        "After the operation, Restore will not be available unless an earlier " +
                        "valid backup exists. A failed write still attempts in-memory rollback.";
         if (!Confirm(this, manual ? "Apply manual patch?" : "Apply verified patch?", message)) return;
+        if (!manual)
+        {
+            // Check the session immediately before dispatch. A local console
+            // keeps the original synchronous Apply/rollback flow. An RDP
+            // session (or unverified session type) uses a Session 0 SYSTEM job.
+            bool isolatedNow = InteractiveSessionDetector.RequiresIndependentExecutor();
+            if (isolatedNow != isolatedAtConfirmation)
+            {
+                MessageBox.Show(this,
+                    "The Windows session type changed after confirmation. No task or patch was started. " +
+                    "Check DLL and approve Apply again.",
+                    "Session type changed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (isolatedNow)
+            {
+                await RunBusy(async () =>
+                {
+                    string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan));
+                    FooterText.Text = "RDP/unknown session: SYSTEM Apply queued (" + jobId[..8] +
+                                      "). Closing the GUI does not stop the job.";
+                }, "Apply");
+                return;
+            }
+            bool consoleSuccess = false;
+            await RunBusy(async () =>
+            {
+                await Task.Run(() => engine.Apply(plan, createBackup: true));
+                consoleSuccess = true;
+            }, "Apply");
+            await CheckAsync();
+            if (consoleSuccess)
+                FooterText.Text = "Local console Apply completed and verified.";
+            return;
+        }
         if (!createBackup && !Confirm(this, "Confirm: no backup",
                 "Continue WITHOUT creating a backup? A later Restore is not guaranteed. " +
                 "Use a VM snapshot or an independent trusted backup for recovery.")) return;
+        // Manual Apply still runs in the interactive context: do not imply
+        // that it is independent of the user session.
         // A compatibility report is offered ONLY if the protected write, byte
         // verification and RDP-service recovery all returned successfully.
         bool applied = false;
@@ -396,6 +464,15 @@ public partial class MainWindow : Window
 
     private async void Restore_Click(object sender, RoutedEventArgs e)
     {
+        if (InteractiveSessionDetector.RequiresIndependentExecutor())
+        {
+            MessageBox.Show(this,
+                "Restore may stop Remote Desktop services. Use the local or VM console " +
+                "until a separately verified SYSTEM Restore worker is available.",
+                "Restore requires local console", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
         var verified = engine.BackupsForCurrentVersion();
         if (verified.Count == 0)
         {

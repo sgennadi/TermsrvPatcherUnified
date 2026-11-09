@@ -93,8 +93,17 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("RelayState") is not TextBlock relayStatus ||
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
+                var quick = new QuickApplyWindow();
+                if (quick.FindName("QuickApplyButton") is not Button quickApply ||
+                    quickApply.IsEnabled ||
+                    quick.FindName("QuickCancelButton") is not Button ||
+                    quick.FindName("QuickAdvancedButton") is not Button ||
+                    quick.FindName("QuickCheckButton") is not Button ||
+                    quick.FindName("QuickStatusText") is not TextBlock)
+                    throw new Exception("Compact first-run Apply / Check / Advanced / Cancel controls missing.");
                 var windows = new Window[]
                 {
+                    quick,
                     main,
                     updaterWindow,
                     diagnosticsWindow,

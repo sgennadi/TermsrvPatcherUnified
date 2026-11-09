@@ -51,6 +51,37 @@ public partial class App : Application
             finally { Shutdown(); }
             return;
         }
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.ProbeArgument, StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            try { Shutdown(IsolatedApplyExecutor.RunSchedulerProbe()); }
+            catch (Exception ex)
+            {
+                AuditLog.Append("Safe Task Scheduler smoke failed: " + ex.GetType().Name);
+                Shutdown(10);
+            }
+            return;
+        }
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.ProbeWorkerArgument, StringComparison.Ordinal))
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2
+                ? IsolatedApplyExecutor.RunProbeWorker(e.Args[1]) : 2);
+            return;
+        }
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(IsolatedApplyExecutor.WorkerArgument, StringComparison.Ordinal))
+        {
+            // This branch runs before any interactive GUI or RDP session setup.
+            // Only an approved LocalSystem scheduled task can run the worker.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 2
+                ? IsolatedApplyExecutor.RunWorker(e.Args[1]) : 2);
+            return;
+        }
+
         if (e.Args.Any(a => a.Equals("--reapply", StringComparison.OrdinalIgnoreCase)))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
@@ -62,8 +93,25 @@ public partial class App : Application
                     throw new UnauthorizedAccessException("Unattended --reapply requires an elevated administrator or an approved SYSTEM task.");
                 using var engine = new TermsrvEngine(null);
                 var plan = engine.Inspect();
-                if (plan.State == PatchState.Ready) engine.Apply(plan);
-                Environment.ExitCode = plan.State is PatchState.Ready or PatchState.AlreadyPatched ? 0 : 3;
+                if (plan.State == PatchState.Ready)
+                {
+                    if (!IsolatedApplyExecutor.IsSystemSessionZero() &&
+                        InteractiveSessionDetector.RequiresIndependentExecutor())
+                    {
+                        string jobId = IsolatedApplyExecutor.Queue(plan);
+                        // Queued is NOT completed: distinct exit code so callers
+                        // cannot mistake Task Scheduler acceptance for Apply success.
+                        Environment.ExitCode = 6;
+                        AuditLog.Append("Headless RDP Apply deferred to SYSTEM job " + jobId[..8]);
+                    }
+                    else
+                    {
+                        engine.Apply(plan, createBackup: true);
+                        Environment.ExitCode = 0;
+                    }
+                }
+                else
+                    Environment.ExitCode = plan.State == PatchState.AlreadyPatched ? 0 : 3;
                 AuditLog.Append($"Headless inspection: {plan.State}, {plan.ProfileId}");
             }
             catch (Exception ex)
@@ -106,6 +154,28 @@ public partial class App : Application
             {
                 MessageBox.Show("Could not request administrator elevation: " + ex.Message,
                     "TermsrvPatcher Unified", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+        if (!offlineStartup && SystemInfo.IsAdministrator() && NsudoDevilModeScope.IsBundled)
+        {
+            try
+            {
+                using var engine = new TermsrvEngine(null);
+                var candidate = engine.Inspect();
+                if (candidate.State == PatchState.Ready && !candidate.IsManual)
+                {
+                    var compact = new QuickApplyWindow();
+                    compact.SetInitialPlan(candidate);
+                    MainWindow = compact;
+                    compact.Show();
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                AuditLog.Append("Compact startup inspection unavailable: " +
+                                ex.GetType().Name);
+                // Advanced manager is still available for read-only evidence.
             }
         }
         MainWindow = new MainWindow(offlineStartup);
