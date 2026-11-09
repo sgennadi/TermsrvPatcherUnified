@@ -390,7 +390,7 @@ internal static class IsolatedApplyExecutor
                     req.FileVersion is null || req.ProfileId is null ||
                     req.FileVersion.Length is < 1 or > 128 ||
                     req.ProfileId.Length is < 1 or > 256 ||
-                    req.RecoverySource is not ("Journal" or "TrustedBackup" or "System32Backup"))
+                    req.RecoverySource is not ("Journal" or "TrustedBackup" or "System32Backup" or "ExactCatalog"))
                     throw new InvalidDataException("Untrusted Revert request metadata.");
                 if (!SystemInfo.Sha256(File.ReadAllBytes(Path.Combine(dir, ExecutableName)))
                         .Equals(req.ExeSha256, StringComparison.OrdinalIgnoreCase))
