@@ -196,6 +196,10 @@ check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").r
 
 check((ROOT / "Tests/UpdateTransactionSyntheticTests.cs").exists(), "disposable EXE update success and rollback tests exist")
 check((ROOT / "Tests/PublishedUpgradeTests.cs").exists(), "published EXE transaction QA harness exists")
+check((ROOT / ".github/workflows/published-dll-readonly-qa.yml").exists(), "real Windows DLL read-only smoke workflow exists")
+readonly_qa = (ROOT / ".github/workflows/published-dll-readonly-qa.yml").read_text(encoding="utf-8")
+check("Get-FileHash" in readonly_qa and "TermService" in readonly_qa and "Get-Acl" in readonly_qa,
+      "real DLL inspection QA checks checksum, service state and ACL")
 check((ROOT / ".github/workflows/published-upgrade-qa.yml").exists(), "pinned real published EXE upgrade workflow exists")
 for workflow in (ROOT / ".github/workflows").glob("*.yml"):
     source = workflow.read_text(encoding="utf-8")

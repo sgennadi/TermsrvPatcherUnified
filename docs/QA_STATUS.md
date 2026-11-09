@@ -50,3 +50,12 @@ Version: 0.1.0-preview.9
 - GitHub-hosted windows-2025/ubuntu-latest runners support these action versions. Self-hosted runners need an up-to-date Actions Runner.
 - Offline source validator checks that Node.js 20 action references do not regress; build, artifact upload, release publication and published-EXE rollback tests must pass after migration.
 - No change to .NET SDK 10, NSudo, Windows DLL patterns, application version 0.1.0-preview.9 or published release assets.
+
+## Published preview.9 on a REAL system DLL (read-only Windows runner QA)
+
+- Windows-2025 GitHub-hosted runner successfully ran the **published and SHA-256 pinned** preview.9 distribution with `--inspect-file` against its actual `%SystemRoot%\\System32\\termsrv.dll`.
+- Verified the report's DLL file version and SHA-256 against independent Windows APIs. Actual file version observed on runner: `10.0.26100.32684 (WinBuild.160101.0800)`.
+- Compared original DLL SHA-256, SDDL ACL, TermService service state and the presence of the protected NSudo runtime-cache directory before/after the inspection; **all unchanged**.
+- Invalid output extension and missing input DLL were rejected without generating corresponding reports. Published full-distribution ZIP digest verified: `9218ee7db297747efd27eb0b3f664caad4e081e858a81005f6080567ade03177`.
+- Verified run: https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42587641056
+- **Scope limitation:** Windows Server 2025, non-destructive read-only CLI. This is **not** a Windows 11 desktop test, an actual Apply/Restore, permanent DLL Backup On/Off test, TermService restart test, or live Program Files updater integration test.
