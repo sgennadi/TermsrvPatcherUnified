@@ -32,6 +32,9 @@
         <TextBlock x:Name="QuickHelpText"
                    Text="Apply is available only after an exact, verified signature match."
                    TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}"/>
+        <TextBlock x:Name="QuickLastJobText" Text="" FontSize="12"
+                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                   Margin="0,8,0,0"/>
         <TextBlock x:Name="QuickBackupInfoText"
                    Text="Full backup is ON: verified .bak in System32 and protected archived copy."
                    Foreground="{StaticResource MutedBrush}" FontSize="12"
