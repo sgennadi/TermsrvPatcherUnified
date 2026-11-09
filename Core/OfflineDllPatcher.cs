@@ -62,8 +62,13 @@ internal static class OfflineDllPatcher
         var patterns = manual
             ? new[] { PatchCatalog.Manual(findHex!, replaceHex!, layout.Architecture) }
             : PatchCatalog.LoadAutomatic().Where(p => p.Architecture == layout.Architecture).ToArray();
-        string? fileVersion = FileVersionInfo.GetVersionInfo(source).FileVersion;
-        string version = string.IsNullOrWhiteSpace(fileVersion) ? "Unknown" : fileVersion;
+        // FileVersionInfo.FileVersion can contain localized/MUI build text,
+        // so export the numeric version parts when a VERSIONINFO exists.
+        var versionInfo = FileVersionInfo.GetVersionInfo(source);
+        string version = versionInfo.FileMajorPart > 0
+            ? $"{versionInfo.FileMajorPart}.{versionInfo.FileMinorPart}." +
+              $"{versionInfo.FileBuildPart}.{versionInfo.FilePrivatePart}"
+            : "Unknown";
         string originalHash = SystemInfo.Sha256(bytes);
         var plan = PatchCatalog.Inspect(bytes, source, version, originalHash,
             supported: true, patterns, layout.Architecture, manual);
