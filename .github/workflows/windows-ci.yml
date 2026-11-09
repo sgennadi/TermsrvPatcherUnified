@@ -71,7 +71,7 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
           if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
           if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
-          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.10' -Wait -PassThru
+          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.11' -Wait -PassThru
           if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
           $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }
