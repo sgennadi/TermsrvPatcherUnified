@@ -77,11 +77,15 @@ internal static class UiSmokeTests
                     updaterWindow.FindName("InstallButton") is not Button installButton ||
                     installButton.IsEnabled)
                     throw new Exception("Update eligibility explanation or manual-release fallback is missing.");
+                var diagnosticsWindow = new DiagnosticsWindow();
+                if (diagnosticsWindow.FindName("AnonymousButton") is not Button anonymous ||
+                    anonymous.IsEnabled || diagnosticsWindow.FindName("RelayState") is not TextBlock)
+                    throw new Exception("Anonymous reporting must be visible but disabled until configured.");
                 var windows = new Window[]
                 {
                     main,
                     updaterWindow,
-                    new DiagnosticsWindow(),
+                    diagnosticsWindow,
                     new AboutWindow(),
                     new SuccessfulFixWindow(record)
                 };
