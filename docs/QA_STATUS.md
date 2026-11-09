@@ -181,3 +181,9 @@ Version: 0.1.0-preview.10
 - The Generic automatic Find mask now fixes `0F 84` (JE/JZ), with **three** variable displacement bytes and a fixed final `00` for this catalog variant. Previously the `84` opcode was incorrectly matched as a wildcard, potentially accepting `0F 85` or other branches.
 - In the **manual-only legacy catalog**, Windows Server 2022 OS build `20348.3091` has the operator-corrected final byte `00` instead of `20`. This edit is **not** evidence that the actual system DLL has been independently verified; OS build alone cannot certify a patch profile.
 - Regression checks reject a different jump opcode or a nonzero final displacement byte. Distinct exact profiles still remain `Ambiguous` until separately validated: narrowing a Find mask never authorizes an unverified protected write.
+
+## OS-aware specific-over-generic automatic patch selection
+
+- On an installed Windows 11 24H2/25H2/26H2 **Client**, a uniquely matching embedded signature tagged for the installed version takes priority over a simultaneously matching older generic fallback, *only* when no other distinct or overlapping target competes. The program builds the preview for the **specific target only**. A single exact Generic match remains eligible for its normal verified path.
+- Manual, imported-catalog and offline DLL inspections do not silently inherit host-specific precedence. Unsupported OS versions, untrusted labels, multiple specific candidates, mixed Find/Replace, repeated/overlapping byte matches and all executable-PE validation failures still block Apply.
+- Regression tests verify specific-only patch bytes, generic unchanged, already-patched specific detection, unique generic fallback, no host-OS context, untrusted imported catalog and manual refusal. The installed Windows 11 26H2 system DLL was **not modified** by CI; byte selection correctness is not an end-to-end RDP license or functional validation.

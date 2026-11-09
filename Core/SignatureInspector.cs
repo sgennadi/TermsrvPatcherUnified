@@ -155,7 +155,9 @@ public static class SignatureInspector
             reason = "MULTIPLE DISTINCT complete profiles at different candidate target sets: " +
                 string.Join("; ", completeProfiles.Select(x =>
                     x.Profile + " [" + x.Offsets + ", fixed bytes " + x.FixedBytes + "]")) +
-                ". No automatic choice. A version label or longer pattern alone is not sufficient.";
+                ". Automatic selection requires an explicit trusted OS-context policy, a unique " +
+              "specific match over only generic fallback and independent PE safety; " +
+              "a longer pattern alone is not sufficient.";
         }
         else if (invalid > 0)
         {

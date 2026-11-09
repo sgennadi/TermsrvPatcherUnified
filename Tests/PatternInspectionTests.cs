@@ -189,6 +189,84 @@ internal static class PatternInspectionTests
         Verify(BytePattern.FindOffsets(wrongDisplacementHigh, genericMask).Count == 0,
             "this catalog variant requires final displacement byte 00, not 20");
 
+        // Trusted OS-aware automatic selection: a 26H2-specific exact match
+        // wins over a separate older generic fallback, without editing both.
+        // Use a valid synthetic PE with both signatures in an executable section.
+        var selectionBytes = SamplePe();
+        void PutOriginal(byte[] destination, PatchProfile rule, int offset)
+        {
+            var find = rule.Groups.Single().Search;
+            for (int i = 0; i < find.Length; i++)
+                destination[offset + i] = find[i] ?? (byte)0x34;
+        }
+        PutOriginal(selectionBytes, upstream[0], 0x230);
+        PutOriginal(selectionBytes, upstream[2], 0x290);
+        var context26 = new AutomaticSelectionContext("Windows 11", "26H2", "Client");
+        var chosen = PatchCatalog.Inspect(selectionBytes, "test.dll", "10.0.26100.8115",
+            SystemInfo.Sha256(selectionBytes), true, upstream,
+            selectionContext: context26);
+        Verify(chosen.State == PatchState.Ready &&
+               chosen.Edits.Count == 1 && chosen.Edits[0].Offset == 0x290 &&
+               chosen.ProfileId.Contains("25H2 / 26H2"),
+            "26H2 specific exact signature wins over simultaneously matched generic fallback");
+        Verify(chosen.PatchedBytes is not null &&
+               chosen.PatchedBytes.AsSpan(0x230, 12).SequenceEqual(
+                   selectionBytes.AsSpan(0x230, 12)) &&
+               !chosen.PatchedBytes.AsSpan(0x290, 19).SequenceEqual(
+                   selectionBytes.AsSpan(0x290, 19)),
+            "selected preview patches only the specific target; generic bytes stay untouched");
+        PeSafety.RequireExecutableEdits(selectionBytes, chosen.Edits);
+        Verify(chosen.Description.Contains("specific profile over") &&
+               !chosen.IsManual, "automatic profile priority is explicit in result details");
+
+        var afterSpecific = PatchCatalog.Inspect(chosen.PatchedBytes!, "test.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(chosen.PatchedBytes!), true, upstream,
+            selectionContext: context26);
+        Verify(afterSpecific.State == PatchState.AlreadyPatched &&
+               afterSpecific.Edits.Count == 1 &&
+               afterSpecific.Edits[0].Offset == 0x290,
+            "after a specific-profile replacement, generic original hit is not patched again");
+
+        var unknownContext = new AutomaticSelectionContext("Windows 11", "27H2", "Client");
+        var unknownChoice = PatchCatalog.Inspect(selectionBytes, "test.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(selectionBytes), true, upstream,
+            selectionContext: unknownContext);
+        Verify(unknownChoice.State == PatchState.Ambiguous &&
+               unknownChoice.PatchedBytes is null && unknownChoice.Edits.Count == 0,
+            "unrecognized Windows version does not guess a specific-profile priority");
+        var offlineChoice = PatchCatalog.Inspect(selectionBytes, "test.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(selectionBytes), true, upstream);
+        Verify(offlineChoice.State == PatchState.Ambiguous,
+            "offline DLL without a matching installed-OS context remains ambiguous");
+        var manualChoice = PatchCatalog.Inspect(selectionBytes, "test.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(selectionBytes), true, upstream,
+            manual: true, selectionContext: context26);
+        Verify(manualChoice.State == PatchState.Ambiguous,
+            "manual mode never inherits automatic selection precedence");
+
+        var onlyGeneric = (byte[])selectionBytes.Clone();
+        upstream[2].Groups.Single().Search
+            .Select((x, i) => i).ToList()
+            .ForEach(i => onlyGeneric[0x290 + i] = 0xFA);
+        var genericChoice = PatchCatalog.Inspect(onlyGeneric, "test.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(onlyGeneric), true, upstream,
+            selectionContext: context26);
+        Verify(genericChoice.State == PatchState.Ready &&
+               genericChoice.Edits.Single().Offset == 0x230,
+            "a single verified generic candidate remains eligible when specific does not match");
+        var fakeRules = new[]
+        {
+            upstream[0],
+            new PatchProfile(upstream[2].Label, "x64", upstream[2].Groups,
+                "Imported manual file")
+        };
+        var untrustedChoice = PatchCatalog.Inspect(selectionBytes, "test.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(selectionBytes), true, fakeRules,
+            selectionContext: context26);
+        Verify(untrustedChoice.State == PatchState.Ambiguous &&
+               untrustedChoice.PatchedBytes is null,
+            "imported labels cannot impersonate the trusted embedded specific profile");
+
         var fragment = ManualFragmentSearch.SearchBytes(dll, "1122");
         Verify(fragment.Hits.Count == 1 && fragment.Hits[0].Offset == 0x230,
             "two-byte compact HEX fragment found");

@@ -75,12 +75,17 @@ internal static class SignatureEvidenceExport
         b.AppendLine("DLL version: " + Safe(plan.FileVersion, 100));
         b.AppendLine("DLL SHA-256: " + snapshot.Sha256);
         b.AppendLine("Automatic result: " + plan.State);
+        if (plan.State is PatchState.Ready or PatchState.AlreadyPatched &&
+            plan.ProfileId.Length > 0)
+            b.AppendLine("Selected automatic profile (not execution evidence): " +
+                Safe(plan.ProfileId, 130));
         b.AppendLine("Exact groups inspected: " + snapshot.Inspection.Rows.Count);
         b.AppendLine("Complete profile matches: " + snapshot.Inspection.CompleteProfileCount);
         b.AppendLine("Distinct candidate target sets: " + snapshot.Inspection.DistinctCandidateTargetCount);
         b.AppendLine("Within-profile conflicts: " + snapshot.Inspection.ConflictingProfileCount);
         if (snapshot.Inspection.DistinctCandidateTargetCount > 1)
-            b.AppendLine("Ambiguity: MULTIPLE DISTINCT complete profile matches; no safe automatic selection.");
+            b.AppendLine("Ambiguity: MULTIPLE DISTINCT complete profile matches; OS-aware " +
+                "priority is required to select one, while individual hits remain read-only evidence.");
         else if (snapshot.Inspection.ConflictingProfileCount > 0)
             b.AppendLine("Ambiguity: WITHIN-PROFILE repeated, mixed or conflicting bytes.");
         else
