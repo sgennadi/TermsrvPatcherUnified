@@ -64,7 +64,13 @@ public sealed class TermsrvEngine : IDisposable
     public IReadOnlyList<string> BackupsForCurrentVersion()
     {
         var os = SystemInfo.Read();
-        if (!File.Exists(os.DllPath)) return [];
+        if (!File.Exists(os.DllPath) || !Directory.Exists(BackupDirectory)) return [];
+        try { DllBackupStore.RequireTrustedLocation(BackupDirectory, create: false); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Message("Backup directory is not trusted; Restore choices hidden: " + ex.GetType().Name);
+            return [];
+        }
         return DllBackupStore.ListVerified(BackupDirectory, os.DllVersion,
             new FileInfo(os.DllPath).Length);
     }
@@ -101,6 +107,8 @@ public sealed class TermsrvEngine : IDisposable
             throw new InvalidOperationException("Preview integrity check failed.");
         // A matching byte sequence in a resource/overlay is not a valid code patch.
         PeSafety.RequireExecutableEdits(current, preview.Edits);
+        if (createBackup)
+            DllBackupStore.RequireTrustedLocation(BackupDirectory, create: true);
         var saved = DllBackupStore.Save(BackupDirectory, preview.FileVersion, current,
             preview.OriginalSha256, createBackup);
         if (saved is not null)
@@ -115,6 +123,7 @@ public sealed class TermsrvEngine : IDisposable
     {
         var os = SystemInfo.Read();
         EnsureAllowed(os.DllPath);
+        DllBackupStore.RequireTrustedLocation(BackupDirectory, create: false);
         var current = File.ReadAllBytes(os.DllPath);
         PeSafety.ReadAmd64DllSections(current);
         var desired = DllBackupStore.ReadVerified(BackupDirectory, backupFile,
