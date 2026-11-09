@@ -188,4 +188,4 @@ check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").r
 check((ROOT / "data/successful-fixes.csv").exists(), "version-only CSV exists")
 print("PASS: compatibility report source guards.")
 
-check(".read_text()" not in (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8"), "source validator uses explicit UTF-8 on Windows")
+check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8")), "source validator uses explicit UTF-8 on Windows")
