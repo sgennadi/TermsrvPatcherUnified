@@ -16,15 +16,15 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - name: Download published preview.17 and verify exact release checksum
+      - name: Download published preview.18 and verify exact release checksum
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $tag = 'v0.1.0-preview.17'
+          $tag = 'v0.1.0-preview.18'
           $asset = 'TermsrvPatcherUnified-win-x64.zip'
-          $expected = 'a58088407684fe6b0400d2f683f68592af0c60c486a97a98d9c895a0b45402e0'
+          $expected = 'fd211dc63555ca061b753135649d18b0da26ba6c2bf50783e9bacb060b0ee622'
           $qa = Join-Path $env:RUNNER_TEMP 'termsrv-real-dll-readonly'
           New-Item -ItemType Directory -Path $qa -Force | Out-Null
           gh release download $tag --repo $env:GITHUB_REPOSITORY --pattern $asset --dir $qa --clobber
@@ -35,7 +35,7 @@ jobs:
           Expand-Archive -LiteralPath $zip -DestinationPath (Join-Path $qa 'app') -Force
           $exe = Join-Path $qa 'app/TermsrvPatcherUnified.exe'
           if (-not (Test-Path -LiteralPath $exe)) { throw 'Expected application EXE is absent.' }
-          Write-Host 'PASS: authentic published preview.17 full-distribution ZIP SHA-256.'
+          Write-Host 'PASS: authentic published preview.18 full-distribution ZIP SHA-256.'
       - name: Verify real installed DLL SHA-256, ACL and TermService unchanged
         shell: pwsh
         run: |
@@ -89,3 +89,74 @@ jobs:
           Write-Host 'PASS: original DLL checksum, ACL, TermService state, and NSudo cache unchanged.'
           Write-Host 'PASS: unsafe report extension and missing target are rejected.'
           Write-Host 'LIMIT: Windows Server 2025 runner; no Windows 11 GUI, elevated Apply or Restore test.'
+
+      - name: Exact original and replacement signature matches on real Server 2025 DLL (read-only)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dll = Join-Path ([Environment]::SystemDirectory) 'termsrv.dll'
+          $shaBefore = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          $bytes = [IO.File]::ReadAllBytes($dll)
+          $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($dll).FileVersion
+          Write-Host "SERVER2025_DLL_VERSION=$version"
+          Write-Host "SERVER2025_DLL_SHA256=$shaBefore"
+          function Find-Matches {
+            param([byte[]]$Data, [string]$Hex)
+            $tokens = @($Hex.Trim() -split '\s+')
+            $pattern = [int[]]@($tokens | ForEach-Object {
+              if ($_ -eq '*' -or $_ -eq '??') { -1 } else { [Convert]::ToInt32($_, 16) }
+            })
+            if ($pattern.Count -lt 4 -or $pattern[0] -lt 0) { throw "Invalid QA signature." }
+            $hits = [System.Collections.Generic.List[int]]::new()
+            $start = 0
+            while ($start -le $Data.Length - $pattern.Length) {
+              $offset = [Array]::IndexOf($Data, [byte]$pattern[0], $start)
+              if ($offset -lt 0 -or $offset -gt $Data.Length - $pattern.Length) { break }
+              $matches = $true
+              for ($index = 1; $index -lt $pattern.Length; $index++) {
+                if ($pattern[$index] -ge 0 -and [int]$Data[$offset + $index] -ne $pattern[$index]) {
+                  $matches = $false
+                  break
+                }
+              }
+              if ($matches) { $hits.Add($offset) }
+              $start = $offset + 1
+            }
+            return $hits.ToArray()
+          }
+          function Show-Offsets {
+            param([int[]]$Offsets)
+            if ($Offsets.Count -eq 0) { return '(none)' }
+            $first = @($Offsets | Select-Object -First 8 | ForEach-Object { '0x{0:X8}' -f $_ })
+            if ($Offsets.Count -gt 8) { return ($first -join ', ') + ', ...' }
+            return ($first -join ', ')
+          }
+          $label = '(unnamed)'
+          $profiles = 0
+          foreach ($raw in Get-Content -LiteralPath 'Patterns/AutomaticPatterns.txt') {
+            $line = $raw.Trim()
+            if ($line -match '^# (Windows .+)$') { $label = $Matches[1]; continue }
+            if ($line -notmatch '^x64,\s*([^,]+),\s*([^,]+)$') { continue }
+            $findHex = $Matches[1]
+            $replaceHex = $Matches[2]
+            $findHits = @(Find-Matches -Data $bytes -Hex $findHex)
+            $replaceHits = @(Find-Matches -Data $bytes -Hex $replaceHex)
+            $profiles++
+            Write-Host ("SIGNATURE_RESULT: {0}" -f $label)
+            Write-Host ("  Find hits: {0}; offsets: {1}" -f $findHits.Count, (Show-Offsets $findHits))
+            Write-Host ("  Replace hits: {0}; offsets: {1}" -f $replaceHits.Count, (Show-Offsets $replaceHits))
+            if ($findHits.Count -eq 1 -and $replaceHits.Count -eq 0) {
+              Write-Host "  Classification: EXACT ORIGINAL MATCH (READ-ONLY)"
+            } elseif ($findHits.Count -eq 0 -and $replaceHits.Count -eq 1) {
+              Write-Host "  Classification: EXACT REPLACEMENT MATCH (READ-ONLY)"
+            } elseif ($findHits.Count -eq 0 -and $replaceHits.Count -eq 0) {
+              Write-Host "  Classification: NOT FOUND"
+            } else {
+              Write-Host "  Classification: AMBIGUOUS"
+            }
+          }
+          if ($profiles -ne 3) { throw "Expected three trusted automatic catalog profiles, got $profiles." }
+          $shaAfter = (Get-FileHash -LiteralPath $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($shaBefore -ne $shaAfter) { throw "Read-only signature check found modified DLL bytes." }
+          Write-Host 'PASS: exact three-profile Server 2025 signature evidence; DLL SHA-256 unchanged.'
+          Write-Host 'LIMIT: byte equality alone does not authorize Server Apply or establish RDS licensing.'
