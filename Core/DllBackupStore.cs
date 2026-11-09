@@ -132,16 +132,35 @@ internal static class DllBackupStore
         var root = Path.GetFullPath(directory);
         var parent = Path.GetDirectoryName(root)
             ?? throw new InvalidOperationException("Backup directory has no application state root.");
-        if (create) Directory.CreateDirectory(parent);
+        if (create && !Directory.Exists(parent)) CreateProtectedDirectory(parent);
         if (!Directory.Exists(parent))
             throw new DirectoryNotFoundException("The backup parent directory does not exist.");
         RejectLinkedParents(parent);
         RequireTrustedAcl(parent);
-        if (create) Directory.CreateDirectory(root);
+        if (create && !Directory.Exists(root)) CreateProtectedDirectory(root);
         if (!Directory.Exists(root))
             throw new DirectoryNotFoundException("The backup directory does not exist.");
         RejectLinkedParents(root);
         RequireTrustedAcl(root);
+    }
+
+    private static void CreateProtectedDirectory(string path)
+    {
+        if (!SystemInfo.IsAdministrator())
+            throw new UnauthorizedAccessException("Administrator permission is required to create protected backup storage.");
+        // CreateDirectory(DirectorySecurity, ...) applies the protected DACL at
+        // directory creation, before untrusted accounts can plant backup files.
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        var acl = new DirectorySecurity();
+        acl.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        acl.SetOwner(administrators);
+        foreach (var sid in new[] { administrators, system })
+            acl.AddAccessRule(new FileSystemAccessRule(
+                sid, FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                PropagationFlags.None, AccessControlType.Allow));
+        FileSystemAclExtensions.CreateDirectory(acl, path);
     }
 
     private static void RequireTrustedAcl(string path)
