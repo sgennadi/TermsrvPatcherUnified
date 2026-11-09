@@ -6,6 +6,18 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--offline-dll-qa"])
+{
+    Environment.ExitCode = OfflineDllTests.Run() >= 40 ? 0 : 2;
+    return;
+}
+
+if (args is ["--operation-lock-qa"])
+{
+    Environment.ExitCode = OperationLockTests.Run() is 0 or >= 3 ? 0 : 2;
+    return;
+}
+
 if (args is ["--dll-backup-qa"])
 {
     Environment.ExitCode = DllBackupIntegrityTests.Run() >= 20 ? 0 : 2;
