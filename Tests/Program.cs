@@ -1,3 +1,4 @@
+using UniversalDiagnostics.Transport;
 using System.IO;
 using System.Buffers.Binary;
 using System.Net;
@@ -237,6 +238,69 @@ Ensure(!GitHubIssuePublisher.IsApprovedIssueUri(new Uri("https://github.com/othe
     "reject mismatched GitHub repository");
 Ensure(!GitHubIssuePublisher.IsApprovedIssueUri(new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/1?view=all")),
     "reject GitHub Issue URLs containing query parameters");
+
+// Anonymous shared transport: only typed metadata and confirmed server receipts.
+var anonymousEvent = new
+{
+    @event = new {
+        schema = "universal-diagnostics/v1",
+        id = Guid.NewGuid().ToString("D"),
+        timestamp_utc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+        project = "sgennadi/TermsrvPatcherUnified",
+        component = "RdpSettings",
+        error_type = "InvalidOperationException",
+        code = "0x80131509",
+        level = "error",
+        version = "0.1.0-preview.17",
+        platform = "Windows",
+        architecture = "AMD64",
+        fingerprint = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            Encoding.UTF8.GetBytes("sgennadi/termsrvpatcherunified|rdpsettings|invalidoperationexception|0x80131509")))
+    },
+    summary = "PRIVATE SUMMARY MUST NEVER BE SENT",
+    delivery = new { status = "pending", url = "" }
+};
+var anonymousPayload = UniversalDiagnosticsRelayClient.Prepare(JsonSerializer.Serialize(anonymousEvent));
+Ensure(!anonymousPayload.Json.Contains("PRIVATE SUMMARY", StringComparison.Ordinal) &&
+    !anonymousPayload.Json.Contains("delivery", StringComparison.Ordinal),
+    "anonymous payload excludes summary and local queue delivery state");
+Ensure(UniversalDiagnosticsRelayClient.IsApprovedEndpoint(
+    new Uri("https://diagnostics.example.org/v1/diagnostics")),
+    "HTTPS relay endpoint accepted");
+Ensure(!UniversalDiagnosticsRelayClient.IsApprovedEndpoint(
+    new Uri("http://diagnostics.example.org/v1/diagnostics")),
+    "plaintext relay endpoint rejected");
+var anonymousReceipt = JsonSerializer.Serialize(new {
+    schema = "universal-diagnostics-relay/v1",
+    id = anonymousPayload.EventId,
+    project = anonymousPayload.Project,
+    status = "submitted",
+    issue_url = "https://github.com/sgennadi/TermsrvPatcherUnified/issues/42"
+});
+var anonymousHandler = new IssueStubHandler(HttpStatusCode.Created, anonymousReceipt);
+using (var http = new HttpClient(anonymousHandler))
+using (var sender = new UniversalDiagnosticsRelayClient(http))
+{
+    var result = sender.SendAsync(anonymousPayload,
+        new Uri("https://diagnostics.example.org/v1/diagnostics")).GetAwaiter().GetResult();
+    Ensure(result.AbsoluteUri.EndsWith("/issues/42", StringComparison.Ordinal),
+        "anonymous relay receipt acknowledges correct GitHub Issue");
+    Ensure(anonymousHandler.LastBearer.Length == 0 &&
+        !anonymousHandler.LastBody.Contains("PRIVATE SUMMARY", StringComparison.Ordinal) &&
+        anonymousHandler.LastBody.Contains(anonymousPayload.EventId, StringComparison.Ordinal),
+        "anonymous send requires no client token and excludes sensitive free text");
+}
+using (var http = new HttpClient(new IssueStubHandler(HttpStatusCode.ServiceUnavailable, "{}")))
+using (var sender = new UniversalDiagnosticsRelayClient(http))
+    Expect<InvalidOperationException>(() => sender.SendAsync(anonymousPayload,
+        new Uri("https://diagnostics.example.org/v1/diagnostics")).GetAwaiter().GetResult(),
+        "unavailable relay never confirms delivery");
+using (var http = new HttpClient(new IssueStubHandler(HttpStatusCode.Created,
+    anonymousReceipt.Replace("/issues/42", "/issues/42?leak=1"))))
+using (var sender = new UniversalDiagnosticsRelayClient(http))
+    Expect<InvalidDataException>(() => sender.SendAsync(anonymousPayload,
+        new Uri("https://diagnostics.example.org/v1/diagnostics")).GetAwaiter().GetResult(),
+        "anonymous receipt rejects untrusted GitHub Issue URL");
 
 // Local delivery reconciliation: the canonical embedded diagnostics module is
 // used as-is and never publishes to GitHub on its own.
