@@ -200,3 +200,9 @@ Version: 0.1.0-preview.10
 - Current embedded automatic catalog contains three x64 pairs with equal Find/Replace lengths: Generic **12/12** (fixed `0F 84`, 3 wildcard displacement bytes), Windows 11 24H2 **13/13** and Windows 11 25H2/26H2 **19/19**. Matching the pattern length does **not** validate replacement semantics or license compatibility for a particular DLL version.
 - The Manual editor validates Find/Replace groups locally and explains missing fields, malformed HEX, wildcard placement and unequal byte counts *before* `Check manual pattern` starts any inspection. Invalid/incomplete editor input is not appended to the protected-operation failure log. Existing historical log records remain unchanged.
 - New regression tests inspect all three embedded signatures, aligned two-character cells, wildcard display, read-only evidence formatting and unequal/incomplete Manual input.
+
+## Preview.19 — ordered Automatic signature evidence
+
+- Read-only ranked list presents the version-relevant signature before Generic fallback. Exact Find/Replace counts and offsets, chosen/skipped/blocked reasons, and one-target behavior are visible on the Automatic tab.
+- External 12-byte in-memory hotpatch variant is a reference row only, not a fourth trusted disk Apply rule. It may coincide with the trailing 12 bytes of an exact 19-byte Find. On the operator-reported 26H2 fixture (synthetic reproduction only), the 19-byte Find starts at 0x000A6896 and the 12-byte suffix at 0x000A689D.
+- On Server 2025 the system file remains inspection-only despite the authentic read-only 13-byte match at 0x0009C43F. No protected Server Apply or live RDP session testing is claimed.

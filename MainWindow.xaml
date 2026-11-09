@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 0.1.0-preview.18"
+        Title="TermsrvPatcherUnified 0.1.0-preview.19"
         Width="980" Height="760" MinWidth="770" MinHeight="610"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
@@ -17,7 +17,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="0.1.0-preview.18  |  Windows x64" FontSize="12"
+          <TextBlock Text="0.1.0-preview.19  |  Windows x64" FontSize="12"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
           <TextBlock Text="Remote Desktop inspection, verified patterns and reversible changes"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
@@ -54,6 +54,35 @@
             <TextBlock Text="Automatic pattern recognition" FontSize="18" FontWeight="SemiBold"/>
             <TextBlock Text="Checks the actual DLL bytes against three embedded families. If specific and Generic both match, only the installed-Windows-specific profile is proposed for verified review."
                        TextWrapping="Wrap" Margin="0,7,0,18" Foreground="{StaticResource MutedBrush}"/>
+            <GroupBox Header="Automatic Apply priority — exact signatures first, one target only"
+                      Margin="0,0,0,12">
+              <StackPanel>
+                <TextBlock Text="All candidates are checked before a target is chosen. Higher priority cannot override collisions, unsupported systems or multiple incompatible matches."
+                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                           Margin="0,4,0,9"/>
+                <TextBlock x:Name="AutoPrioritySummary" Text="Press Check DLL to see the ordered signature list."
+                           TextWrapping="Wrap" FontWeight="SemiBold" Foreground="{StaticResource NavyBrush}"
+                           Margin="0,0,0,8"/>
+                <DataGrid x:Name="AutoPriorityGrid" Height="167" IsReadOnly="True"
+                          AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                          CanUserSortColumns="False" CanUserReorderColumns="False"
+                          HeadersVisibility="Column" SelectionMode="Single"
+                          SelectionChanged="AutoPrioritySelectionChanged"
+                          GridLinesVisibility="Horizontal" RowHeight="32">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="#" Binding="{Binding Order}" Width="38"/>
+                    <DataGridTextColumn Header="Priority pattern" Binding="{Binding Name}" Width="230"/>
+                    <DataGridTextColumn Header="Exact hits" Binding="{Binding Match}" Width="98"/>
+                    <DataGridTextColumn Header="Offset" Binding="{Binding Offsets}" Width="134"/>
+                    <DataGridTextColumn Header="Decision" Binding="{Binding Decision}" Width="112"/>
+                    <DataGridTextColumn Header="Why" Binding="{Binding Reason}" Width="340"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Text="Select a row to view Find above Replace below. Selection only changes the read-only preview, never the Apply target. The 12-byte hotpatch reference is inspection-only."
+                           TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                           Margin="0,8,0,2"/>
+              </StackPanel>
+            </GroupBox>
             <GroupBox Header="Match and preview">
               <StackPanel>
                 <TextBlock x:Name="AutoSummary" Text="Press Check DLL to inspect the installed file."/>

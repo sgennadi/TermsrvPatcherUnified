@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.18` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.19` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
@@ -14,7 +14,7 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 ## Features
 
-- **Automatic check:** compares three embedded x64 signature families against actual DLL bytes. Separate read-only tables show each profile's completeness, fixed-byte count, exact Find/Replace hits and offsets. When an installed Windows 11 version-specific embedded profile and the older generic fallback both match, the single specific target is chosen for the normal verified Apply workflow; the generic bytes are left untouched. Other multi-target ambiguities stay blocked. A unique generic match is still eligible. Manual and offline scans do not infer a host OS. SHA-256, executable-section and rollback checks remain mandatory.
+- **Automatic check:** shows a read-only **Automatic Apply priority list** for the three trusted x64 signature families and a clearly marked 12-byte Hot Patch reference (inspection only). The table displays exact hits, offsets, selected/skipped/blocked decisions and reasons. An OS-aware priority order is displayed; it never applies several profiles in sequence, and the external reference cannot be selected for protected Apply. Compares three embedded x64 signature families against actual DLL bytes. Separate read-only tables show each profile's completeness, fixed-byte count, exact Find/Replace hits and offsets. When an installed Windows 11 version-specific embedded profile and the older generic fallback both match, the single specific target is chosen for the normal verified Apply workflow; the generic bytes are left untouched. Other multi-target ambiguities stay blocked. A unique generic match is still eligible. Manual and offline scans do not infer a host OS. SHA-256, executable-section and rollback checks remain mandatory.
 - **Manual patterns:** explicit HEX Find/Replace with `*` or `??` one-byte masks. A live read-only 16-column HEX/ASCII viewer shows the actual installed DLL bytes, highlighted exact/wildcard positions, addresses, context and previous/next matches. Import a pattern catalog and use **Check all imported** to compare every entry against actual bytes and OS/DLL version hints. A near match or a version hint never generates or authorizes replacement bytes.
 - **Offline DLL:** choose a `termsrv.dll` in any folder and save a *different* verified output file. Read x86/PE32 or x64/PE32+ architecture, version, CRC32, SHA-256 and byte offsets. x86 files require an exact operator-supplied pattern; the application itself remains x64-only.
 - **Protected Apply/Restore:** explicit administrator approval, default-on persistent backup, version/hash/NTFS checks, cross-process lock and an attempted in-operation rollback. Disabling persistent backup requires extra confirmation.

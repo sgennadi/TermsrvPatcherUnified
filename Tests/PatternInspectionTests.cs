@@ -227,6 +227,49 @@ internal static class PatternInspectionTests
                resolvedReportPlan.PatchedBytes.AsSpan(0x6D20A, 12).SequenceEqual(
                    reportedShape.AsSpan(0x6D20A, 12)),
             "the real-report generic-location bytes stay unchanged in the automatic preview");
+        // Automatic Apply priorities are visible, deterministic and never
+        // become a sequential list of protected write operations.
+        var ranked26 = AutomaticPriorityPolicy.Build(os, resolvedReportPlan,
+            VerifiedSignatureSnapshot.Capture(reportedShape, resolvedReportPlan, upstream),
+            upstream);
+        Verify(ranked26.Rows.Count == 4 &&
+               ranked26.Rows.Select(x => x.Order).SequenceEqual([1, 2, 3, 4]) &&
+               ranked26.Rows[0].Name.Contains("25H2 / 26H2") &&
+               ranked26.Rows[0].Decision == "Selected" &&
+               ranked26.Rows[0].Offsets == "0x000A6896",
+            "Windows 11 26H2 chooses its 19-byte target as priority one");
+        Verify(ranked26.Rows[1].ReferenceOnly &&
+               ranked26.Rows[1].Match == "F:1 R:0" &&
+               ranked26.Rows[1].Offsets == "0x000A689D" &&
+               ranked26.Rows[1].Decision == "Reference only",
+            "upstream 12-byte suffix is visible at +7 but never eligible for Apply");
+        Verify(ranked26.Rows[2].Name.StartsWith("Generic", StringComparison.Ordinal) &&
+               ranked26.Rows[2].Decision == "Skipped" &&
+               ranked26.Rows[3].Decision == "Not found" &&
+               ranked26.Summary.Contains("At most one verified target", StringComparison.Ordinal),
+            "26H2 Generic is skipped and only one protected target is proposed");
+        // 25H2 shares the 19-byte alternate layout but is still checked
+        // by exact bytes, not by a version label alone.
+        var os25 = os with { DisplayVersion = "25H2", Build = 26200, Ubr = 8737 };
+        var plan25 = PatchCatalog.Inspect(reportedShape, "synthetic.dll",
+            "10.0.26100.8115", SystemInfo.Sha256(reportedShape), true, upstream,
+            selectionContext: new AutomaticSelectionContext("Windows 11", "25H2", "Client"));
+        var ranked25 = AutomaticPriorityPolicy.Build(os25, plan25,
+            VerifiedSignatureSnapshot.Capture(reportedShape, plan25, upstream), upstream);
+        Verify(plan25.State == PatchState.Ready &&
+               ranked25.Rows[0].Decision == "Selected" &&
+               ranked25.Rows[0].Name.Contains("25H2 / 26H2") &&
+               ranked25.Rows[1].ReferenceOnly &&
+               ranked25.Rows[1].Decision == "Reference only" &&
+               ranked25.Rows[2].Decision == "Skipped",
+            "25H2 ranks 19-byte exact match before Generic, with hotpatch read-only");
+        var unresolvedPriority = AutomaticPriorityPolicy.Build(os, reportedPlan,
+            VerifiedSignatureSnapshot.Capture(reportedShape, reportedPlan, upstream),
+            upstream);
+        Verify(unresolvedPriority.Rows.All(x => x.Decision != "Selected") &&
+               unresolvedPriority.Rows.Count(x => x.Decision == "Blocked") == 2,
+            "multiple exact patterns without trusted OS context cannot be forced by ordering");
+
         var afterReportedPreview = PatchCatalog.Inspect(
             resolvedReportPlan.PatchedBytes!, "synthetic.dll", "10.0.26100.8115",
             SystemInfo.Sha256(resolvedReportPlan.PatchedBytes!), true, upstream,
@@ -285,6 +328,33 @@ internal static class PatternInspectionTests
                !chosen.PatchedBytes.AsSpan(0x290, 19).SequenceEqual(
                    selectionBytes.AsSpan(0x290, 19)),
             "selected preview patches only the specific target; generic bytes stay untouched");
+        // Exact 24H2 installed-client match ranks the 13-byte signature first.
+        var bytes24 = SamplePe();
+        PutOriginal(bytes24, upstream[1], 0x230);
+        var os24 = os with { DisplayVersion = "24H2", Build = 26100, Ubr = 1234 };
+        var plan24 = PatchCatalog.Inspect(bytes24, "test.dll", "10.0.26100.1234",
+            SystemInfo.Sha256(bytes24), true, upstream,
+            selectionContext: new AutomaticSelectionContext("Windows 11", "24H2", "Client"));
+        var ranked24 = AutomaticPriorityPolicy.Build(os24, plan24,
+            VerifiedSignatureSnapshot.Capture(bytes24, plan24, upstream), upstream);
+        Verify(plan24.State == PatchState.Ready &&
+               ranked24.Rows[0].Name.Contains("24H2") &&
+               ranked24.Rows[0].Decision == "Selected" &&
+               ranked24.Rows[1].Name.StartsWith("Generic", StringComparison.Ordinal) &&
+               ranked24.Rows[^1].ReferenceOnly,
+            "24H2 priority order prefers 13-byte specific, then Generic, and keeps hotpatch read-only");
+        // Server 2025 can display an authentic byte match, but it must never
+        // inherit a Windows 11 client Apply authorization.
+        var server25 = os24 with { Name = "Windows Server", InstallationType = "Server" };
+        var unsupportedServerPlan = PatchCatalog.Inspect(bytes24, "test.dll",
+            "10.0.26100.32684", SystemInfo.Sha256(bytes24), false, upstream);
+        var rankedServer = AutomaticPriorityPolicy.Build(server25, unsupportedServerPlan,
+            VerifiedSignatureSnapshot.Capture(bytes24, unsupportedServerPlan, upstream), upstream);
+        Verify(rankedServer.Rows[0].Name.Contains("24H2") &&
+               rankedServer.Rows[0].Decision == "Inspect only" &&
+               rankedServer.Rows.All(x => x.Decision != "Selected"),
+            "Server 2025 shows the 13-byte match but can never enable system Apply");
+
         PeSafety.RequireExecutableEdits(selectionBytes, chosen.Edits);
         Verify(chosen.Description.Contains("specific profile over") &&
                !chosen.IsManual, "automatic profile priority is explicit in result details");

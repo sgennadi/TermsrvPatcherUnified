@@ -58,6 +58,20 @@ for element in app.iter():
 
 auto = parse_catalog("AutomaticPatterns.txt")
 legacy = parse_catalog("LegacyUserPatterns.MANUAL.txt")
+check((ROOT / "Core/AutomaticPriorityPolicy.cs").exists(),
+      "Automatic priority policy exists")
+priority_source = (ROOT / "Core/AutomaticPriorityPolicy.cs").read_text(encoding="utf-8")
+check("Reference only" in priority_source and "HotpatchReference" in priority_source and
+      "At most one verified target" in priority_source,
+      "external 12-byte hotpatch remains read-only and one-target policy explicit")
+main_xaml = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
+check("AutoPriorityGrid" in main_xaml and "AutoPrioritySummary" in main_xaml and
+      'CanUserSortColumns="False"' in main_xaml,
+      "ordered Automatic list is visible and cannot be re-sorted")
+main_code = (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8")
+check("AutomaticPriorityPolicy.Build" in main_code and
+      "AutoPrioritySelectionChanged" in main_code,
+      "priority list explains the inspected plan without creating another Apply path")
 check(len(auto) == 3, "3 automatic patterns")
 check(len(legacy) == 16, "16 legacy manual patterns")
 
@@ -78,12 +92,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.18" in version, "version consistency")
+    check("0.1.0-preview.19" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.18" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.19" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")

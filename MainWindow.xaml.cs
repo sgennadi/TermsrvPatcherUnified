@@ -105,6 +105,9 @@ public partial class MainWindow : Window
         lastScan = null;
         AutoSignatureGrid.ItemsSource = null;
         AutoProfileGrid.ItemsSource = null;
+        AutoPriorityGrid.ItemsSource = null;
+        AutoPriorityGrid.SelectedItem = null;
+        AutoPrioritySummary.Text = "Checking all priority candidates against the current DLL...";
         AutoSignatureGrid.SelectedItem = null;
         AutoSignatureSummary.Text = "Checking actual DLL bytes and verifying SHA-256 consistency...";
         AutoSignatureDetails.Clear();
@@ -122,9 +125,13 @@ public partial class MainWindow : Window
                 var plan = engine.Inspect();
                 // An independent read binds diagnostic evidence to exactly the
                 // same SHA-256 as the engine's protected-write preview.
+                var catalog = PatchCatalog.LoadAutomatic();
                 var evidence = VerifiedSignatureSnapshot.Capture(
-                    File.ReadAllBytes(os.DllPath), plan, PatchCatalog.LoadAutomatic(),
+                    File.ReadAllBytes(os.DllPath), plan, catalog,
                     os.Is64Bit ? "x64" : "x86");
+                // The priority list describes the existing engine decision.
+                // It never reorders edits or creates a second Apply target.
+                var priority = AutomaticPriorityPolicy.Build(os, plan, evidence, catalog);
                 ScanReport? fallback = plan.State is PatchState.Unknown or PatchState.Ambiguous
                     ? engine.ScanDll(os.DllPath, null)
                     : null;
@@ -134,7 +141,8 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException(
                         "DLL changed before structural scanning; recheck the file.");
                 evidence.RequireCurrentFile(os.DllPath);
-                return (Info: os, Preview: plan, Evidence: evidence, Fallback: fallback);
+                return (Info: os, Preview: plan, Evidence: evidence,
+                    Fallback: fallback, Priority: priority);
             });
             var os = result.Info;
             autoPlan = result.Preview;
@@ -152,6 +160,13 @@ public partial class MainWindow : Window
                     "\nNo automatic profile chosen or Apply authorized.";
             AutoSignatureGrid.ItemsSource = signatureSnapshot.Inspection.Rows;
             AutoProfileGrid.ItemsSource = signatureSnapshot.Inspection.Profiles;
+            AutoPriorityGrid.ItemsSource = result.Priority.Rows;
+            AutoPrioritySummary.Text = result.Priority.Summary +
+                " Selecting a row shows HEX only; it cannot change the Apply target.";
+            ApplyAutoButton.ToolTip = autoPlan.State == PatchState.Ready
+                ? "Only " + autoPlan.ProfileId +
+                  " will be applied. Row selection does not change the verified plan."
+                : "No currently eligible automatic Apply plan.";
             AutoSignatureSummary.Text = signatureSnapshot.Inspection.Summary +
                 (autoPlan.State == PatchState.Ready &&
                  autoPlan.Description.Contains("specific profile over", StringComparison.Ordinal)
@@ -167,6 +182,12 @@ public partial class MainWindow : Window
                 signatureSnapshot.Inspection.Rows.FirstOrDefault(x =>
                     x.FindHits != "0" || x.ReplaceHits != "0") ??
                 signatureSnapshot.Inspection.Rows.FirstOrDefault();
+            AutoPriorityGrid.SelectedItem = result.Priority.Rows.FirstOrDefault(x =>
+                x.Decision is "Selected" or "Already patched") ??
+                result.Priority.Rows.FirstOrDefault(x =>
+                    x.Match.Contains("F:1", StringComparison.Ordinal) ||
+                    x.Match.Contains("R:1", StringComparison.Ordinal)) ??
+                result.Priority.Rows.FirstOrDefault();
             AutoEvidenceExportButton.IsEnabled = true;
             if (lastScan is not null)
             {
@@ -177,6 +198,34 @@ public partial class MainWindow : Window
             }
             FooterText.Text = $"Check completed: {autoPlan.State}. Evidence SHA-256 verified.";
         });
+    }
+
+    private void AutoPrioritySelectionChanged(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (AutoPriorityGrid?.SelectedItem is not AutomaticPriorityRow chosen ||
+            signatureSnapshot is null || AutoSignatureGrid is null ||
+            AutoSelectedPair is null)
+            return;
+        if (!chosen.ReferenceOnly)
+        {
+            var matching = signatureSnapshot.Inspection.Rows.FirstOrDefault(x =>
+                x.Profile.Equals(chosen.Profile, StringComparison.Ordinal));
+            if (matching is not null) AutoSignatureGrid.SelectedItem = matching;
+            return;
+        }
+        // An external Hot Patch is an observation-only reference. Its row
+        // cannot become a PatchPlan, even when its 12 bytes occur in a longer
+        // selected 19-byte signature.
+        AutoSignatureGrid.SelectedItem = null;
+        var reference = new SignatureGroupFinding(chosen.Profile, 1,
+            "External reference only", chosen.FindHex, chosen.ReplaceHex,
+            "0", "0", "(none)", "(none)");
+        AutoSelectedPair.Text = chosen.Profile + " — REFERENCE ONLY; NOT AN APPLY RULE" +
+            Environment.NewLine + reference.AlignedPair +
+            Environment.NewLine + chosen.Match + " at " + chosen.Offsets;
+        AutoInspectFindButton.IsEnabled = false;
+        AutoInspectReplaceButton.IsEnabled = false;
     }
 
     private void AutoSignatureSelectionChanged(object sender,
