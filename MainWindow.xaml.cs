@@ -499,6 +499,43 @@ public partial class MainWindow : Window
         FooterText.Text = "Read-only scan report copied.";
     }
 
+    private async void CheckDllHealth_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(DllHealthMonitor.CheckLocal);
+            DllHealthDetails.Text = report.AsText();
+            FooterText.Text = "DLL health: " + report.Status + ". No system changes.";
+        });
+    }
+
+    private async void SaveDllBaseline_Click(object sender, RoutedEventArgs e)
+    {
+        if (!Confirm(this, "Record DLL health baseline?",
+                "Save the current termsrv.dll SHA-256 and version in your local profile? " +
+                "This replaces your previous user-local baseline. It never changes the DLL " +
+                "or authorizes Apply/Restore.")) return;
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(DllHealthMonitor.RecordLocalBaseline);
+            DllHealthDetails.Text = report.AsText();
+            FooterText.Text = "Local DLL reference saved. No RDP or system settings were changed.";
+        });
+    }
+
+    private async void RefreshRdpSessions_Click(object sender, RoutedEventArgs e)
+    {
+        await RunBusy(async () =>
+        {
+            var sessions = await Task.Run(RdpSessionViewer.ReadLocal);
+            RdpSessionsGrid.ItemsSource = sessions;
+            RdpSessionSummary.Text =
+                $"{sessions.Count} local Windows sessions. Read-only WTS inventory; " +
+                "account names are displayed here only and never included in reports.";
+            FooterText.Text = "Session inventory refreshed. No RDP sessions were changed.";
+        });
+    }
+
     private void ReadRdp()
     {
         var status = RdpConfiguration.Read();

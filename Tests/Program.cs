@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--rdp-health-qa"])
+{
+    Environment.ExitCode = RdpHealthTests.Run() >= 12 ? 0 : 2;
+    return;
+}
+
 if (args is ["--offline-dll-qa"])
 {
     Environment.ExitCode = OfflineDllTests.Run() >= 20 ? 0 : 2;

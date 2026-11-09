@@ -188,6 +188,54 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
+      <TabItem Header="RDP Health">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="15,18,15,14">
+            <TextBlock Text="DLL health and RDP sessions" FontSize="18" FontWeight="SemiBold"/>
+            <TextBlock Margin="0,7,0,16" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                       Text="Read-only status. Compare the current termsrv.dll with a baseline you explicitly saved. No automatic patching, system-service restart or uploads."/>
+            <GroupBox Header="DLL Health — checksum drift">
+              <StackPanel>
+                <WrapPanel>
+                  <Button Tag="&#xE721;" Content="Check DLL health" Click="CheckDllHealth_Click"
+                          Style="{StaticResource PrimaryButton}"/>
+                  <Button Tag="&#xE74E;" Content="Save current as baseline..." Click="SaveDllBaseline_Click"/>
+                </WrapPanel>
+                <TextBox x:Name="DllHealthDetails" IsReadOnly="True" Height="205"
+                         FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
+                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                         Margin="0,11,0,7"
+                         Text="No baseline comparison yet. Choose Check DLL health. Baselines are local reference metadata, not proof a DLL is safe."/>
+                <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                           Text="A changed SHA-256 or DLL version indicates drift, not its cause. A Windows update, manual replacement or another event could be responsible."/>
+              </StackPanel>
+            </GroupBox>
+            <GroupBox Header="Local RDP sessions — Windows WTS API" Margin="0,12,0,0">
+              <StackPanel>
+                <WrapPanel>
+                  <Button Tag="&#xE72C;" Content="Refresh sessions" Click="RefreshRdpSessions_Click"
+                          Style="{StaticResource PrimaryButton}"/>
+                </WrapPanel>
+                <TextBlock x:Name="RdpSessionSummary" Text="Session inventory has not been read."
+                           Foreground="{StaticResource MutedBrush}" Margin="0,8,0,8"
+                           TextWrapping="Wrap"/>
+                <DataGrid x:Name="RdpSessionsGrid" IsReadOnly="True" CanUserAddRows="False"
+                          AutoGenerateColumns="False" SelectionMode="Single" Height="230"
+                          MinHeight="150" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="ID" Binding="{Binding SessionId}" Width="55"/>
+                    <DataGridTextColumn Header="Station" Binding="{Binding Station}" Width="*"/>
+                    <DataGridTextColumn Header="State" Binding="{Binding State}" Width="130"/>
+                    <DataGridTextColumn Header="Account" Binding="{Binding Account}" Width="*"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Margin="0,9,0,0" Foreground="#8B531A" TextWrapping="Wrap"
+                           Text="Read-only: no disconnect, logoff, impersonation or session control. Account names are displayed locally only; they are never sent to GitHub."/>
+              </StackPanel>
+            </GroupBox>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
     </TabControl>
     <Grid Grid.Row="3" Margin="0,15,0,0">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
