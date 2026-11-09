@@ -39,7 +39,8 @@ internal sealed record OfflineFixMetadata(
 
     internal void Validate()
     {
-        if (Architecture is not ("x64" or "x86") || !Version.IsMatch(DllVersion) ||
+        if (Architecture is not ("x64" or "x86") ||
+            !(DllVersion == "Unknown" || Version.IsMatch(DllVersion)) ||
             !App.IsMatch(ApplicationVersion) ||
             !Hash.IsMatch(OriginalSha256) || !Hash.IsMatch(PatchedSha256) ||
             OriginalSha256 == PatchedSha256 ||
