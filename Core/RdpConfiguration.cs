@@ -23,6 +23,7 @@ public static class RdpConfiguration
     public static void Save(bool enableRdp, bool enforceNla, bool oneSessionPerUser, bool syncFirewall)
     {
         if (!SystemInfo.IsAdministrator()) throw new UnauthorizedAccessException("Administrator rights required.");
+        using var operation = OperationLock.Acquire();
         using var terminal = Registry.LocalMachine.OpenSubKey(TerminalKey, writable: true)
             ?? throw new InvalidOperationException("Terminal Server registry key unavailable.");
         using var tcp = Registry.LocalMachine.OpenSubKey(TcpKey, writable: true)

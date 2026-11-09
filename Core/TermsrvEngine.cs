@@ -86,6 +86,9 @@ public sealed class TermsrvEngine : IDisposable
     public void Apply(PatchPlan preview, bool createBackup = true)
     {
         EnsureAllowed(preview.FilePath);
+        using var operation = OperationLock.Acquire();
+        if (operation.WasAbandoned)
+            Message("Previous operation lock was abandoned. Rechecking the installed DLL before any change.");
         if (preview.State != PatchState.Ready || preview.PatchedBytes is null)
             throw new InvalidOperationException("Only a verified Ready preview may be applied.");
         var current = File.ReadAllBytes(preview.FilePath);
@@ -123,6 +126,9 @@ public sealed class TermsrvEngine : IDisposable
     {
         var os = SystemInfo.Read();
         EnsureAllowed(os.DllPath);
+        using var operation = OperationLock.Acquire();
+        if (operation.WasAbandoned)
+            Message("Previous operation lock was abandoned. Revalidating backup and installed DLL.");
         DllBackupStore.RequireTrustedLocation(BackupDirectory, create: false);
         var current = File.ReadAllBytes(os.DllPath);
         PeSafety.ReadAmd64DllSections(current);
