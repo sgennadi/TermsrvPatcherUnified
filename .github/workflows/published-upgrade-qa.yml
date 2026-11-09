@@ -1,0 +1,56 @@
+name: Published preview EXE replacement and rollback
+
+on:
+  push:
+    branches: [main, 'qa/**']
+    paths:
+      - '.github/workflows/published-upgrade-qa.yml'
+      - 'Tests/PublishedUpgradeTests.cs'
+      - 'Tests/Program.cs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  published-exe-upgrade:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Download and checksum-pin real preview.8 and preview.9 update archives
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $name = 'TermsrvPatcherUnified-update-win-x64.zip'
+          $published = @(
+            @{ Version = '0.1.0-preview.8'; Sha256 = 'cc90e9a29f7e760e3103a32100832574105c2419c34c59af534ddf233e3a0930' },
+            @{ Version = '0.1.0-preview.9'; Sha256 = '1c3a5bbdef65b7fa631f9014f53ad819b9f6d663c5ef1126cd346d9ced0df081' }
+          )
+          foreach ($release in $published) {
+            $folder = Join-Path $PWD ('qa/' + $release.Version)
+            New-Item -ItemType Directory -Force -Path $folder | Out-Null
+            gh release download ('v' + $release.Version) --repo $env:GITHUB_REPOSITORY --pattern $name --dir $folder --clobber
+            if ($LASTEXITCODE -ne 0) { throw "Release download failed: $($release.Version)" }
+            $zip = Join-Path $folder $name
+            $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $release.Sha256) { throw "Unexpected published ZIP digest: $($release.Version)" }
+            Write-Host "Pinned release verified: $($release.Version)"
+          }
+      - name: Restore offline test harness
+        shell: pwsh
+        run: |
+          dotnet restore Tests/TermsrvPatcher.Tests.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Probe real EXEs, replace, verify backup, rollback and reject tamper
+        shell: pwsh
+        run: |
+          $name = 'TermsrvPatcherUnified-update-win-x64.zip'
+          $previous = Join-Path $PWD ('qa/0.1.0-preview.8/' + $name)
+          $candidate = Join-Path $PWD ('qa/0.1.0-preview.9/' + $name)
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --published-upgrade-check $previous $candidate 0.1.0-preview.8 0.1.0-preview.9
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
