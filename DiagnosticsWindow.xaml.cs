@@ -77,15 +77,24 @@ public partial class DiagnosticsWindow : Window
         {
             var receipt = await Task.Run(() => DiagnosticsBridge.Capture(draft, description));
             var markdown = DiagnosticsBridge.ReportMarkdown(await File.ReadAllTextAsync(receipt.Path));
-            anonymousPayload = UniversalDiagnosticsRelayClient.Prepare(
-                await File.ReadAllTextAsync(receipt.Path));
+            // Local capture must succeed even if a category cannot be sent anonymously.
+            try
+            {
+                anonymousPayload = UniversalDiagnosticsRelayClient.Prepare(
+                    await File.ReadAllTextAsync(receipt.Path));
+            }
+            catch (InvalidDataException)
+            {
+                anonymousPayload = null;
+                RelayState.Text = "Report contains unsupported categories — local only";
+            }
             savedReport = markdown;
             savedPath = receipt.Path;
             savedId = receipt.Id;
             submittedIssue = null;
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
-            AnonymousButton.IsEnabled = relayEndpoint is not null;
+            AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
         catch (Exception ex)
