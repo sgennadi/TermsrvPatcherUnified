@@ -137,6 +137,31 @@ internal static class DllBackupIntegrityTests
                     .SequenceEqual([saved], StringComparer.OrdinalIgnoreCase),
                 "Restore list includes verified backup only");
 
+            if (SystemInfo.IsAdministrator())
+            {
+                // Production Apply/Restore demand an administrator-owned tree
+                // with no untrusted writable ACEs; test this without system writes.
+                DllBackupStore.RequireTrustedLocation(backupDir, create: false);
+                Check(true, "administrator-controlled backup tree is allowed");
+                var unsafeDir = Path.Combine(folder, "unsafe-backups");
+                Directory.CreateDirectory(unsafeDir);
+                var unsafeInfo = new DirectoryInfo(unsafeDir);
+                var unsafeAcl = unsafeInfo.GetAccessControl();
+                unsafeAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+                    new System.Security.Principal.SecurityIdentifier(
+                        System.Security.Principal.WellKnownSidType.WorldSid, null),
+                    System.Security.AccessControl.FileSystemRights.Modify,
+                    System.Security.AccessControl.InheritanceFlags.None,
+                    System.Security.AccessControl.PropagationFlags.None,
+                    System.Security.AccessControl.AccessControlType.Allow));
+                unsafeInfo.SetAccessControl(unsafeAcl);
+                Refuses<UnauthorizedAccessException>(
+                    () => DllBackupStore.RequireTrustedLocation(unsafeDir, create: false),
+                    "untrusted writable ACL must prevent Backup/Restore");
+            }
+            else
+                Console.WriteLine("SKIP: NTFS ACL trust checks require elevated runner.");
+
             Console.WriteLine("PASS: " + assertions + " real-DLL-copy backup/Restore checks; " +
                 "default-off/no folder, enabled SHA-256, idempotence, wrong version/size/path, " +
                 "tampering rejection, no overwrite, verified Restore and filtering.");
