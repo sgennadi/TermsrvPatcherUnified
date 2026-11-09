@@ -66,12 +66,12 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.9" in version, "version consistency")
+    check("0.1.0-preview.10" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.9" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.10" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -196,6 +196,10 @@ check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").r
 
 check((ROOT / "Tests/UpdateTransactionSyntheticTests.cs").exists(), "disposable EXE update success and rollback tests exist")
 check((ROOT / "Tests/PublishedUpgradeTests.cs").exists(), "published EXE transaction QA harness exists")
+check((ROOT / "Core/DllBackupStore.cs").exists(), "DLL backup and Restore share strict file validator")
+check((ROOT / "Tests/DllBackupIntegrityTests.cs").exists(), "real-DLL-copy backup integrity tests are checked in")
+check("--dll-backup-qa" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),
+      "Windows CI executes full backup On/Off, tamper and Restore verification")
 check((ROOT / ".github/workflows/published-dll-readonly-qa.yml").exists(), "real Windows DLL read-only smoke workflow exists")
 readonly_qa = (ROOT / ".github/workflows/published-dll-readonly-qa.yml").read_text(encoding="utf-8")
 check("Get-FileHash" in readonly_qa and "TermService" in readonly_qa and "Get-Acl" in readonly_qa,

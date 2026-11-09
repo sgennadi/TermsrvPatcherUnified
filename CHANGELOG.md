@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-preview.10 — 2026-11-09
+
+- Refactored the persistent DLL backup/Restore path into a shared, independently tested validator.
+- Fixed potential refusal of a valid backup when Windows MUI resources change FileVersionInfo results after DLL renaming.
+- Added version and SHA-256 checks, exact-length validation, PE x64 structure checks, direct-child directory restriction, and rejection of corrupted or wrongly named backup files.
+- Added administrator-controlled NTFS ACL gate and filesystem-link refusal for protected backup operations. Unsafe legacy locations are blocked rather than silently modified.
+- Added Windows CI regression using a temporary copy of a real system DLL: Backup On/Off, idempotence, SHA-256 restore, corruption, path mistakes and NTFS ACL trust.
+- No live system-DLL modification/TermService integration test has been completed. The version remains an unsigned Preview.
+
 ## 0.1.0-preview.9 — 2026-11-09
 
 - Added default-on Create backup checkbox for both automatic and manual Apply, with extra confirmation when disabled; failed-write rollback remains active even without persistent backup.

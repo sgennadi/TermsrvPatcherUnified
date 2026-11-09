@@ -64,11 +64,15 @@ public sealed class TermsrvEngine : IDisposable
     public IReadOnlyList<string> BackupsForCurrentVersion()
     {
         var os = SystemInfo.Read();
-        if (!Directory.Exists(BackupDirectory)) return [];
-        return Directory.EnumerateFiles(BackupDirectory, "*.dll")
-            .Where(f => string.Equals(FileVersionInfo.GetVersionInfo(f).FileVersion, os.DllVersion,
-                StringComparison.OrdinalIgnoreCase))
-            .OrderByDescending(File.GetCreationTimeUtc).ToArray();
+        if (!File.Exists(os.DllPath) || !Directory.Exists(BackupDirectory)) return [];
+        try { DllBackupStore.RequireTrustedLocation(BackupDirectory, create: false); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Message("Backup directory is not trusted; Restore choices hidden: " + ex.GetType().Name);
+            return [];
+        }
+        return DllBackupStore.ListVerified(BackupDirectory, os.DllVersion,
+            new FileInfo(os.DllPath).Length);
     }
 
     public static string BackupDirectory => Path.Combine(AuditLog.Root, "Backups");
@@ -104,7 +108,11 @@ public sealed class TermsrvEngine : IDisposable
         // A matching byte sequence in a resource/overlay is not a valid code patch.
         PeSafety.RequireExecutableEdits(current, preview.Edits);
         if (createBackup)
-            WriteBackup(preview, current);
+            DllBackupStore.RequireTrustedLocation(BackupDirectory, create: true);
+        var saved = DllBackupStore.Save(BackupDirectory, preview.FileVersion, current,
+            preview.OriginalSha256, createBackup);
+        if (saved is not null)
+            Message("Verified backup available: " + Path.GetFileName(saved));
         else
             Message("Permanent backup disabled for this Apply. In-operation rollback is still enabled.");
         WriteTransactional(preview.FilePath, preview.OriginalSha256, current, preview.PatchedBytes);
@@ -115,52 +123,14 @@ public sealed class TermsrvEngine : IDisposable
     {
         var os = SystemInfo.Read();
         EnsureAllowed(os.DllPath);
-        var canonicalDir = Path.GetFullPath(BackupDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        var candidate = Path.GetFullPath(backupFile);
-        if (!candidate.StartsWith(canonicalDir, StringComparison.OrdinalIgnoreCase) ||
-            !File.Exists(candidate) || !candidate.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Select a backup created by this program.");
-        string version = FileVersionInfo.GetVersionInfo(candidate).FileVersion ?? "";
-        if (!version.Equals(os.DllVersion, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidOperationException("Backup DLL version does not match installed DLL. Restore blocked.");
-        var desired = File.ReadAllBytes(candidate);
-        var claimedHash = Path.GetFileNameWithoutExtension(candidate).Split('-').Last();
-        if (claimedHash.Length != 64 || !claimedHash.All(Uri.IsHexDigit) ||
-            !SystemInfo.Sha256(desired).Equals(claimedHash, StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Backup checksum does not agree with its filename. Restore blocked.");
+        DllBackupStore.RequireTrustedLocation(BackupDirectory, create: false);
         var current = File.ReadAllBytes(os.DllPath);
-        if (desired.Length != current.Length)
-            throw new InvalidOperationException("Backup size differs from installed DLL. Restore blocked.");
         PeSafety.ReadAmd64DllSections(current);
-        PeSafety.ReadAmd64DllSections(desired);
+        var desired = DllBackupStore.ReadVerified(BackupDirectory, backupFile,
+            os.DllVersion, current.LongLength);
         // A modified/unknown DLL is restored only by explicit administrator action.
         WriteTransactional(os.DllPath, SystemInfo.Sha256(current), current, desired);
-        Message($"Restored backup: {Path.GetFileName(candidate)}");
-    }
-
-    private void WriteBackup(PatchPlan preview, byte[] original)
-    {
-        Directory.CreateDirectory(BackupDirectory);
-        var safeVersion = string.Concat(preview.FileVersion.Select(c => char.IsLetterOrDigit(c) || c == '.' ? c : '_'));
-        string backup = Path.Combine(BackupDirectory, $"termsrv-{safeVersion}-{preview.OriginalSha256}.dll");
-        if (File.Exists(backup))
-        {
-            if (SystemInfo.Sha256(File.ReadAllBytes(backup)) != preview.OriginalSha256)
-                throw new IOException("Previously saved backup has the wrong hash. Aborting.");
-            Message("Existing verified backup retained.");
-            return;
-        }
-        var temp = backup + ".tmp";
-        try
-        {
-            using (var stream = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-            { stream.Write(original); stream.Flush(true); }
-            if (SystemInfo.Sha256(File.ReadAllBytes(temp)) != preview.OriginalSha256)
-                throw new IOException("Backup verification failed.");
-            File.Move(temp, backup);
-            Message("Backup saved: " + Path.GetFileName(backup));
-        }
-        finally { if (File.Exists(temp)) File.Delete(temp); }
+        Message($"Restored backup: {Path.GetFileName(backupFile)}");
     }
 
     private void WriteTransactional(string file, string expectedSha, byte[] before, byte[] after)

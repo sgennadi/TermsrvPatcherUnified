@@ -6,6 +6,12 @@ using System.Text;
 using System.Text.Json;
 using TermsrvPatcherUnified.Core;
 
+if (args is ["--dll-backup-qa"])
+{
+    Environment.ExitCode = DllBackupIntegrityTests.Run() >= 20 ? 0 : 2;
+    return;
+}
+
 if (args is ["--published-upgrade-check", var oldZip, var newZip, var oldVersion, var newVersion])
 {
     Environment.ExitCode = PublishedUpgradeTests.Run(oldZip, newZip, oldVersion, newVersion) == 3 ? 0 : 2;
@@ -235,7 +241,7 @@ Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease)
     "Updater points to exact single-EXE GitHub asset");
 Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
     "Version-mismatched update probes are rejected");
-Ensure(UpdateInstallBridge.Probe("0.1.0-preview.9") is 0 or 5,
+Ensure(UpdateInstallBridge.Probe("0.1.0-preview.10") is 0 or 5,
     "Update probe returns only explicit success or unavailable");
 // Successful-fix v2 is opt-in: original/result SHA-256 and exact modified ranges.
 var detailed = SuccessfulFixMetadata.FromSuccessfulApply(
@@ -247,7 +253,7 @@ Ensure(successBody.StartsWith("termsrv-success/v2\n", StringComparison.Ordinal),
 Ensure(successBody.Contains("windows=Windows 11\n", StringComparison.Ordinal) &&
        successBody.Contains("build=26100\n", StringComparison.Ordinal) &&
        successBody.Contains("dll=1.0\n", StringComparison.Ordinal) &&
-       successBody.Contains("app=0.1.0-preview.9\n", StringComparison.Ordinal),
+       successBody.Contains("app=0.1.0-preview.10\n", StringComparison.Ordinal),
     "report contains expected Windows, DLL and application versions");
 Ensure(successBody.Contains("original_sha256=" + ready.OriginalSha256, StringComparison.Ordinal) &&
        successBody.Contains("patched_sha256=" + SystemInfo.Sha256(ready.PatchedBytes!), StringComparison.Ordinal),
