@@ -7,8 +7,8 @@
 x64, 39 81 3C 06 00 00 0F 84 6F 66 01 00, B8 00 01 00 00 89 81 38 06 00 00 90
 # Windows Server 2022 (21H2 - 20348.3692)
 x64, 39 81 3C 06 00 00 0F 84 5F 64 01 00, B8 00 01 00 00 89 81 38 06 00 00 90
-# Windows Server 2022 (21H2 - 20348.3091) - verify unusual 20 ending against actual DLL
-x64, 39 81 3C 06 00 00 0F 84 5F 64 01 20, B8 00 01 00 00 89 81 38 06 00 00 90
+# Windows Server 2022 (21H2 - 20348.3091) - operator-corrected final 00; validate against the actual DLL
+x64, 39 81 3C 06 00 00 0F 84 5F 64 01 00, B8 00 01 00 00 89 81 38 06 00 00 90
 # Windows Server 2022 (21H2 - 20348.2520)
 x64, 39 81 3C 06 00 00 0F 84 2D 7B 01 00, B8 00 01 00 00 89 81 38 06 00 00 90
 # Windows Server 2022 (21H2 - 20348.1249)

@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.17` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.18` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
@@ -14,7 +14,7 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 ## Features
 
-- **Automatic check:** matches three embedded x64 signature families against actual DLL bytes, with a read-only table of Find/Replace signatures, conflicting hits and offsets. Select an existing Find/Replace match to inspect it in the read-only Manual HEX viewer, or export a local SHA-256-bound evidence report. Unknown, ambiguous or non-executable-section matches stay blocked; Windows labels alone never authorize a patch.
+- **Automatic check:** compares three embedded x64 signature families against actual DLL bytes. Separate read-only tables show each profile's completeness, fixed-byte count, exact Find/Replace hits and offsets. When an installed Windows 11 version-specific embedded profile and the older generic fallback both match, the single specific target is chosen for the normal verified Apply workflow; the generic bytes are left untouched. Other multi-target ambiguities stay blocked. A unique generic match is still eligible. Manual and offline scans do not infer a host OS. SHA-256, executable-section and rollback checks remain mandatory.
 - **Manual patterns:** explicit HEX Find/Replace with `*` or `??` one-byte masks. A live read-only 16-column HEX/ASCII viewer shows the actual installed DLL bytes, highlighted exact/wildcard positions, addresses, context and previous/next matches. Import a pattern catalog and use **Check all imported** to compare every entry against actual bytes and OS/DLL version hints. A near match or a version hint never generates or authorizes replacement bytes.
 - **Offline DLL:** choose a `termsrv.dll` in any folder and save a *different* verified output file. Read x86/PE32 or x64/PE32+ architecture, version, CRC32, SHA-256 and byte offsets. x86 files require an exact operator-supplied pattern; the application itself remains x64-only.
 - **Protected Apply/Restore:** explicit administrator approval, default-on persistent backup, version/hash/NTFS checks, cross-process lock and an attempted in-operation rollback. Disabling persistent backup requires extra confirmation.
@@ -26,7 +26,7 @@ A unique matching signature does **not** prove Remote Desktop will work after mo
 
 ## Install and inspect
 
-1. Download the x64 package from [Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases) and verify its `SHA256SUMS.txt`.
+1. Download the x64 package from [Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases) and verify its separately published `SHA256SUMS.txt`. The portable ZIP contains exactly **TermsrvPatcherUnified.exe** and **Example.txt** (HEX examples plus full GPLv3/MIT license texts and notices); the updater-only ZIP contains **one EXE**. Automatic patterns, NSudo, updater, diagnostics and framework dependencies are compiled/bundled in the EXE.
 2. Start the EXE. Choose **Check DLL** for a read-only local inspection.
 3. Use **Offline DLL** to inspect a file without modifying Windows services, or use **RDP Health** to inspect checksum drift and sessions.
 4. For protected Apply/Restore, use an elevated administrator session with console recovery access. Confirm the pattern and retain a backup.

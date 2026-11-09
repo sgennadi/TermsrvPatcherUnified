@@ -168,3 +168,35 @@ Version: 0.1.0-preview.10
 - SHA-256 updater-only ZIP: Preview.16 `f529e337b733d593bfe6ae657c215fe5e4f0c283eef2438e35f06c33591ec477`, Preview.17 `9e34b8b976a7ec9c0200e55f32a506289619372ed5eb4def70cacb69b46a9baf`.
 - SHA-256 full Preview.17 x64 ZIP: `a58088407684fe6b0400d2f683f68592af0c60c486a97a98d9c895a0b45402e0`.
 - These are **non-destructive Windows Server 2025** checks. They do **not** certify actual Windows 11 26H2 pattern compatibility, protected Apply/Restore, active RDP sessions, Group Policy/firewall effects or physical 200%-DPI GUI rendering.
+
+## Cross-profile ambiguity diagnosis — Windows 11 26H2 evidence
+
+- Operator-provided `termsrv-signature-evidence/v1`: Windows 11 26H2 OS build `26300.9711`, `termsrv.dll` version `10.0.26100.8115`, SHA-256 `e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456`.
+- Existing generic x64 Find mask matched once at `0x0006D20A` (8 fixed bytes), and the 25H2/26H2 alternate layout matched once at `0x000A6896` (19 fixed bytes). The 24H2 family did not match. **This is two distinct full-profile matches, not a repeated match of one signature.** Neither replacement was present.
+- New read-only profile-level classification reports the two candidates, their offsets and fixed-byte counts separately from within-profile repeats/mixed states, and the export does the same without copying arbitrary untrusted profile labels verbatim.
+- Regression fixtures reproduce both the operator's reported offsets and the match pattern using **synthetic data**, not the original Windows DLL. No auto-selection or protected DLL modification. The exact source file has not been independently provided for binary/PE semantic analysis; a longer signature is not proof of safe applicability.
+
+## Catalog corrections — Generic JE/JZ and Server 2022 manual pattern
+
+- The Generic automatic Find mask now fixes `0F 84` (JE/JZ), with **three** variable displacement bytes and a fixed final `00` for this catalog variant. Previously the `84` opcode was incorrectly matched as a wildcard, potentially accepting `0F 85` or other branches.
+- In the **manual-only legacy catalog**, Windows Server 2022 OS build `20348.3091` has the operator-corrected final byte `00` instead of `20`. This edit is **not** evidence that the actual system DLL has been independently verified; OS build alone cannot certify a patch profile.
+- Regression checks reject a different jump opcode or a nonzero final displacement byte. Distinct exact profiles still remain `Ambiguous` until separately validated: narrowing a Find mask never authorizes an unverified protected write.
+
+## OS-aware specific-over-generic automatic patch selection
+
+- On an installed Windows 11 24H2/25H2/26H2 **Client**, a uniquely matching embedded signature tagged for the installed version takes priority over a simultaneously matching older generic fallback, *only* when no other distinct or overlapping target competes. The program builds the preview for the **specific target only**. A single exact Generic match remains eligible for its normal verified path.
+- Manual, imported-catalog and offline DLL inspections do not silently inherit host-specific precedence. Unsupported OS versions, untrusted labels, multiple specific candidates, mixed Find/Replace, repeated/overlapping byte matches and all executable-PE validation failures still block Apply.
+- Regression tests verify specific-only patch bytes, generic unchanged, already-patched specific detection, unique generic fallback, no host-OS context, untrusted imported catalog and manual refusal. The installed Windows 11 26H2 system DLL was **not modified** by CI; byte selection correctness is not an end-to-end RDP license or functional validation.
+
+## Preview.18 release gate — specific-over-generic automatic selection
+
+- Windows Actions verify synthetic exact matches in the embedded catalog, including the corrected 0F 84 opcode, manual-only Server 2022 trailing 00, and host 26H2 precedence. A matching Generic fallback never produces a second edit when a unique trusted version-specific profile is selected.
+- A Ready state is only an inspected preview; Windows 11 live protected Apply/Restore, service lifecycle, real RDP connections, licensing implications and physical 200% DPI remain **outside GitHub-hosted CI**.
+- The installed termsrv.dll version 10.0.26100.8115 / SHA-256 e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456 was reported by an operator, not independently obtained or modified in the runner. No claim of live compatibility is made.
+
+## Preview.18 Automatic signature comparison / Manual validation
+
+- The Automatic tab now has a selected-group read-only monospaced HEX panel: byte-index header, **Find directly above Replace**, fixed two-digit display width even for catalog wildcard `*` (displayed as `??`), byte counts and exact-match offsets. The full report also preserves aligned pairs and horizontal scrolling; the underlying catalog Find mask is unmodified by its display formatting.
+- Current embedded automatic catalog contains three x64 pairs with equal Find/Replace lengths: Generic **12/12** (fixed `0F 84`, 3 wildcard displacement bytes), Windows 11 24H2 **13/13** and Windows 11 25H2/26H2 **19/19**. Matching the pattern length does **not** validate replacement semantics or license compatibility for a particular DLL version.
+- The Manual editor validates Find/Replace groups locally and explains missing fields, malformed HEX, wildcard placement and unequal byte counts *before* `Check manual pattern` starts any inspection. Invalid/incomplete editor input is not appended to the protected-operation failure log. Existing historical log records remain unchanged.
+- New regression tests inspect all three embedded signatures, aligned two-character cells, wildcard display, read-only evidence formatting and unequal/incomplete Manual input.

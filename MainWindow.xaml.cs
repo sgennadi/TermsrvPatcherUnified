@@ -104,9 +104,11 @@ public partial class MainWindow : Window
         signatureSnapshot = null;
         lastScan = null;
         AutoSignatureGrid.ItemsSource = null;
+        AutoProfileGrid.ItemsSource = null;
         AutoSignatureGrid.SelectedItem = null;
         AutoSignatureSummary.Text = "Checking actual DLL bytes and verifying SHA-256 consistency...";
         AutoSignatureDetails.Clear();
+        AutoSelectedPair.Text = "Select a signature group above to compare Find and Replace.";
         AutoInspectFindButton.IsEnabled = false;
         AutoInspectReplaceButton.IsEnabled = false;
         AutoEvidenceExportButton.IsEnabled = false;
@@ -144,10 +146,27 @@ public partial class MainWindow : Window
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
+            if (autoPlan.State == PatchState.Ambiguous)
+                AutoDetails.Text += "\nAmbiguity classification (read-only): " +
+                    signatureSnapshot.Inspection.AmbiguityReason +
+                    "\nNo automatic profile chosen or Apply authorized.";
             AutoSignatureGrid.ItemsSource = signatureSnapshot.Inspection.Rows;
+            AutoProfileGrid.ItemsSource = signatureSnapshot.Inspection.Profiles;
             AutoSignatureSummary.Text = signatureSnapshot.Inspection.Summary +
+                (autoPlan.State == PatchState.Ready &&
+                 autoPlan.Description.Contains("specific profile over", StringComparison.Ordinal)
+                    ? " AUTO TARGET SELECTED: " + autoPlan.ProfileId +
+                      ". Generic fallback matches are excluded from this Apply preview."
+                    : "") +
                 " Verified SHA-256: " + signatureSnapshot.Sha256;
             AutoSignatureDetails.Text = signatureSnapshot.Inspection.AsText();
+            // Highlight the chosen profile first, when the engine resolves
+            // a specific-vs-Generic match to a single inspected target.
+            AutoSignatureGrid.SelectedItem = signatureSnapshot.Inspection.Rows.FirstOrDefault(x =>
+                x.Profile == autoPlan.ProfileId) ??
+                signatureSnapshot.Inspection.Rows.FirstOrDefault(x =>
+                    x.FindHits != "0" || x.ReplaceHits != "0") ??
+                signatureSnapshot.Inspection.Rows.FirstOrDefault();
             AutoEvidenceExportButton.IsEnabled = true;
             if (lastScan is not null)
             {
@@ -165,6 +184,13 @@ public partial class MainWindow : Window
     {
         if (AutoInspectFindButton is null || AutoInspectReplaceButton is null) return;
         var selected = AutoSignatureGrid?.SelectedItem as SignatureGroupFinding;
+        if (AutoSelectedPair is not null)
+            AutoSelectedPair.Text = selected is null
+                ? "Select a signature group above to compare Find and Replace."
+                : selected.Profile + " / group " + selected.Group + " — " + selected.State +
+                  Environment.NewLine + selected.AlignedPair +
+                  Environment.NewLine + "Find: " + selected.FindHits + " at " + selected.FindOffsets +
+                  " | Replace: " + selected.ReplaceHits + " at " + selected.ReplaceOffsets;
         AutoInspectFindButton.IsEnabled = signatureSnapshot is not null && selected is not null &&
             selected.FindOffsets != "(none)";
         AutoInspectReplaceButton.IsEnabled = signatureSnapshot is not null && selected is not null &&
@@ -360,6 +386,14 @@ public partial class MainWindow : Window
         if (ApplyManualButton is not null) ApplyManualButton.IsEnabled = false;
         if (ManualResult is not null)
             ManualResult.Text = "Pattern changed. Check again before applying.";
+        if (ManualInputStatus is not null && ManualFind is not null && ManualReplace is not null)
+        {
+            var validation = ManualPatternValidator.Check(ManualFind.Text, ManualReplace.Text);
+            ManualInputStatus.Text = validation.Message;
+            ManualInputStatus.Foreground = validation.IsValid
+                ? System.Windows.Media.Brushes.DarkGreen
+                : System.Windows.Media.Brushes.DarkOrange;
+        }
 
         // Replacing HEX must not restart an unchanged Find lookup.
         if (sender != ManualFind || ManualFragmentSummary is null ||
@@ -481,6 +515,16 @@ public partial class MainWindow : Window
 
     private async void CheckManual_Click(object sender, RoutedEventArgs e)
     {
+        var validation = ManualPatternValidator.Check(ManualFind.Text, ManualReplace.Text);
+        if (!validation.IsValid)
+        {
+            manualPlan = null;
+            ApplyManualButton.IsEnabled = false;
+            ManualResult.Text = validation.Message;
+            ManualInputStatus.Text = validation.Message;
+            FooterText.Text = "Manual input is incomplete or invalid; nothing was attempted.";
+            return; // User input is not a failed system operation or diagnostic event.
+        }
         await RunBusy(async () =>
         {
             var find = ManualFind.Text;

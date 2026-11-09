@@ -12,7 +12,8 @@ public sealed class TermsrvEngine : IDisposable
     public PatchPlan Inspect()
     {
         var os = SystemInfo.Read();
-        return InspectPath(os.DllPath, PatchCatalog.LoadAutomatic(), os.Supported);
+        return InspectPath(os.DllPath, PatchCatalog.LoadAutomatic(), os.Supported,
+            selectionContext: new AutomaticSelectionContext(os.Name, os.DisplayVersion, os.InstallationType));
     }
 
     public PatchPlan InspectManual(string find, string replace)
@@ -34,12 +35,13 @@ public sealed class TermsrvEngine : IDisposable
         => InspectPath(file, PatchCatalog.LoadAutomatic(), true);
 
     private static PatchPlan InspectPath(string path, IReadOnlyList<PatchProfile> profiles,
-        bool supported, bool manualMode = false)
+        bool supported, bool manualMode = false, AutomaticSelectionContext? selectionContext = null)
     {
         var bytes = File.ReadAllBytes(path);
         var preview = PatchCatalog.Inspect(bytes, path,
             FileVersionInfo.GetVersionInfo(path).FileVersion ?? "Unknown",
-            SystemInfo.Sha256(bytes), supported, profiles, "x64", manualMode);
+            SystemInfo.Sha256(bytes), supported, profiles, "x64", manualMode,
+            selectionContext);
         // A byte match in .rsrc, file overlay or a damaged/non-DLL file is not
         // a valid Ready preview. Refuse it before displaying an Apply button.
         if (preview.State == PatchState.Ready)

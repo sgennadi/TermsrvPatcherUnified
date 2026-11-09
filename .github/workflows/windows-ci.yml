@@ -91,30 +91,13 @@ jobs:
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
           if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
           if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
-          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.17' -Wait -PassThru
+          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.1.0-preview.18' -Wait -PassThru
           if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
           $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }
-      - name: Include license and third-party notices
+      - name: Package exact two-file portable ZIP and one-EXE updater ZIP
         shell: pwsh
-        run: |
-          Copy-Item -LiteralPath 'LICENSE' -Destination 'publish/LICENSE' -Force
-          Copy-Item -LiteralPath 'NOTICE.md' -Destination 'publish/NOTICE.md' -Force
-          Copy-Item -LiteralPath 'CHANGELOG.md' -Destination 'publish/CHANGELOG.md' -Force
-          New-Item -ItemType Directory -Force -Path 'publish/licenses' | Out-Null
-          Copy-Item -LiteralPath 'licenses/NSudo-MIT.txt' -Destination 'publish/licenses/NSudo-MIT.txt' -Force
-          Copy-Item -LiteralPath 'licenses/fabianosrc-MIT.txt' -Destination 'publish/licenses/fabianosrc-MIT.txt' -Force
-      - name: Package preview
-        shell: pwsh
-        run: |
-          Compress-Archive -Path 'publish/*' -DestinationPath 'TermsrvPatcherUnified-win-x64.zip' -Force
-          Compress-Archive -Path 'publish/TermsrvPatcherUnified.exe' -DestinationPath 'TermsrvPatcherUnified-update-win-x64.zip' -Force
-          python scripts/verify_update_package.py TermsrvPatcherUnified-update-win-x64.zip
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $checksums = foreach ($name in @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip')) {
-            '{0}  {1}' -f (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant(), $name
-          }
-          Set-Content SHA256SUMS.txt -Value $checksums -Encoding ascii
+        run: ./scripts/package_preview.ps1
       - uses: actions/upload-artifact@v7
         with:
           name: TermsrvPatcherUnified-preview-win-x64

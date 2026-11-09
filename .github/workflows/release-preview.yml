@@ -84,21 +84,9 @@ jobs:
           if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
           $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }
-      - name: Package full distribution and exact updater-only EXE ZIP
+      - name: Package exact two-file portable ZIP and one-EXE updater ZIP
         shell: pwsh
-        run: |
-          Copy-Item LICENSE publish/LICENSE -Force
-          Copy-Item NOTICE.md publish/NOTICE.md -Force
-          New-Item -ItemType Directory -Force publish/licenses | Out-Null
-          Copy-Item licenses/NSudo-MIT.txt publish/licenses/NSudo-MIT.txt -Force
-          Copy-Item licenses/fabianosrc-MIT.txt publish/licenses/fabianosrc-MIT.txt -Force
-          Compress-Archive -Path 'publish/*' -DestinationPath 'TermsrvPatcherUnified-win-x64.zip' -Force
-          Compress-Archive -Path 'publish/TermsrvPatcherUnified.exe' -DestinationPath 'TermsrvPatcherUnified-update-win-x64.zip' -Force
-          python scripts/verify_update_package.py TermsrvPatcherUnified-update-win-x64.zip
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $assets = @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip')
-          $checksums = foreach ($name in $assets) { '{0}  {1}' -f (Get-FileHash $name -Algorithm SHA256).Hash.ToLowerInvariant(), $name }
-          Set-Content SHA256SUMS.txt -Value $checksums -Encoding ascii
+        run: ./scripts/package_preview.ps1
       - name: Publish explicit unsigned prerelease only
         shell: pwsh
         env:
@@ -115,7 +103,7 @@ jobs:
             'No automatic or silent unsigned installation is supported.'
             'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
             ''
-            'Full ZIP includes GPLv3 and third-party notices. Update-only ZIP contains exactly one x64 EXE.'
+            'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false

@@ -60,18 +60,30 @@ auto = parse_catalog("AutomaticPatterns.txt")
 legacy = parse_catalog("LegacyUserPatterns.MANUAL.txt")
 check(len(auto) == 3, "3 automatic patterns")
 check(len(legacy) == 16, "16 legacy manual patterns")
+
+auto_text = (ROOT / "Patterns" / "AutomaticPatterns.txt").read_text(encoding="utf-8")
+legacy_text = (ROOT / "Patterns" / "LegacyUserPatterns.MANUAL.txt").read_text(encoding="utf-8")
+check(
+    "x64, 39 81 3C 06 00 00 0F 84 * * * 00," in auto_text
+    and "x64, 39 81 3C 06 00 00 0F * * * * 00," not in auto_text,
+    "generic catalog fixes the JE/JZ opcode and wildcards only rel32 low bytes")
+check(
+    "x64, 39 81 3C 06 00 00 0F 84 5F 64 01 00," in legacy_text
+    and "x64, 39 81 3C 06 00 00 0F 84 5F 64 01 20," not in legacy_text,
+    "Server 2022 20348.3091 legacy pattern has the corrected 00 final byte")
+
 check(len(parse_catalog("Examples.NOT_ACTIVE.txt")) >= 0, "examples segregated")
 
 project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 for version in (project, main, readme):
-    check("0.1.0-preview.17" in version, "version consistency")
+    check("0.1.0-preview.18" in version, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.17" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("0.1.0-preview.18" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
@@ -148,10 +160,20 @@ check((ROOT / "GlobalUsings.cs").exists() and "global using System.IO;" in (ROOT
 check("using System.IO;" in (ROOT / "Tests/Program.cs").read_text(encoding="utf-8"), "WPF test project explicitly imports System.IO")
 print("PASS: explicit WPF SDK import guards.")
 
+packager = (ROOT / 'scripts/package_preview.ps1').read_text(encoding="utf-8")
 workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text(encoding="utf-8")
-check("publish/LICENSE" in workflow and "publish/NOTICE.md" in workflow, "redistributed application license and notices are packaged")
-check("publish/licenses/NSudo-MIT.txt" in workflow and "publish/licenses/fabianosrc-MIT.txt" in workflow, "redistributed MIT notices are packaged")
-print("PASS: redistributed license packaging guards.")
+release = (ROOT / '.github/workflows/release-preview.yml').read_text(encoding="utf-8")
+example = (ROOT / 'Example.txt').read_text(encoding="utf-8")
+check(all(p in packager for p in ('Example.txt', 'LICENSE', 'NOTICE.md',
+      'licenses/NSudo-MIT.txt', 'licenses/fabianosrc-MIT.txt')),
+      "portable Example.txt includes complete GPLv3, notices and MIT texts")
+check('verify_update_package.py --full' in packager, "portable two-file ZIP is validated")
+check('verify_update_package.py $updateZip' in packager, "single-EXE updater ZIP validated")
+check('scripts/package_preview.ps1' in workflow and 'scripts/package_preview.ps1' in release,
+      "CI and release share the exact-layout packager")
+check('Architecture, Find HEX bytes, Replace HEX bytes' in example and 'x64,' in example,
+      "Example.txt contains real HEX pattern formatting examples")
+print("PASS: two-file portable ZIP, updater and license packaging guards.")
 
 check((ROOT / "Core/GitHubIssuePublisher.cs").exists(), "opt-in GitHub Issue publisher present")
 publisher = (ROOT / "Core/GitHubIssuePublisher.cs").read_text(encoding="utf-8")

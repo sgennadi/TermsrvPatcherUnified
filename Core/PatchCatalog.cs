@@ -6,6 +6,7 @@ namespace TermsrvPatcherUnified.Core;
 public enum PatchState { Ready, AlreadyPatched, Unknown, Ambiguous, Unsupported }
 
 public sealed record PatchProfile(string Label, string Architecture, IReadOnlyList<BytePattern> Groups, string Source);
+public sealed record AutomaticSelectionContext(string WindowsName, string DisplayVersion, string InstallationType);
 public sealed record PatchEdit(int Offset, byte[] Expected, byte[] Replacement);
 public sealed record PatchPlan(PatchState State, string Description, string ProfileId, string FilePath,
     string FileVersion, string OriginalSha256, IReadOnlyList<PatchEdit> Edits, byte[]? PatchedBytes,
@@ -70,12 +71,45 @@ public static class PatchCatalog
             finds.Select((part, i) => new BytePattern(part, replacements[i])).ToArray(), "Manual editor");
     }
 
-    private sealed record Candidate(string Label, List<PatchEdit> Edits, bool Already);
+    private const string EmbeddedSource = "fabianosrc/TermsrvPatcher automatic signatures";
+    private const string GenericLabel = "Windows 10 / Windows 11 22H2-23H2 / older Windows Server generic signature";
 
-    // A candidate may be used ONLY when every group matches exactly once and all groups share a state.
-    // Unknown patterns never result in auto-generated replacement bytes.
+    private sealed record Candidate(string Label, List<PatchEdit> Edits, bool Already,
+        bool SpecificForHost, bool GenericFallback);
+
+    private static bool IsEmbedded(PatchProfile profile)
+        => profile.Source.Equals(EmbeddedSource, StringComparison.Ordinal);
+
+    private static bool IsGenericFallback(PatchProfile profile)
+        => IsEmbedded(profile) && profile.Label.Equals(GenericLabel, StringComparison.Ordinal);
+
+    private static bool IsSpecificForHost(PatchProfile profile, AutomaticSelectionContext? host)
+    {
+        if (host is null || !IsEmbedded(profile) ||
+            !host.WindowsName.Equals("Windows 11", StringComparison.OrdinalIgnoreCase) ||
+            !host.InstallationType.Equals("Client", StringComparison.OrdinalIgnoreCase))
+            return false;
+        return host.DisplayVersion.ToUpperInvariant() switch
+        {
+            "24H2" => profile.Label.StartsWith("Windows 11 24H2 family", StringComparison.Ordinal),
+            "25H2" or "26H2" =>
+                profile.Label.Equals("Windows 11 25H2 / 26H2 alternate layout", StringComparison.Ordinal),
+            _ => false
+        };
+    }
+
+    private static bool RegionsOverlap(Candidate selected, Candidate other)
+        => selected.Edits.Any(a => other.Edits.Any(b =>
+            (long)a.Offset < (long)b.Offset + b.Expected.Length &&
+            (long)b.Offset < (long)a.Offset + a.Expected.Length));
+
+    // A candidate is admitted only when every group matches exactly once and all
+    // groups share a state. The installed-OS priority applies ONLY to trusted
+    // embedded automatic signatures, never to imported or manually entered rules.
+    // The generic fallback is not patched alongside a selected specific target.
     public static PatchPlan Inspect(byte[] dll, string path, string fileVersion, string sha256,
-        bool supported, IReadOnlyList<PatchProfile> profiles, string architecture = "x64", bool manual = false)
+        bool supported, IReadOnlyList<PatchProfile> profiles, string architecture = "x64", bool manual = false,
+        AutomaticSelectionContext? selectionContext = null)
     {
         if (!supported)
             return new(PatchState.Unsupported, "Unsupported target/OS. No modification permitted.", "",
@@ -122,19 +156,55 @@ public static class PatchCatalog
             if (candidates.TryGetValue(id, out var existing))
             {
                 if (existing.Already != (originalCount == 0)) ambiguous = true;
-                else candidates[id] = existing with { Label = existing.Label + " / " + profile.Label };
+                else candidates[id] = existing with
+                {
+                    Label = existing.Label + " / " + profile.Label,
+                    SpecificForHost = existing.SpecificForHost || IsSpecificForHost(profile, selectionContext),
+                    GenericFallback = existing.GenericFallback || IsGenericFallback(profile)
+                };
             }
-            else candidates[id] = new Candidate(profile.Label, edits, originalCount == 0);
+            else candidates[id] = new Candidate(profile.Label, edits, originalCount == 0,
+                IsSpecificForHost(profile, selectionContext), IsGenericFallback(profile));
         }
-        if (ambiguous || candidates.Count > 1)
-            return new(PatchState.Ambiguous, "Conflicting or multiple matching signatures; no changes allowed.",
+        if (ambiguous)
+            return new(PatchState.Ambiguous,
+                "At least one signature has repeated, overlapping or mixed Find/Replace hits; no changes allowed.",
                 "", path, fileVersion, sha256, [], null, manual);
         if (candidates.Count == 0)
             return new(PatchState.Unknown, "No verified signature found. Use Search DLL or Manual for inspection.",
                 "", path, fileVersion, sha256, [], null, manual);
-        var best = candidates.Values.Single();
+
+        Candidate best;
+        string selectedBy = "";
+        if (candidates.Count == 1)
+        {
+            best = candidates.Values.Single();
+        }
+        else
+        {
+            // A Windows-specific match may disambiguate a simultaneously present
+            // old GENERIC fallback, but never two specific, unknown, or
+            // overlapping targets. A trusted installed-OS context is mandatory.
+            var specific = !manual && selectionContext is not null
+                ? candidates.Values.Where(c => c.SpecificForHost).ToArray()
+                : [];
+            if (specific.Length != 1 ||
+                candidates.Values.Any(c => !ReferenceEquals(c, specific[0]) &&
+                    (!c.GenericFallback || RegionsOverlap(specific[0], c))))
+            {
+                return new(PatchState.Ambiguous,
+                    "Multiple distinct signature targets; OS-aware priority could not uniquely select " +
+                    "one trusted specific profile over only non-overlapping generic fallback matches.",
+                    "", path, fileVersion, sha256, [], null, manual);
+            }
+            best = specific[0];
+            selectedBy = "Selected the verified " + selectionContext!.WindowsName + " " +
+                selectionContext.DisplayVersion + " specific profile over the matching older generic " +
+                "fallback. Only the selected target is included. ";
+        }
         if (best.Already)
-            return new(PatchState.AlreadyPatched, "Replacement bytes already present. No changes needed.",
+            return new(PatchState.AlreadyPatched, selectedBy +
+                "Replacement bytes already present at the selected target. No changes needed.",
                 best.Label, path, fileVersion, sha256, best.Edits, null, manual);
         var output = (byte[])dll.Clone();
         foreach (var edit in best.Edits)
@@ -143,7 +213,9 @@ public static class PatchCatalog
                 throw new InvalidOperationException("Preview validation failed.");
             edit.Replacement.CopyTo(output, edit.Offset);
         }
-        return new(PatchState.Ready, "Unique matching signature found. Preview is ready.", best.Label,
+        return new(PatchState.Ready, selectedBy +
+            "A single verified target has been selected for preview; PE and SHA-256 checks still apply.",
+            best.Label,
             path, fileVersion, sha256, best.Edits, output, manual);
     }
 }
