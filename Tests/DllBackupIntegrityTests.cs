@@ -149,7 +149,7 @@ internal static class DllBackupIntegrityTests
                 var privateAcl = new System.Security.AccessControl.DirectorySecurity();
                 privateAcl.SetAccessRuleProtection(true, false);
                 privateAcl.SetOwner(user);
-                foreach (var sid in new[] { user, admin, localSystem })
+                foreach (var sid in new[] { admin, localSystem })
                     privateAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
                         sid, System.Security.AccessControl.FileSystemRights.FullControl,
                         System.Security.AccessControl.InheritanceFlags.ContainerInherit |
