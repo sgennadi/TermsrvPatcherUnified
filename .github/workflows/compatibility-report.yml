@@ -28,18 +28,20 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: true
-      - name: Validate compatibility event and update CSV
-        run: python3 scripts/record_successful_fix.py "$GITHUB_EVENT_PATH" data/successful-fixes.csv
-      - name: Commit aggregated version-only information
+      - name: Validate system-fix and offline-generated DLL events
+        run: |
+          python3 scripts/record_successful_fix.py "$GITHUB_EVENT_PATH" data/successful-fixes.csv
+          python3 scripts/record_offline_fix.py "$GITHUB_EVENT_PATH" data/offline-fixes.csv
+      - name: Commit separately aggregated compatibility metadata
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet -- data/successful-fixes.csv; then
+          if git diff --quiet -- data/successful-fixes.csv data/offline-fixes.csv; then
             echo "No compatible version metadata to record."
             exit 0
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -- data/successful-fixes.csv
-          git commit -m "chore: aggregate successful-fix version metadata"
+          git add -- data/successful-fixes.csv data/offline-fixes.csv
+          git commit -m "chore: aggregate reviewed DLL compatibility metadata"
           git push origin HEAD:main
