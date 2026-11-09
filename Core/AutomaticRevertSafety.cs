@@ -41,31 +41,49 @@ internal static class AutomaticRevertSafety
                 journal.ProfileId, "Journal"), journal.OriginalBytes);
         }
 
-        // Compatibility with backups from Preview.21 and earlier. A single
-        // trusted backup must independently reproduce the WHOLE installed DLL.
-        // Unknown/mixed/manual signatures are not eligible for one-click Revert.
-        using var engine = new TermsrvEngine(null);
-        var backups = engine.BackupsForCurrentVersion();
-        if (backups.Count != 1) return null;
-        byte[] original = DllBackupStore.ReadVerified(
-            TermsrvEngine.BackupDirectory, backups[0],
-            os.DllVersion, installed.LongLength);
-        var originalHash = SystemInfo.Sha256(original);
-        if (originalHash.Equals(currentHash, StringComparison.OrdinalIgnoreCase))
-            return null;
-        var expected = PatchCatalog.Inspect(original, os.DllPath, os.DllVersion,
-            originalHash, true, PatchCatalog.LoadAutomatic(), "x64", false,
-            new AutomaticSelectionContext(os.Name, os.DisplayVersion, os.InstallationType));
-        if (expected.State != PatchState.Ready || expected.IsManual ||
-            expected.PatchedBytes is null || expected.Edits.Count == 0)
-            return null;
-        PeSafety.RequireExecutableEdits(original, expected.Edits);
-        if (!SystemInfo.Sha256(expected.PatchedBytes)
-                .Equals(currentHash, StringComparison.OrdinalIgnoreCase))
-            return null;
-        return new AutomaticRevertSnapshot(new AutomaticRevertPlan(
-            originalHash, currentHash, os.DllVersion,
-            expected.ProfileId, "TrustedBackup"), original);
+        // Compatibility with Preview.21 protected backups and the System32
+        // .bak introduced in Preview.22. Each candidate must reproduce the
+        // EXACT current patched DLL using a trusted embedded automatic profile.
+        // A stale Windows Update backup can never authorize Revert.
+        var candidates = new List<(string Source, byte[] Bytes)>();
+        using (var engine = new TermsrvEngine(null))
+        {
+            var backups = engine.BackupsForCurrentVersion();
+            if (backups.Count > 1) return null;
+            if (backups.Count == 1)
+                candidates.Add(("TrustedBackup", DllBackupStore.ReadVerified(
+                    TermsrvEngine.BackupDirectory, backups[0],
+                    os.DllVersion, installed.LongLength)));
+        }
+        var system32 = System32BackupStore.ReadVerified(os.DllVersion, installed.LongLength);
+        if (system32 is not null)
+            candidates.Add(("System32Backup", system32));
+        var matches = new List<AutomaticRevertSnapshot>();
+        foreach (var candidate in candidates)
+        {
+            var original = candidate.Bytes;
+            string originalHash = SystemInfo.Sha256(original);
+            if (originalHash.Equals(currentHash, StringComparison.OrdinalIgnoreCase))
+                continue;
+            var expected = PatchCatalog.Inspect(original, os.DllPath, os.DllVersion,
+                originalHash, true, PatchCatalog.LoadAutomatic(), "x64", false,
+                new AutomaticSelectionContext(os.Name, os.DisplayVersion, os.InstallationType));
+            if (expected.State != PatchState.Ready || expected.IsManual ||
+                expected.PatchedBytes is null || expected.Edits.Count == 0)
+                continue;
+            PeSafety.RequireExecutableEdits(original, expected.Edits);
+            if (!SystemInfo.Sha256(expected.PatchedBytes)
+                    .Equals(currentHash, StringComparison.OrdinalIgnoreCase))
+                continue;
+            matches.Add(new AutomaticRevertSnapshot(new AutomaticRevertPlan(
+                originalHash, currentHash, os.DllVersion,
+                expected.ProfileId, candidate.Source), original));
+        }
+        // Duplicate copies of identical originals are fine; two different
+        // originals are never auto-selected.
+        if (matches.Select(x => x.Plan.OriginalSha256).Distinct(
+                StringComparer.OrdinalIgnoreCase).Count() > 1) return null;
+        return matches.FirstOrDefault();
     }
 
     internal static bool SameApproval(AutomaticRevertPlan approved,
