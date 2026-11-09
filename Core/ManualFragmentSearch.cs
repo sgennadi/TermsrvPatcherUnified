@@ -3,7 +3,11 @@ using System.Text;
 namespace TermsrvPatcherUnified.Core;
 
 public sealed record ManualFragmentHit(
-    int Group, int Offset, string ActualHex, string Context);
+    int Group, int Offset, string ActualHex, string Context,
+    int Length, string MaskHex, IReadOnlyList<int> WildcardPositions)
+{
+    public string Address => "0x" + Offset.ToString("X8");
+}
 
 public sealed record ManualFragmentReport(
     IReadOnlyList<ManualFragmentHit> Hits, string Summary)
@@ -24,6 +28,9 @@ public sealed record ManualFragmentReport(
     }
 }
 
+public sealed record ManualFragmentSnapshot(
+    byte[] Bytes, ManualFragmentReport Report);
+
 /// <summary>
 /// Read-only incremental Find-field lookup. Accepts short or compact partial HEX;
 /// a trailing incomplete nibble is ignored until it forms a complete byte.
@@ -39,19 +46,22 @@ public static class ManualFragmentSearch
     private sealed record Query(int GroupNumber, byte?[] Bytes, bool Incomplete);
 
     public static ManualFragmentReport SearchFile(string path, string input)
+        => SearchFileSnapshot(path, input).Report;
+
+    public static ManualFragmentSnapshot SearchFileSnapshot(string path, string input)
     {
         var queries = Parse(input);
         if (queries.Count == 0)
-            return new([], "Enter at least two complete fixed HEX bytes, e.g. 44 8B or 448B. " +
-                "Spaces, compact HEX, '*' and '??' wildcards are supported.");
+            return new([], new([], "Enter two or more complete fixed HEX bytes, e.g. 44 8B."));
         if (queries.All(q => q.Bytes.Count(x => x.HasValue) < 2))
-            return new([], "Enter at least two complete fixed bytes to narrow the search. " +
-                "Single-byte or all-wildcard sequences are too broad.");
+            return new([], new([], "Enter at least two complete fixed bytes. " +
+                "A one-byte or all-wildcard pattern is too broad for live lookup."));
         var info = new FileInfo(path);
         if (!info.Exists) throw new FileNotFoundException("The inspected DLL is not available.");
         if (info.Length is < 1 or > MaximumFileSize)
             throw new InvalidDataException("Selected file size is outside the read-only 64 MB limit.");
-        return SearchBytes(File.ReadAllBytes(path), input, queries);
+        byte[] bytes = File.ReadAllBytes(path);
+        return new(bytes, SearchBytes(bytes, input, queries));
     }
 
     public static ManualFragmentReport SearchBytes(byte[] file, string input)
@@ -95,7 +105,11 @@ public static class ManualFragmentSearch
                 var before = file.AsSpan(left, offset - left);
                 var after = file.AsSpan(offset + size, end - offset - size);
                 hits.Add(new ManualFragmentHit(query.GroupNumber, offset,
-                    Spaced(actual), Spaced(before) + " [" + Spaced(actual) + "] " + Spaced(after)));
+                    Spaced(actual), Spaced(before) + " [" + Spaced(actual) + "] " + Spaced(after),
+                    size,
+                    string.Join(" ", query.Bytes.Select(x => x.HasValue ? x.Value.ToString("X2") : "??")),
+                    query.Bytes.Select((x, i) => x.HasValue ? -1 : i)
+                        .Where(x => x >= 0).ToArray()));
             }
         }
         string count = truncated ? "At least " + (hits.Count + 1) : hits.Count.ToString();
