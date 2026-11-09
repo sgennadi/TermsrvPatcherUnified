@@ -108,9 +108,7 @@ public partial class App : Application
                     "TermsrvPatcher Unified", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
-        MainWindow = new MainWindow();
+        MainWindow = new MainWindow(offlineStartup);
         MainWindow.Show();
-        if (offlineStartup && MainWindow is MainWindow offline)
-            offline.SelectOfflineTab();
     }
 }
