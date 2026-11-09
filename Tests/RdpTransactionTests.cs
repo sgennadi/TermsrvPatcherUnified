@@ -1,3 +1,4 @@
+using System.IO;
 using System.ServiceProcess;
 using TermsrvPatcherUnified.Core;
 
@@ -61,7 +62,7 @@ internal static class RdpTransactionTests
             }
             public void WaitForStatus(ServiceControllerStatus desired, TimeSpan timeout)
             {
-                if (Status != desired) throw new TimeoutException("Injected wait failure.");
+                if (Status != desired) throw new System.TimeoutException("Injected wait failure.");
             }
             public void Dispose() { }
         }
