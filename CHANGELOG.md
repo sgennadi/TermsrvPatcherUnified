@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-preview.15 — 2026-11-09
+
+- **Automatic → Signature evidence:** lists each catalog Find/Replace signature, its exact-match count, offsets and reason for repeated or conflicting results. An ambiguous match stays blocked; none of these read-only findings authorizes Apply.
+- **Manual → live Find:** incremental partial-HEX lookup in the installed DLL with `*` and `??` wildcards, capped candidate counts, real byte context and masked fixed-byte positions. Incomplete input is not silently converted into a replacement.
+- **Manual → HEX Viewer:** Notepad++-style 16-byte address rows, hexadecimal 00–0F header, ASCII dump and separate highlighting for fixed bytes versus wildcard bytes, plus Previous/Next and Copy actual HEX. Data comes from one inspected DLL snapshot; no file write or service interaction occurs.
+- **Manual → imported catalogs:** **Check all imported** checks every profile against actual DLL bytes, PE executable sections and Windows/build/DLL-version hints; lists candidates and suggests a uniquely verified one for review, never automatic application.
+- GitHub reporting now explicitly labels the GitHub sign-in/token requirement; anonymous GitHub Issue creation is not enabled without a separately operated intake service.
+- Windows CI and release pipeline gain read-only signature, imported catalog, HEX viewer and synthetic WPF control tests. Real Windows 11 desktop DPI and live Apply/Restore remain manual acceptance gates.
+
+
 ## 0.1.0-preview.14 — 2026-11-09
 
 - RDP Settings now stages original registry values and supported inbound firewall-rule states before writing anything. Conflicting Group Policy values or unexpected registry data fail closed.
