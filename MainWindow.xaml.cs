@@ -370,6 +370,8 @@ public partial class MainWindow : Window
             CreateBackupCheck.IsChecked = true;
             createBackup = true;
         }
+        bool isolatedAtConfirmation = !manual &&
+            InteractiveSessionDetector.RequiresIndependentExecutor();
         string message = "This operation modifies the protected Windows termsrv.dll file and stops " +
             "Remote Desktop services temporarily. Active RDP connections may be disconnected. " +
             "Windows updates may revert the change. Proceed only on a system you administer and " +
@@ -379,8 +381,11 @@ public partial class MainWindow : Window
                 "can guarantee that this patch is safe. Manual Apply is not yet independent " +
                 "of the user session; use console access. Continue?";
         else
-            message += "\n\nAUTOMATIC MODE: The operation will be queued under SYSTEM " +
-                "with a mandatory protected backup; closing RDP will not terminate its process.";
+            message += isolatedAtConfirmation
+                ? "\n\nRDP/UNCONFIRMED SESSION: The operation will be scheduled as a one-shot SYSTEM task " +
+                  "with a mandatory protected backup; disconnecting RDP will not terminate its process."
+                : "\n\nLOCAL CONSOLE: The operation will use the normal elevated Apply " +
+                  "with mandatory protected backup and in-process verification.";
         if (!createBackup)
             message += "\n\nCREATE BACKUP IS OFF: No persistent DLL backup will be saved. " +
                        "After the operation, Restore will not be available unless an earlier " +
@@ -391,7 +396,16 @@ public partial class MainWindow : Window
             // Check the session immediately before dispatch. A local console
             // keeps the original synchronous Apply/rollback flow. An RDP
             // session (or unverified session type) uses a Session 0 SYSTEM job.
-            if (InteractiveSessionDetector.RequiresIndependentExecutor())
+            bool isolatedNow = InteractiveSessionDetector.RequiresIndependentExecutor();
+            if (isolatedNow != isolatedAtConfirmation)
+            {
+                MessageBox.Show(this,
+                    "The Windows session type changed after confirmation. No task or patch was started. " +
+                    "Check DLL and approve Apply again.",
+                    "Session type changed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (isolatedNow)
             {
                 await RunBusy(async () =>
                 {

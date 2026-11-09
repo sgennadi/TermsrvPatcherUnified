@@ -113,6 +113,9 @@ public partial class QuickApplyWindow : Window
             // Re-evaluate IMMEDIATELY before dispatch, not at startup.
             // Unknown is handled like RDP to avoid terminating a fragile session.
             var mode = InteractiveSessionDetector.Detect();
+            if ((initialMode == SessionKind.Console) != (mode == SessionKind.Console))
+                throw new InvalidOperationException(
+                    "Session type changed after confirmation. Check the DLL and approve again.");
             if (mode == SessionKind.Console)
             {
                 QuickStatusText.Text = "Applying from the local console...";
