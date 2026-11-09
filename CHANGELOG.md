@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.0-preview.13 — 2026-11-09
+
+- Refocused README on current features and installation; per-build details remain here.
+- Added read-only local RDP/Group Policy comparison: RDP enablement, NLA, one-session policy, TCP port, RDP security layer, encryption level and TermService status. Differing or invalid values show warnings; effective firewall rules and actual GPO application are not assumed.
+- Added a bounded, user-local operation-history JSONL log and History tab. Records verified Apply, Restore, RDP settings, offline copy and DLL baseline events. History stores UTC, result, app version, optional validated DLL version/hash and failure type, never usernames, hostnames, full paths or exception messages.
+- Added synthetic and Windows read-only policy/history regressions with WPF control smoke checks.
+- No automatic patching or background registry/service changes. Real protected DLL Apply/Restore and live Windows 11/200%-DPI acceptance remain manual gates.
+
+
 ## 0.1.0-preview.12 — 2026-11-09
 
 - Added passive DLL Health comparison with a manually saved, user-local JSON baseline; reports unchanged, changed bytes, changed version and invalid reference distinctly.
