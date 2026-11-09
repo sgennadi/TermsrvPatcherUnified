@@ -126,6 +126,9 @@ internal static class IsolatedApplyExecutor
         if (identity.User is null ||
             !identity.User.IsWellKnown(WellKnownSidType.LocalSystemSid))
             return 3;
+        using (var process = Process.GetCurrentProcess())
+            if (process.SessionId != 0)
+                return 3; // Only an actual Session 0 SYSTEM executor is accepted.
         string dir = JobDirectory(id);
         // Only access an already-created, administrator-controlled job folder.
         if (!Directory.Exists(dir) || !Directory.Exists(Root)) return 4;
@@ -298,7 +301,9 @@ internal static class IsolatedApplyExecutor
             task.Settings.Hidden = true;
             task.Settings.Enabled = true;
             task.Settings.AllowDemandStart = true;
-            task.Settings.ExecutionTimeLimit = "PT10M";
+            // Never let Task Scheduler kill this process while TermService
+            // is stopped: ServiceGuard itself bounds state transitions.
+            task.Settings.ExecutionTimeLimit = "PT0S";
             task.Settings.DisallowStartIfOnBatteries = false;
             task.Settings.StopIfGoingOnBatteries = false;
             dynamic trigger = task.Triggers.Create(1); // TASK_TRIGGER_TIME
