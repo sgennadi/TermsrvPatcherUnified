@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 0.1.0-preview.8"
+        Title="TermsrvPatcherUnified 0.1.0-preview.9"
         Width="980" Height="760" MinWidth="770" MinHeight="610"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
@@ -17,7 +17,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="0.1.0-preview.8  |  Windows x64" FontSize="12"
+          <TextBlock Text="0.1.0-preview.9  |  Windows x64" FontSize="12"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
           <TextBlock Text="Remote Desktop inspection, verified patterns and reversible changes"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
@@ -39,6 +39,9 @@
           <TextBlock x:Name="SystemText" FontWeight="SemiBold" FontSize="15" Text="Detecting operating system..."/>
           <TextBlock x:Name="DllText" Margin="0,5,0,0" Foreground="{StaticResource MutedBrush}"/>
           <TextBlock x:Name="StatusText" Margin="0,7,0,0" FontWeight="SemiBold" Foreground="#28589D"/>
+          <CheckBox x:Name="CreateBackupCheck" IsChecked="True" Margin="0,9,0,0"
+                    Content="Create backup before applying (recommended)"
+                    ToolTip="If unchecked, there is no persistent Restore point for this operation. Automatic rollback during a failed write remains active."/>
         </StackPanel>
         <Button x:Name="RefreshButton" Grid.Column="1" Tag="&#xE72C;" Content="Check DLL" Style="{StaticResource PrimaryButton}"
                 Click="Refresh_Click" VerticalAlignment="Center" Margin="15,0,0,0"/>

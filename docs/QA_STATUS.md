@@ -1,6 +1,6 @@
 # Preview QA status — 2026-11-09
 
-Version: 0.1.0-preview.8
+Version: 0.1.0-preview.9
 
 ## Existing verified baseline
 
@@ -28,3 +28,10 @@ Version: 0.1.0-preview.8
 - Explicit rights mask excludes read-only ACL entries; dangerous write/delete/ownership rights still block a writable install directory.
 - An isolated Windows test uses disposable PE-like files to exercise File.Replace backup and automatic rollback when a health probe is rejected.
 - WPF windows are created offscreen on STA, no windows are shown, and layout passes are measured at four synthetic viewport factors. This is **not proof of actual 200% desktop rendering**.
+
+## Preview.9 acceptance checks
+
+- Create backup is enabled by default and controls the persistent DLL backup for Automatic/Manual Apply. Disabling it requires an extra confirmation; failed-write in-memory rollback is retained.
+- A user-reviewed, opt-in successful-fix report includes original/patched SHA-256 and bounded before/after byte ranges, with Windows, DLL and app versions. It does not include paths, usernames or device identity.
+- The compatibility GitHub workflow accepts v1 and v2 reports and validates the CSV migration, hashes, offsets, duplicate aggregation and malicious/extra fields.
+- Windows Actions checks default backup state, dialog layout, report serialization and offline updater rollback. Live protected DLL and RDP service modification remains untested.

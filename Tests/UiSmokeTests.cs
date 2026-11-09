@@ -23,10 +23,16 @@ internal static class UiSmokeTests
                 using var updater = new UpdateIntegration();
                 var record = new SuccessfulFixMetadata(
                     "Windows 11", "24H2", 26100, 1234, "10.0.26100.1234",
-                    UpdateIntegration.Version, "automatic");
+                    UpdateIntegration.Version, "automatic",
+                    new string('a', 64), new string('b', 64),
+                    [new ChangedBytes(40, "11223344", "AABBCCDD")]);
+                var main = new MainWindow();
+                if (main.FindName("CreateBackupCheck") is not CheckBox backup ||
+                    backup.IsChecked != true)
+                    throw new Exception("Create backup must be checked by default.");
                 var windows = new Window[]
                 {
-                    new MainWindow(),
+                    main,
                     new UpdateCenterWindow(updater),
                     new DiagnosticsWindow(),
                     new AboutWindow(),

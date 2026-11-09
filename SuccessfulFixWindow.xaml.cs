@@ -27,8 +27,8 @@ public partial class SuccessfulFixWindow : Window
             return;
         }
         if (MessageBox.Show(this,
-            "Send exactly the version information displayed in the preview to the PUBLIC " +
-            "GitHub compatibility issue? The token is used for this request only.",
+            "Send the displayed Windows versions, original/patched SHA-256 and changed byte ranges " +
+            "to the PUBLIC GitHub compatibility issue? The token is used for this request only.",
             "Confirm public version report", MessageBoxButton.YesNo,
             MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
@@ -36,7 +36,7 @@ public partial class SuccessfulFixWindow : Window
         sending = true;
         SendButton.IsEnabled = false;
         SkipButton.IsEnabled = false;
-        Status.Text = "Sending version-only compatibility report...";
+        Status.Text = "Sending reviewed compatibility data (hashes and changed bytes)...";
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));

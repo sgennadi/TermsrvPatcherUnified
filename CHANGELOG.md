@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.9 — 2026-11-09
+
+- Added default-on Create backup checkbox for both automatic and manual Apply, with extra confirmation when disabled; failed-write rollback remains active even without persistent backup.
+- Added opt-in successful-fix report v2 with original and patched SHA-256 plus bounded byte offsets and exact before/after data.
+- Added v1/v2 compatibility comment parser, strict data validation, CSV migration and negative regression tests.
+- Enlarged report dialog, added backup-control UI smoke test and synchronized version numbers and documentation.
+- No live Windows system-DLL or TermService modification has been validated. Release remains unsigned Preview.
+
 ## 0.1.0-preview.8 — 2026-11-09
 
 - Fixed an overbroad filesystem ACL rights mask that included read access and could disable safe installation from Program Files.
