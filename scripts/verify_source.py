@@ -299,7 +299,7 @@ check('"TermsrvPatcherUnified.Secure"' in engine_src and "LegacyBackupDirectory"
 check("TASK_LOGON_SERVICE_ACCOUNT" in executor_src and
       "LocalSystemSid" in executor_src and
       "EnsurePrivateDirectory" in executor_src and
-      "engine.Apply(plan, createBackup: true)" in executor_src and
+      "engine.Apply(plan, createBackup: req.CreateBackup)" in executor_src and
       "ExpectedPatchedSha256" in executor_src and
       "FileMode.CreateNew" in executor_src,
       "one-shot SYSTEM executor independently checks planned output and requires backup")
@@ -308,6 +308,36 @@ check("WTSQuerySessionInformation" in detect_src and "WtsClientProtocolType" in 
       "InteractiveSessionDetector.RequiresIndependentExecutor()" in
       (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8"),
       "remote-session dispatch uses the OS session APIs immediately before Apply")
+quick_markup = (ROOT / "QuickApplyWindow.xaml").read_text(encoding="utf-8")
+quick_view = ET.fromstring(quick_markup)
+for element in quick_view.iter():
+    for key, value in element.attrib.items():
+        if key.rsplit("}", 1)[-1] in {"Click", "Checked", "Unchecked"}:
+            check(bool(re.search(r"\bvoid\s+" + re.escape(value) + r"\s*\(", quick_src)),
+                  f"Compact GUI handler exists: {value}")
+check('x:Name="QuickNoBackupCheck"' in quick_markup and
+      'IsChecked="False"' in quick_markup and
+      'x:Name="QuickRevertButton"' in quick_markup and
+      "QuickRevertButton.IsEnabled" in quick_src and
+      "IsolatedApplyExecutor.QueueRevert" in quick_src and
+      "IsolatedApplyExecutor.Queue(plan, createFullBackup)" in quick_src,
+      "compact Revert and explicit no-full-backup are wired for RDP sessions")
+check("RecoveryJournalStore.SaveBeforeApply" in engine_src and
+      "System32BackupStore.SyncBeforeApply" in engine_src and
+      "AutomaticRevertSafety.Resolve" in engine_src and
+      (ROOT / "Core/RecoveryJournalStore.cs").exists() and
+      (ROOT / "Core/System32BackupStore.cs").exists(),
+      "automatic Apply records SHA-bound journal and refreshes verified System32 backup")
+check("IsolatedApplyExecutor.RevertWorkerArgument" in app_src and
+      "RunRevertWorker" in executor_src and
+      "SameApproval" in executor_src and
+      "ProtectedData.Protect" in (ROOT / "Core/RecoveryJournalStore.cs").read_text(encoding="utf-8"),
+      "isolated Revert requires SYSTEM worker and DPAPI protected recovery")
+check("System32BackupStore.ReadVerified" in
+      (ROOT / "Core/AutomaticRevertSafety.cs").read_text(encoding="utf-8") and
+      "ArchiveOld" in (ROOT / "Core/System32BackupStore.cs").read_text(encoding="utf-8"),
+      "stale System32 .bak is archived before new trusted original is recorded")
+
 check("new QuickApplyWindow()" in app_src and
       "IsolatedApplyExecutor.WorkerArgument" in app_src and
       "InteractiveSessionDetector.Detect()" in quick_src,
