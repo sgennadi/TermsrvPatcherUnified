@@ -185,7 +185,11 @@ check((ROOT / "scripts/record_successful_fix.py").exists(), "version-only compat
 check("SuccessfulFixMetadata.FromSuccessfulApply" in (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8"), "compatibility report is offered after successful protected apply")
 check("SuccessfulFixPublisher" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8"), "user-confirmed GitHub Issues compatibility reporting is wired")
 check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").read_text(encoding="utf-8"), "GitHub event handler updates compatibility CSV")
-check((ROOT / "data/successful-fixes.csv").exists(), "version-only CSV exists")
+check((ROOT / "data/successful-fixes.csv").exists(), "compatibility CSV exists")
+check("original_sha256,patched_sha256,edits" in (ROOT / "data/successful-fixes.csv").read_text(encoding="utf-8"), "CSV contains v2 hashes and edits")
+check("CreateBackupCheck" in (ROOT / "MainWindow.xaml").read_text(encoding="utf-8"), "backup checkbox exists")
+check("Apply(PatchPlan preview, bool createBackup" in (ROOT / "Core/TermsrvEngine.cs").read_text(encoding="utf-8"), "optional backup wired into apply")
+check("termsrv-success/v2" in (ROOT / "Core/SuccessfulFixPublisher.cs").read_text(encoding="utf-8"), "v2 compatibility report is supported")
 print("PASS: compatibility report source guards.")
 
 check(not re.search(r"\.read_text\(\s*\)", (ROOT / "scripts/verify_source.py").read_text(encoding="utf-8")), "source validator uses explicit UTF-8 on Windows")

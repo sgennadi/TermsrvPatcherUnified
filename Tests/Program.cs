@@ -231,45 +231,60 @@ Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
     "Version-mismatched update probes are rejected");
 Ensure(UpdateInstallBridge.Probe("0.1.0-preview.8") is 0 or 5,
     "Update probe returns only explicit success or unavailable");
-// Successful-fix reports contain only version metadata. They are offered
-// after a confirmed GUI Apply; the network path here is always stubbed.
-var versionOnly = SuccessfulFixMetadata.FromSuccessfulApply(
+// Successful-fix v2 is opt-in: original/result SHA-256 and exact modified ranges.
+var detailed = SuccessfulFixMetadata.FromSuccessfulApply(
     new WindowsDetails("Windows 11", "24H2", 26100, 1234, "Client",
-        true, @"C:\\Windows\\System32\\termsrv.dll", "10.0.26100.1234"), ready);
-var successBody = versionOnly.AsComment();
-Ensure(successBody.StartsWith("termsrv-success/v1", StringComparison.Ordinal),
-    "compatibility report uses canonical marker");
-Ensure(successBody.Contains("windows=Windows 11", StringComparison.Ordinal) &&
-       successBody.Contains("build=26100", StringComparison.Ordinal) &&
-       successBody.Contains("dll=1.0", StringComparison.Ordinal) &&
-       successBody.Contains("app=0.1.0-preview.8", StringComparison.Ordinal),
-    "compatibility metadata includes only requested version values");
+        true, @"C:\Windows\System32\termsrv.dll", "10.0.26100.1234"), ready);
+var successBody = detailed.AsComment();
+Ensure(successBody.StartsWith("termsrv-success/v2\n", StringComparison.Ordinal),
+    "compatibility report uses v2 marker");
+Ensure(successBody.Contains("windows=Windows 11\n", StringComparison.Ordinal) &&
+       successBody.Contains("build=26100\n", StringComparison.Ordinal) &&
+       successBody.Contains("dll=1.0\n", StringComparison.Ordinal) &&
+       successBody.Contains("app=0.1.0-preview.8\n", StringComparison.Ordinal),
+    "report contains expected Windows, DLL and application versions");
+Ensure(successBody.Contains("original_sha256=" + ready.OriginalSha256, StringComparison.Ordinal) &&
+       successBody.Contains("patched_sha256=" + SystemInfo.Sha256(ready.PatchedBytes!), StringComparison.Ordinal),
+    "report contains original and modified SHA-256");
+Ensure(successBody.Contains("edits=0x00000028:11223344>AABBCCDD", StringComparison.Ordinal),
+    "report includes offset and before/after bytes");
 Ensure(!successBody.Contains("C:\\", StringComparison.Ordinal) &&
-       !successBody.Contains("hostname=", StringComparison.Ordinal),
-    "compatibility comment excludes paths and machine identity");
+       !successBody.Contains("hostname=", StringComparison.Ordinal) &&
+       !successBody.Contains("username=", StringComparison.Ordinal),
+    "report excludes hostnames, users and file paths");
 var successHandler = new IssueStubHandler(HttpStatusCode.Created, "{}");
 using (var client = new HttpClient(successHandler))
 using (var sender = new SuccessfulFixPublisher(client))
 {
-    sender.PublishAsync(versionOnly, syntheticToken).GetAwaiter().GetResult();
+    sender.PublishAsync(detailed, syntheticToken).GetAwaiter().GetResult();
     Ensure(successHandler.RequestCount == 1 &&
            successHandler.LastUrl ==
              "https://api.github.com/repos/sgennadi/TermsrvPatcherUnified/issues/1/comments",
-        "successful-fix report is posted only to the pinned public compatibility issue");
-    Ensure(successHandler.LastBody.Contains("termsrv-success/v1", StringComparison.Ordinal) &&
+        "report goes only to pinned public compatibility issue");
+    Ensure(successHandler.LastBody.Contains("termsrv-success/v2", StringComparison.Ordinal) &&
+           successHandler.LastBody.Contains("original_sha256=", StringComparison.Ordinal) &&
            !successHandler.LastBody.Contains(syntheticToken, StringComparison.Ordinal),
-        "compatibility comment contains no GitHub token");
-    Expect<ArgumentException>(() => sender.PublishAsync(versionOnly, "bad token")
-        .GetAwaiter().GetResult(), "reject invalid compatibility report credential");
+        "GitHub request includes hashes but excludes token");
+    Expect<ArgumentException>(() => sender.PublishAsync(detailed, "bad token")
+        .GetAwaiter().GetResult(), "reject invalid compatibility token");
 }
 using (var client = new HttpClient(new IssueStubHandler(HttpStatusCode.Forbidden, "{}")))
 using (var sender = new SuccessfulFixPublisher(client))
-    Expect<InvalidOperationException>(() => sender.PublishAsync(versionOnly, syntheticToken)
-        .GetAwaiter().GetResult(), "failed GitHub Issues authorization does not imply success");
-Expect<InvalidDataException>(() => new SuccessfulFixMetadata(
-    "Windows 11", "24H2", 26100, 1234, "10.0.1234.0",
-    "0.1.0-preview.8", "manual\\nprivate-data=1").AsComment(),
-    "reject unapproved compatibility fields");
+    Expect<InvalidOperationException>(() => sender.PublishAsync(detailed, syntheticToken)
+        .GetAwaiter().GetResult(), "failed GitHub authorization does not imply success");
+Expect<InvalidDataException>(() => (detailed with { OriginalSha256 = "00" }).AsComment(),
+    "reject invalid original SHA-256");
+Expect<InvalidDataException>(() => (detailed with { PatchedSha256 = detailed.OriginalSha256 }).AsComment(),
+    "reject unchanged file checksum");
+Expect<InvalidDataException>(() => (detailed with {
+    Changes = [new ChangedBytes(40, "11223344", "11223344")] }).AsComment(),
+    "reject unchanged edited bytes");
+Expect<InvalidDataException>(() => (detailed with {
+    Changes = [new ChangedBytes(40, "11223344", "AABBCCDD"),
+               new ChangedBytes(42, "1122", "3344")] }).AsComment(),
+    "reject overlapping edit offsets");
+Expect<InvalidDataException>(() => (detailed with { Mode = "manual\nhost=PRIVATE" }).AsComment(),
+    "reject unapproved compatibility metadata");
 Ensure(!UpdateInstallBridge.HasMutatingRights(
         System.Security.AccessControl.FileSystemRights.ReadAndExecute),
     "standard Program Files read/execute ACE cannot block updates");

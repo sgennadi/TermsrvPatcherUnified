@@ -23,7 +23,9 @@ internal static class UiSmokeTests
                 using var updater = new UpdateIntegration();
                 var record = new SuccessfulFixMetadata(
                     "Windows 11", "24H2", 26100, 1234, "10.0.26100.1234",
-                    UpdateIntegration.Version, "automatic");
+                    UpdateIntegration.Version, "automatic",
+                    new string('a', 64), new string('b', 64),
+                    [new ChangedBytes(40, "11223344", "AABBCCDD")]);
                 var windows = new Window[]
                 {
                     new MainWindow(),
