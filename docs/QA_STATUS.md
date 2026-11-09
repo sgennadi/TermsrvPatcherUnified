@@ -159,3 +159,12 @@ Version: 0.1.0-preview.10
 - **Inspect selected Find / Replace in HEX:** transfers only the selected existing masked sequence to Manual's read-only viewer, clears Replace and requires a separate operator check before any action.
 - **Export signature evidence:** creates a new local `.txt` report with DLL version/hash and bounded exact/near-match results. No anonymous upload and no overwrite. Unsafe imported label metadata is filtered.
 - Functional SHA `04c216e1b9ca4c211f512293f117ea5f436557f6` passed CI: 55 signature tests, 91 core assertions and 20 offscreen WPF layouts. Final Preview.17 CI and release must be checked again. No live Windows 11 Apply/Restore or physical 200%-DPI acceptance has been verified.
+
+## Published Preview.16 → Preview.17 release-asset verification (2026-11-09)
+
+- Published [v0.1.0-preview.17](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v0.1.0-preview.17) is an **unsigned prerelease**, not Stable. It preserves the Preview.16 updater eligibility controls.
+- [Real published EXE upgrade and rollback](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42625530131): **PASS** on disposable Windows Server 2025 directories. Pinned published Preview.16 and Preview.17 updater ZIP digests, launched real EXEs, checked version and backup, exercised rollback on health-probe failure and rejected a tampered staging file.
+- [Published Preview.17 real system DLL read-only inspection](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42625530220): **PASS**. Inspected a genuine Windows Server 2025 `termsrv.dll`, independently confirmed SHA-256, NTFS SDDL, TermService state and NSudo native cache unchanged, and rejected unsafe report extensions/missing DLL paths.
+- SHA-256 updater-only ZIP: Preview.16 `f529e337b733d593bfe6ae657c215fe5e4f0c283eef2438e35f06c33591ec477`, Preview.17 `9e34b8b976a7ec9c0200e55f32a506289619372ed5eb4def70cacb69b46a9baf`.
+- SHA-256 full Preview.17 x64 ZIP: `a58088407684fe6b0400d2f683f68592af0c60c486a97a98d9c895a0b45402e0`.
+- These are **non-destructive Windows Server 2025** checks. They do **not** certify actual Windows 11 26H2 pattern compatibility, protected Apply/Restore, active RDP sessions, Group Policy/firewall effects or physical 200%-DPI GUI rendering.

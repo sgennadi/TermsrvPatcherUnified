@@ -83,3 +83,15 @@ Use an isolated Windows 11 x64 VM with local console access. Do not test protect
 8. Verify **Diagnostics → Open GitHub (sign-in needed)** accurately indicates GitHub authentication is required. There is no anonymous intake backend in this Preview.
 
 These are manual GUI acceptance tests. CI supplies synthetic HEX/parser bounds and headless WPF layout checks, but cannot certify the visible 200% screen rendering or Windows 11 protected DLL behavior.
+
+## Preview.17 — SHA-bound Automatic-to-Manual HEX and evidence export
+
+Use a disposable Windows 11 x64 VM with console access and a clean baseline. **Do not patch the protected system DLL merely to exercise these read-only features.**
+
+1. Open **Automatic → Check DLL** for a known `Ambiguous` DLL. Select each group in the evidence table. **Inspect selected Find in HEX** should be available only when Find hits exist; **Inspect selected Replace in HEX** only when Replace hits exist.
+2. Select a signature and open it in **Manual**. Verify that the 16-column HEX/ASCII viewer highlights the real matched bytes and wildcard bytes, and that the **Manual Replace field is empty**. Neither the selected pattern nor a compatible version label should enable Apply.
+3. Check the Automatic/Manual reported SHA-256 against an independent hash from an unmodified file copy. Deliberately replace only the test file between inspection and export; old evidence must be rejected and a fresh Check requested.
+4. Choose **Export signature evidence** and save to a new `.txt` path. Verify schema, Windows/DLL version, hash, group Find/Replace signatures, offsets and near-match counts. Review for user/computer paths and identifiers before sharing. Existing files must not be overwritten, and no report is uploaded automatically.
+5. Recheck at real Windows display scale **100%, 125%, 150% and 200%** with the actual GUI visible. Confirm selection/navigation/scrolling and all new buttons fit, including long signature text.
+6. Validate **Updates → Check → Install** eligibility messages and **Open GitHub release** fallback from Preview.16 still behave as documented. The updater may require an elevated trusted installation path.
+7. Keep actual protected DLL Apply/Restore, service restart, RDP connection, and GPO/firewall acceptance separate; none of these is demonstrated by the GitHub-hosted read-only test.
