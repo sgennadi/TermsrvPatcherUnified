@@ -6,7 +6,7 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 **[Download a Preview](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)**
 
-**In development:** [No-server diagnostics providers (Formspree and GitHub browser authorization)](docs/DIRECT_REPORTING.md) are tracked in draft PR #27. No service is configured or contacted until an operator explicitly opts in, and the feature is not yet included in a released Preview.
+**In development:** [Receiver-free diagnostics and one-time administrator setup](docs/DIRECT_REPORTING.md) are tracked in draft PR #27. The administrator configures the public Formspree/OAuth IDs once with `scripts/Configure-Reporting.ps1`; later builds embed them in the EXE. End users need no setup files or ID entry. Sending remains explicitly reviewed, and the feature is not yet included in a released Preview.
 
 ## Disclaimer — use entirely at your own risk
 
