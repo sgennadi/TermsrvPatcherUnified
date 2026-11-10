@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Threading;
+using System.Windows.Media;
 using TermsrvPatcherUnified.Core;
 
 namespace TermsrvPatcherUnified;
