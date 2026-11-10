@@ -57,13 +57,25 @@ if ($publishVariables -and $FormspreeFormId.Length -eq 0 -and $GitHubOAuthClient
 # embedded into subsequent Actions-built EXEs, including normal updates.
 # No Formspree/GitHub tokens or private credentials ever enter the EXE.
 if ($publishVariables) {
+    $existing = @(& gh variable list --repo $Repository --json name | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Unable to read existing GitHub repository variables.'
+    }
     foreach ($item in @(
         @{ Name = 'TPU_FORMSPREE_FORM_ID'; Value = $FormspreeFormId },
         @{ Name = 'TPU_GITHUB_OAUTH_CLIENT_ID'; Value = $GitHubOAuthClientId }
     )) {
-        & gh variable set $item.Name --repo $Repository --body $item.Value
-        if ($LASTEXITCODE -ne 0) {
-            throw ("Could not update GitHub Actions variable {0}. Check repository write permission." -f $item.Name)
+        if ($item.Value.Length -gt 0) {
+            & gh variable set $item.Name --repo $Repository --body $item.Value
+            if ($LASTEXITCODE -ne 0) {
+                throw ("Could not update GitHub Actions variable {0}." -f $item.Name)
+            }
+        } elseif (@($existing | Where-Object { $_.name -eq $item.Name }).Count -gt 0) {
+            # Explicitly clearing a provider must not leave an old ID in CI.
+            & gh variable delete $item.Name --repo $Repository
+            if ($LASTEXITCODE -ne 0) {
+                throw ("Could not clear obsolete GitHub Actions variable {0}." -f $item.Name)
+            }
         }
     }
 }
@@ -81,7 +93,9 @@ try {
 } finally {
     if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force }
 }
-Write-Host ('Formspree: {0}; GitHub OAuth: {1}' -f $(if ($FormspreeFormId) { 'configured' } else { 'disabled' }), $(if ($GitHubOAuthClientId) { 'configured' } else { 'disabled' }))
+$formStatus = if ($FormspreeFormId.Length -gt 0) { 'configured' } else { 'disabled' }
+$githubStatus = if ($GitHubOAuthClientId.Length -gt 0) { 'configured' } else { 'disabled' }
+Write-Host ('Formspree: {0}; GitHub OAuth: {1}' -f $formStatus, $githubStatus)
 Write-Host 'PASS: generated private build-time reporting.json for embedding in TermsrvPatcherUnified.exe.'
 if ($publishVariables) {
     Write-Host 'PASS: repository variables saved. Future GitHub Actions builds will embed these public IDs automatically.'
