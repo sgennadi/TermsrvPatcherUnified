@@ -78,6 +78,9 @@
           <TextBlock x:Name="QuickAutoReapplyStatus" Text="Scheduled task: checking..."
                      FontSize="12" TextWrapping="Wrap" Margin="20,5,0,0"
                      Foreground="{StaticResource MutedBrush}"/>
+          <Button x:Name="QuickRepairTaskButton" Content="Repair task permissions..."
+                  Visibility="Collapsed" Margin="20,7,0,0" MinWidth="210"
+                  HorizontalAlignment="Left" Click="RepairAutoReapply_Click"/>
         </StackPanel>
       </Border>
       <Grid Margin="0,2,0,0">
