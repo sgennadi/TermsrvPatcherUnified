@@ -15,6 +15,13 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
+      - name: Embed preconfigured public diagnostics provider IDs (no per-user setup)
+        shell: pwsh
+        env:
+          TPU_FORMSPREE_FORM_ID: ${{ vars.TPU_FORMSPREE_FORM_ID }}
+          TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
+        run: |
+          ./scripts/Configure-Reporting.ps1 -FromEnvironment
       - name: Stage and verify official NSudo 8.2 x64
         shell: pwsh
         env:
@@ -30,6 +37,8 @@ jobs:
           python scripts/record_successful_fix.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/record_offline_fix.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore source and tests
         run: |
@@ -51,6 +60,11 @@ jobs:
         shell: pwsh
         run: |
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --operation-lock-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Receiver-free Formspree and GitHub OAuth synthetic transport tests
+        shell: pwsh
+        run: |
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --direct-report-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Local DLL drift and native WTS session inventory safety tests
         shell: pwsh

@@ -17,6 +17,10 @@ public partial class DiagnosticsWindow : Window
     private bool publishing;
     private AnonymousDiagnosticPayload? anonymousPayload;
     private Uri? relayEndpoint;
+    private string? githubSessionToken;
+    private CancellationTokenSource? githubLoginCancel;
+    private bool formspreeConfirmed;
+    private DirectReportingSettings reportingSettings = new("", "");
 
     public DiagnosticsWindow()
     {
@@ -37,20 +41,51 @@ public partial class DiagnosticsWindow : Window
         {
             RelayState.Text = "Invalid relay configuration — local reports only";
         }
-        Closed += (_, _) => SessionToken.Clear();
+        try
+        {
+            reportingSettings = DirectReportingSettings.Load();
+            GitHubSignInButton.IsEnabled = reportingSettings.HasGitHubOAuth;
+            GitHubDeviceStatus.Text = reportingSettings.HasGitHubOAuth
+                ? "Ready: connect through GitHub browser sign-in when you wish to publish."
+                : "GitHub OAuth is not configured in this EXE; optional temporary token remains available.";
+            FormspreeStatus.Text = reportingSettings.HasFormspree
+                ? "Ready: save and review a report; no login or setup is needed."
+                : "Formspree is not configured in this EXE. Reporting stays local.";
+        }
+        catch (Exception ex) when (ex is InvalidDataException or UnauthorizedAccessException or IOException or JsonException)
+        {
+            GitHubSignInButton.IsEnabled = false;
+            FormspreeButton.IsEnabled = false;
+            GitHubDeviceStatus.Text = "Embedded GitHub reporting configuration is invalid. Disabled.";
+            FormspreeStatus.Text = "Embedded Formspree reporting configuration is invalid. Disabled.";
+        }
+        Closed += (_, _) =>
+        {
+            githubLoginCancel?.Cancel();
+            githubSessionToken = null;
+            SessionToken.Clear();
+        };
     }
 
     private void DescriptionChanged(object sender, TextChangedEventArgs e)
+        => InvalidateSavedReview();
+
+    private void EvidenceSelectionChanged(object sender, RoutedEventArgs e)
+        => InvalidateSavedReview();
+
+    private void InvalidateSavedReview()
     {
         if (PublishButton is null || ReportPreview is null) return;
         anonymousPayload = null;
         if (AnonymousButton is not null) AnonymousButton.IsEnabled = false;
+        if (FormspreeButton is not null) FormspreeButton.IsEnabled = false;
         savedReport = null;
         savedPath = null;
         savedId = null;
         submittedIssue = null;
+        formspreeConfirmed = false;
         PublishButton.IsEnabled = false;
-        ReportPreview.Text = "Description changed. Review and save the updated report before publishing.";
+        ReportPreview.Text = "Report options changed. Review and save the report again before publishing.";
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -61,9 +96,20 @@ public partial class DiagnosticsWindow : Window
             return;
         }
         var description = DescriptionInput.Text;
+        // A digest may be expensive. Read it without blocking the WPF dispatcher.
+        // Evidence is never captured or uploaded unless the user explicitly
+        // reviews the resolved version/hash and confirms the report.
+        bool includeWindowsEvidence = IncludeWindowsEvidenceCheck.IsChecked == true;
+        DiagnosticEnvironment? environment = includeWindowsEvidence
+            ? await Task.Run(DiagnosticEnvironment.TryRead) : null;
+        var evidencePreview = !includeWindowsEvidence
+            ? "Windows build / DLL SHA-256: excluded by operator."
+            : environment is null
+                ? "Windows build / DLL SHA-256: unavailable; report will omit these fields."
+                : environment.AsPreview();
         var proposed = $"Project: {DiagnosticsBridge.Project}\nComponent: {draft.Component}\n" +
             $"Type: {draft.ErrorType}\nCode: {draft.Code}\n" +
-            $"Version: {UpdateIntegration.Version}\n\n{description}";
+            $"Version: {UpdateIntegration.Version}\n\n{evidencePreview}\n\n{description}";
         if (MessageBox.Show(this,
                 "Review this description. The diagnostics module will redact common identifiers " +
                 "and save a local event. Nothing will be uploaded automatically.\n\n" + proposed,
@@ -72,10 +118,12 @@ public partial class DiagnosticsWindow : Window
             return;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
+        IncludeWindowsEvidenceCheck.IsEnabled = false;
         PublishButton.IsEnabled = false;
         try
         {
-            var receipt = await Task.Run(() => DiagnosticsBridge.Capture(draft, description));
+            var receipt = await Task.Run(() =>
+                DiagnosticsBridge.Capture(draft, description, environment));
             var markdown = DiagnosticsBridge.ReportMarkdown(await File.ReadAllTextAsync(receipt.Path));
             // Local capture must succeed even if a category cannot be sent anonymously.
             try
@@ -92,8 +140,11 @@ public partial class DiagnosticsWindow : Window
             savedPath = receipt.Path;
             savedId = receipt.Id;
             submittedIssue = null;
+            formspreeConfirmed = false;
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
+            FormspreeButton.IsEnabled = anonymousPayload is not null &&
+                reportingSettings.HasFormspree;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
@@ -105,13 +156,20 @@ public partial class DiagnosticsWindow : Window
         {
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
+            IncludeWindowsEvidenceCheck.IsEnabled = true;
         }
     }
 
     private async void Publish_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || savedReport is null || savedId is null || savedPath is null ||
-            submittedIssue is not null) return;
+            submittedIssue is not null || formspreeConfirmed || githubLoginCancel is not null) return;
+        if (string.IsNullOrWhiteSpace(SessionToken.Password) &&
+            string.IsNullOrWhiteSpace(githubSessionToken))
+        {
+            Status.Text = "Connect GitHub using browser sign-in, or enter an optional temporary token.";
+            return;
+        }
         if (MessageBox.Show(this,
                 "Publish this saved report to the PUBLIC GitHub Issues page?\n\n" +
                 "Only the text in Review is sent. Do not publish passwords, tokens, " +
@@ -119,11 +177,13 @@ public partial class DiagnosticsWindow : Window
                 "Publish reviewed diagnostics?", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
 
-        var token = SessionToken.Password;
-        SessionToken.Clear(); // Token never persists in the report or application settings.
+        var token = !string.IsNullOrWhiteSpace(SessionToken.Password)
+            ? SessionToken.Password : githubSessionToken ?? "";
+        SessionToken.Clear(); // Manual PAT is never persisted.
         publishing = true;
         PublishButton.IsEnabled = false;
         AnonymousButton.IsEnabled = false;
+        FormspreeButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         Uri? created = null;
@@ -156,15 +216,19 @@ public partial class DiagnosticsWindow : Window
             publishing = false;
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
+            IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
+            FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
+                submittedIssue is null && !formspreeConfirmed &&
+                reportingSettings.HasFormspree;
         }
     }
 
     private async void Anonymous_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || relayEndpoint is null || anonymousPayload is null ||
-            savedPath is null || savedId is null || submittedIssue is not null) return;
+            savedPath is null || savedId is null || submittedIssue is not null || formspreeConfirmed) return;
         var payload = anonymousPayload;
         // The operator sees the exact JSON that will be sent, not the local summary.
         if (MessageBox.Show(this,
@@ -177,8 +241,10 @@ public partial class DiagnosticsWindow : Window
         publishing = true;
         AnonymousButton.IsEnabled = false;
         PublishButton.IsEnabled = false;
+        FormspreeButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
+        IncludeWindowsEvidenceCheck.IsEnabled = false;
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -208,9 +274,13 @@ public partial class DiagnosticsWindow : Window
             publishing = false;
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
+            IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null &&
                 anonymousPayload is not null && submittedIssue is null;
+            FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
+                submittedIssue is null && !formspreeConfirmed &&
+                reportingSettings.HasFormspree;
         }
     }
 

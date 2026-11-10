@@ -8,6 +8,10 @@ publish/
 *.log
 TestResults/
 
+# Automatically generated public provider IDs are embedded at build time, never tracked.
+.build/
+
+
 # Never commit protected Windows binaries, in-use DLLs or backup data.
 termsrv.dll*
 *.dll.copy

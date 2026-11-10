@@ -1,10 +1,12 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.23` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.24` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Download a Preview](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)**
+
+**Preview.24:** [Receiver-free diagnostics](docs/DIRECT_REPORTING.md) use the operator-provided Formspree form `mvkkernb`, embedded in the EXE. No local setup, settings files or provider ID entry are needed. Sending requires review and confirmation. Optional GitHub OAuth needs a separately registered OAuth App. Live delivery to the Formspree form has not yet been verified.
 
 ## Disclaimer — use entirely at your own risk
 
@@ -25,6 +27,7 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 - **Auto reapply after Windows Update — optional, default OFF:** a checkbox in both Simple and Advanced creates a persistent, ACL-protected Task Scheduler job under **SYSTEM / Session 0**, with its own verified EXE under administrator-owned ProgramData (not the potentially writable Desktop EXE). Event ID 19 in WindowsUpdateClient/Operational is checked after a 30-minute delay, plus a post-boot check after 15 minutes and a daily fallback at 03:00. The worker compares the installed DLL SHA-256 with its last observation, skips when a reboot is pending, and attempts Apply **only** with an exact, uniquely verified automatic profile, a supported Windows client and mandatory full backup plus encrypted recovery journal. Unknown/ambiguous/unrecognized DLLs are never patched. Rechecking a previously skipped DLL after an application update is supported. No scheduling is enabled merely by launching or updating the app.
 - **Cleanup (explicit opt-in):** choose backup/recovery deletion, local app log/history/diagnostic cleanup and optionally removal of the Auto Reapply scheduled task. The task-removal box is OFF by default and receives a separate Yes/No question. Deleting backups warns about possible permanent loss of Revert; active/uncertain SYSTEM jobs block cleanup. It never erases the installed DLL, Windows Event Logs, Windows Update history, files exported outside app-managed folders, or updater rollback hold.
 - **Updates and Diagnostics:** visible update indicator, manual Check/Install of verified preview packages with EXE rollback and reviewed diagnostics. **Send anonymously** uses the canonical UniversalDiagnostics v1 HTTPS relay, sends only a reviewed typed metadata allowlist (no free-text description, raw logs, paths, hostnames or client GitHub token) and requires a validated receipt for a PUBLIC GitHub Issue. Without an administrator-configured HTTPS receiver the button stays disabled and local reports remain pending. Reports are never uploaded without consent.
+- **Windows DLL telemetry for compatibility observations (opt-in):** in Diagnostics, a checked option collects the running Windows release, Build/UBR, the installed `termsrv.dll` numeric file version and **SHA-256 of the current DLL** without uploading file bytes. The exact values are shown before saving or sending. Uncheck to omit them; a custom DLL digest could identify that custom build. The optional fields travel only in the strictly checked anonymous metadata or reviewed manual report. An approved new Issue can populate `data/diagnostic-observations.csv` as **UNVERIFIED** compatibility evidence, including an error code and app version. This never modifies `Patterns/AutomaticPatterns.txt` or marks a DLL as successfully patched. The shared HTTPS relay remains **not deployed**, so this is a development branch feature, not proof of live anonymous transport.
 
 A unique matching signature does **not** prove Remote Desktop will work after modification or that any additional sessions are licensed.
 

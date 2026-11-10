@@ -140,11 +140,24 @@ internal static class UiSmokeTests
                     installButton.IsEnabled)
                     throw new Exception("Update eligibility explanation or manual-release fallback is missing.");
                 var diagnosticsWindow = new DiagnosticsWindow();
+                if (diagnosticsWindow.FindName("IncludeWindowsEvidenceCheck") is not CheckBox metadataConsent ||
+                    metadataConsent.IsChecked != false)
+                    throw new Exception("Sharing DLL SHA-256 and Windows build must be explicitly selected.");
                 if (diagnosticsWindow.FindName("AnonymousButton") is not Button anonymous ||
                     anonymous.IsEnabled ||
                     diagnosticsWindow.FindName("RelayState") is not TextBlock relayStatus ||
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
+                if (diagnosticsWindow.FindName("FormspreeButton") is not Button formspree ||
+                    formspree.IsEnabled ||
+                    diagnosticsWindow.FindName("FormspreeFormIdInput") is not null ||
+                    diagnosticsWindow.FindName("GitHubClientIdInput") is not null ||
+                    diagnosticsWindow.FindName("GitHubSignInButton") is not Button ||
+                    diagnosticsWindow.FindName("GitHubCancelButton") is not Button ||
+                    diagnosticsWindow.FindName("CopyGitHubCodeButton") is not Button ||
+                    diagnosticsWindow.FindName("PublishButton") is not Button publish ||
+                    publish.IsEnabled)
+                    throw new Exception("Direct reporting controls must be visible and fail closed before local review.");
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
                     quickAuto.IsChecked != false ||

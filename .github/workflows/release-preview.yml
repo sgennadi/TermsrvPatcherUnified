@@ -35,6 +35,13 @@ jobs:
           if (-not (Get-Content Core/UpdateIntegration.cs -Raw).Contains('Version = "' + $version + '"')) { throw 'The updater version does not match VERSION.' }
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
           "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+      - name: Embed preconfigured public diagnostics provider IDs (no per-user setup)
+        shell: pwsh
+        env:
+          TPU_FORMSPREE_FORM_ID: ${{ vars.TPU_FORMSPREE_FORM_ID }}
+          TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
+        run: |
+          ./scripts/Configure-Reporting.ps1 -FromEnvironment
       - name: Stage pinned official NSudo 8.2 x64
         shell: pwsh
         env:
@@ -65,6 +72,10 @@ jobs:
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-transaction-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --pattern-inspection-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --direct-report-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish self-contained x64 EXE
         shell: pwsh
@@ -101,7 +112,9 @@ jobs:
             'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
             'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
             'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
-            'This Preview adds Simple/Advanced navigation, unified Remote Desktop, opt-in post-update SYSTEM task and reviewed Cleanup; no live Windows 11 patch or persistent task validation is certified.'
+            'Preview.24 adds optional DLL SHA-256 diagnostics, configured Formspree delivery and GitHub browser authorization with explicit review.'
+            'Formspree endpoint mvkkernb is preconfigured in the EXE: no Form ID, ProgramData reporting.json or separate setup script is needed for end users.'
+            'Direct-delivery tests use simulated HTTP; the real Formspree submission, GitHub OAuth login and Windows 11 protected DLL patching have not been certified.'
             'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
             ''
             'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'

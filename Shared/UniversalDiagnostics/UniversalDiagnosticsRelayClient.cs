@@ -94,10 +94,44 @@ public sealed class UniversalDiagnosticsRelayClient : IDisposable
         var source = string.Join("|", new[] {project,component,type,code}.Select(s => s.ToLowerInvariant()));
         var expected = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(source)));
         if (fingerprint != expected) throw new InvalidDataException("Diagnostic fingerprint mismatch.");
-        var output = JsonSerializer.Serialize(new { @event = new {
-            schema, id, timestamp_utc = timestamp, project, component, error_type = type,
-            code, level, version, platform, architecture, fingerprint
-        }}, new JsonSerializerOptions {WriteIndented = true});
+        // Optional Termsrv-only evidence is exact, all-or-nothing and typed.
+        // This is an extension of v1, not a new endpoint or a free-text channel.
+        const string termsrvProject = "sgennadi/TermsrvPatcherUnified";
+        var additional = new[] { "windows_release", "windows_build", "windows_ubr",
+                                 "dll_version", "dll_sha256" };
+        int present = additional.Count(k => e.TryGetProperty(k, out _));
+        if (present != 0 && (project != termsrvProject || present != additional.Length))
+            throw new InvalidDataException("Incomplete or unauthorized DLL evidence.");
+        var outgoing = new Dictionary<string, object> {
+            ["schema"] = schema, ["id"] = id, ["timestamp_utc"] = timestamp,
+            ["project"] = project, ["component"] = component,
+            ["error_type"] = type, ["code"] = code, ["level"] = level,
+            ["version"] = version, ["platform"] = platform,
+            ["architecture"] = architecture, ["fingerprint"] = fingerprint
+        };
+        if (present == additional.Length)
+        {
+            string release = Match(Field(e, "windows_release"),
+                @"^[A-Za-z0-9._-]{1,20}$", "windows_release");
+            string dllVersion = Match(Field(e, "dll_version"),
+                @"^[0-9]{1,5}(?:\.[0-9]{1,8}){1,4}$", "dll_version");
+            string dllSha = Match(Field(e, "dll_sha256"),
+                @"^[a-f0-9]{64}$", "dll_sha256");
+            if (!e.TryGetProperty("windows_build", out var build) ||
+                build.ValueKind != JsonValueKind.Number || !build.TryGetInt32(out int buildNumber) ||
+                buildNumber is < 19041 or > 99999 ||
+                !e.TryGetProperty("windows_ubr", out var ubr) ||
+                ubr.ValueKind != JsonValueKind.Number || !ubr.TryGetInt32(out int ubrNumber) ||
+                ubrNumber is < 0 or > 999999)
+                throw new InvalidDataException("Invalid DLL build metadata.");
+            outgoing["windows_release"] = release;
+            outgoing["windows_build"] = buildNumber;
+            outgoing["windows_ubr"] = ubrNumber;
+            outgoing["dll_version"] = dllVersion;
+            outgoing["dll_sha256"] = dllSha;
+        }
+        var output = JsonSerializer.Serialize(new { @event = outgoing },
+            new JsonSerializerOptions {WriteIndented = true});
         if (Encoding.UTF8.GetByteCount(output) > 8192)
             throw new InvalidDataException("Anonymous report too large.");
         return new AnonymousDiagnosticPayload(id, project, output);
