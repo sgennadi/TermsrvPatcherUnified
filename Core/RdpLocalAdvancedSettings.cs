@@ -113,7 +113,9 @@ internal static class RdpLocalAdvancedSettings
         using var operation = OperationLock.Acquire();
         if (IsPolicyManaged(spec))
             throw new InvalidOperationException(
-                "This value is managed by Group Policy. No local change has been made.");
+                "Local change blocked by Group Policy. " +
+                RdpPolicySourceResolver.ReadWinning(spec.RegistryValue).Details +
+                Environment.NewLine + "No registry or GPO changes were made.");
 
         using var key = Registry.LocalMachine.OpenSubKey(TcpKey, writable: true)
             ?? throw new InvalidOperationException("The RDP listener registry key is unavailable.");
@@ -127,7 +129,9 @@ internal static class RdpLocalAdvancedSettings
                 "The local setting changed while this editor was open. Reload and try again.");
         if (current == desired) return;
         if (IsPolicyManaged(spec))
-            throw new InvalidOperationException("Group Policy was applied during the operation. No change made.");
+            throw new InvalidOperationException("Group Policy was applied during the operation. " +
+                RdpPolicySourceResolver.ReadWinning(spec.RegistryValue).Details +
+                Environment.NewLine + "No local change made.");
         RdpSettingsTransaction.Execute([
             RdpSettingsTransaction.StageBoundedDword(
                 key, spec.RegistryValue, desired, spec.Minimum, spec.Maximum)
