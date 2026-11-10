@@ -63,7 +63,7 @@ internal static class DiagnosticsBridge
     }
 
     /// <summary>
-    /// Prepare the same strict typed v1 metadata in memory for Formspree.
+    /// Prepare the same strict typed v1 metadata in memory for Google.
     /// Unlike Capture(), this method never writes a local queue record.
     /// Descriptions, raw errors, usernames, paths, passwords and DLL bytes
     /// are not included in the outbound payload.

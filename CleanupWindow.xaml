@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.CleanupWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Cleanup — 0.1.0-preview.27"
+        Title="Cleanup — 0.1.0-preview.28"
         Width="640" Height="545" MinWidth="540" MinHeight="480"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BackgroundBrush}"
