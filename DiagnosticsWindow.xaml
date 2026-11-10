@@ -69,7 +69,7 @@
           <TextBlock Text="Sends only reviewed typed metadata to a configured third-party form. Does not create GitHub Issues or update our CSV."
                      TextWrapping="Wrap" Foreground="#64748B" Margin="0,5,0,8"/>
           <WrapPanel>
-            <TextBox x:Name="FormspreeFormIdInput" Width="205" Margin="0,0,8,6"
+            <TextBox x:Name="FormspreeFormIdInput" Width="205" Margin="0,0,8,6" TextChanged="FormspreeIdChanged"
                      ToolTip="Form ID from https://formspree.io — not an arbitrary URL"/>
             <Button x:Name="FormspreeButton" Content="Send via Formspree"
                     Style="{StaticResource PrimaryButton}" Click="Formspree_Click"
