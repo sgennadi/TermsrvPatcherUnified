@@ -1,14 +1,14 @@
 <Window x:Class="TermsrvPatcherUnified.DiagnosticsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Diagnostics — 0.1.0-preview.23" Width="770" Height="710" MinWidth="600" MinHeight="545"
+        Title="Diagnostics — 0.1.0-preview.23" Width="785" Height="750" MinWidth="610" MinHeight="590"
         WindowStartupLocation="CenterOwner" FontFamily="Segoe UI" FontSize="13"
         Background="{StaticResource BackgroundBrush}" Icon="Assets/app.ico">
   <Grid Margin="22">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <TextBlock Grid.Row="0" Text="Diagnostics and error reporting" FontSize="23"
                FontWeight="SemiBold" Margin="0,0,0,14"/>
@@ -25,13 +25,21 @@
                 Checked="EvidenceSelectionChanged" Unchecked="EvidenceSelectionChanged"
                 ToolTip="Read-only evidence for compatibility observations. The exact DLL hash may uniquely identify a custom build; uncheck to omit."/>
     </StackPanel>
-    <WrapPanel Grid.Row="2" Margin="0,0,0,10">
+    <StackPanel Grid.Row="2" Margin="0,0,0,10">
+      <CheckBox x:Name="IncludeDllMetadataCheck" Content="Include Windows build, DLL version and SHA-256"
+                IsChecked="False" Checked="EnvironmentOptionChanged" Unchecked="EnvironmentOptionChanged"
+                ToolTip="Adds only release, build/UBR, DLL file version and full SHA-256. No machine name, full DLL, paths or raw logs."/>
+      <TextBlock x:Name="DllMetadataHint" Margin="22,4,0,4" TextWrapping="Wrap"
+                 Foreground="{StaticResource MutedBrush}"
+                 Text="Optional. The DLL is read to calculate SHA-256 only after you choose this option and save. You review all values before sharing."/>
+    </StackPanel>
+    <WrapPanel Grid.Row="3" Margin="0,0,0,10">
       <Button x:Name="SaveButton" Tag="&#xE74E;" Content="Review and save locally" Style="{StaticResource PrimaryButton}"
               Click="Save_Click"/>
       <Button Tag="&#xE8C8;" Content="Copy report" Click="Copy_Click"/>
       <Button Tag="&#xE8A7;" Content="Open GitHub (sign-in needed)" Click="OpenIssue_Click"/>
     </WrapPanel>
-    <Grid Grid.Row="3" Margin="0,0,0,10">
+    <Grid Grid.Row="4" Margin="0,0,0,10">
       <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel Grid.Column="0" Margin="0,0,12,0">
         <TextBlock Text="Temporary GitHub token (Issues: write). Never saved." Foreground="#64748B"/>
@@ -41,16 +49,16 @@
               Style="{StaticResource PrimaryButton}" VerticalAlignment="Bottom"
               Click="Publish_Click" IsEnabled="False" Margin="0"/>
     </Grid>
-    <WrapPanel Grid.Row="4" Margin="0,0,0,10">
+    <WrapPanel Grid.Row="5" Margin="0,0,0,10">
       <Button x:Name="AnonymousButton" Content="Send anonymously" Style="{StaticResource PrimaryButton}" Click="Anonymous_Click" IsEnabled="False"/>
       <TextBlock x:Name="RelayState" VerticalAlignment="Center" Foreground="#64748B" Text="Checking anonymous reporting configuration..." Margin="12,0,0,0"/>
     </WrapPanel>
-    <GroupBox Grid.Row="5" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
+    <GroupBox Grid.Row="6" Header="Review (nothing is sent automatically)" Margin="0,0,0,10">
       <TextBox x:Name="ReportPreview" FontFamily="Consolas" FontSize="12"
                IsReadOnly="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
                HorizontalScrollBarVisibility="Auto"/>
     </GroupBox>
-    <StackPanel Grid.Row="6">
+    <StackPanel Grid.Row="7">
       <TextBlock x:Name="Status" Foreground="#64748B" Text="No report saved. Reporting is optional."/>
       <TextBlock Text="GitHub requires a signed-in account or a valid Issues:write token. Anonymous sending requires a configured HTTPS relay. Only typed fields shown in the anonymous preview are transmitted."
                  Foreground="#64748B" Margin="0,5,0,0"/>
