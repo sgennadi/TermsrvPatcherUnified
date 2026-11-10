@@ -28,7 +28,8 @@ internal static class AutoReapplyScheduler
 
     internal static string WorkerPath => Path.Combine(Root, ExeName);
 
-    internal sealed record TaskState(bool Installed, bool Trusted, bool Enabled, string Message);
+    internal sealed record TaskState(bool Installed, bool Trusted, bool Enabled,
+        string Message, bool Running = false);
     private sealed record WorkerState(string SchemaId, string LastObservedSha256,
         string Result, string CheckedUtc, string RuntimeVersion);
 
@@ -106,9 +107,12 @@ internal static class AutoReapplyScheduler
             NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
             NsudoDevilModeScope.EnsurePrivateDirectory(Root);
             bool enabled = (bool)((dynamic)registered).Enabled;
+            bool running = (int)((dynamic)registered).State == 4; // TASK_STATE_RUNNING
             return new(true, true, enabled,
+                running ? "SYSTEM worker is running now; do not clean up its files." :
                 enabled ? "Enabled. Checks after Windows Update and on startup."
-                        : "Scheduled task is disabled.");
+                        : "Scheduled task is disabled.",
+                running);
         }
         catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException or
                                    InvalidOperationException or ArgumentException or
@@ -147,7 +151,7 @@ internal static class AutoReapplyScheduler
         // reapply an unmodified DLL just because the option was enabled.
         string dll = SystemInfo.Read().DllPath;
         var existing = ReadWorkerState();
-        if (existing is null)
+        if (!current.Installed || !current.Enabled || existing is null)
             SaveWorkerState(new WorkerState(Schema, HashFile(dll), "Armed",
                 DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
 
@@ -165,8 +169,11 @@ internal static class AutoReapplyScheduler
         if (state.Installed && !state.Trusted)
             throw new UnauthorizedAccessException("Unrecognized task definition; not deleting it.");
         if (!state.Installed) return;
-        if (IsolatedApplyExecutor.ReadLatestStatus()?.State is "Queued" or "Running")
-            throw new InvalidOperationException("A protected Apply/Revert is active. Disable automation after it completes.");
+        if (state.Running)
+            throw new InvalidOperationException(
+                "The auto-reapply worker is currently running. Disable it after it finishes.");
+        if (IsolatedApplyExecutor.AnyActiveJob())
+            throw new InvalidOperationException("A protected Apply/Revert is pending or uncertain. Disable automation after it completes.");
         object? service = null, folder = null;
         try
         {
