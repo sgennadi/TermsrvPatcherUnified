@@ -103,7 +103,7 @@ internal static class RdpPolicySourceResolver
                 "RSoP is available only on Windows.");
         try
         {
-            using var scope = new ManagementScope(@"\\.\root\RSOP\Computer");
+            var scope = new ManagementScope(@"\\.\root\RSOP\Computer");
             scope.Options.Timeout = TimeSpan.FromSeconds(8);
             scope.Connect();
             using var rules = new ManagementObjectSearcher(scope,
