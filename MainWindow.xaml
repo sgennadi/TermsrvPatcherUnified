@@ -24,6 +24,7 @@
         </StackPanel>
       </DockPanel>
       <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+        <Button x:Name="SimpleModeButton" Tag="&#xE72B;" Content="Back to Simple" Click="SimpleMode_Click" MinWidth="155"/>
         <Button x:Name="UpdatesButton" Tag="&#xE896;" Content="Updates" Click="Updates_Click" MinWidth="125"/>
         <Button Tag="&#xE9CE;" Content="Diagnostics" Click="Diagnostics_Click" MinWidth="140"/>
         <Button Tag="&#xE946;" Content="About / Components" Click="About_Click" MinWidth="175"/>
