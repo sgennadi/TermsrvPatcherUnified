@@ -24,6 +24,9 @@ public partial class MainWindow : Window
     private bool busy;
     private bool autoTaskChanging;
     private bool autoTaskLoading;
+    private int? observedRdpListenerPort;
+    private int? previousRdpListenerPort;
+    private bool portRestartNeedsReview;
     private readonly UpdateIntegration updates = new();
 
     public MainWindow(bool offlineStartup = false)
@@ -1079,6 +1082,20 @@ public partial class MainWindow : Window
             "   |   NLA: " + (status.NetworkLevelAuthentication ? "required" : "NOT required") +
             "   |   One session per user: " + (status.OneSessionPerUser ? "Yes" : "No");
         RdpDetails.Text = "Current local settings loaded. Group Policy may override these values.";
+        var port = RdpPostApply.ReadLocalPort();
+        if (RdpPostApply.ListenerRestartRequired(observedRdpListenerPort, port))
+        {
+            previousRdpListenerPort = observedRdpListenerPort;
+            portRestartNeedsReview = true;
+            RdpApplyImpactText.Text =
+                "Local RDP listener port changed from " + previousRdpListenerPort +
+                " to " + port + ". A TermService restart or Windows reboot may be required. " +
+                "Do not restart from an RDP-only connection.";
+            RdpPostApplyActions.Text =
+                "Restart review required. Confirm the new Firewall port and arrange local/console recovery.";
+        }
+        observedRdpListenerPort = port;
+        ReviewRdpRestartButton.IsEnabled = portRestartNeedsReview && port.HasValue;
         ReadBlankPasswordPolicy();
     }
 
@@ -1142,6 +1159,12 @@ public partial class MainWindow : Window
             FooterText.Text = restrict
                 ? "Blank-password console-only restriction enabled and verified."
                 : "Local restriction disabled by explicit confirmation. Review domain policy.";
+            RdpApplyImpactText.Text =
+                "Local account blank-password restriction was read back. " +
+                "A reboot is not normally needed; test a NEW sign-in. " +
+                "Domain GPO may overwrite the local security setting.";
+            RdpPostApplyActions.Text =
+                "Reconnect or sign in again to validate policy. gpupdate is only for pending computer GPO changes.";
         }, "RdpSettings");
         if (!succeeded)
             ReadBlankPasswordPolicy(); // Never leave a speculative success state.
@@ -1155,6 +1178,14 @@ public partial class MainWindow : Window
         bool enforceNla = NlaEnabled.IsChecked == true;
         bool oneSession = SingleSession.IsChecked == true;
         bool syncFirewall = FirewallEnabled.IsChecked == true;
+        RdpStatus previous;
+        try { previous = RdpConfiguration.Read(); }
+        catch (Exception e)
+        {
+            MessageBox.Show(this, "Could not read original RDP settings: " + e.Message,
+                "Save blocked", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
         if (!Confirm(this, "Change RDP settings?",
             "This operation checks policy conflicts, then updates RDP settings " +
             "and optionally Windows Firewall rules. Partial failures trigger a verified rollback. " +
@@ -1167,7 +1198,16 @@ public partial class MainWindow : Window
             await Task.Run(() =>
                 RdpConfiguration.Save(enableRdp, enforceNla, oneSession, syncFirewall));
             completed = true;
-            ReadRdp(); // UI-thread readback, not a guess based on the requested values.
+            var current = RdpConfiguration.Read();
+            var followUp = RdpPostApply.Build(previous, current, syncFirewall);
+            ReadRdp(); // UI-thread readback, not a guess based on requested values.
+            RdpApplyImpactText.Text = followUp.Summary +
+                (portRestartNeedsReview
+                    ? " RDP listener port drift was detected and requires restart review." : "");
+            RdpPostApplyActions.Text = string.Join(Environment.NewLine,
+                followUp.Rows.Where(row => row.Status != "No local change" &&
+                                          row.Status != "Not changed")
+                    .Select(row => row.Setting + ": " + row.RequiredAction));
             FooterText.Text = "RDP settings verified. Check resultant Group Policy and firewall scope.";
         }, "RdpSettings");
 
@@ -1187,6 +1227,65 @@ public partial class MainWindow : Window
                     error.GetType().Name + "). Recover from the local console if necessary.";
             }
         }
+    }
+
+    private async void RefreshComputerPolicy_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || !SystemInfo.IsAdministrator())
+        {
+            MessageBox.Show(this, "Computer policy refresh requires administrator privileges.",
+                "Refresh Computer Policy", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (!Confirm(this, "Refresh computer Group Policy?",
+            "Run gpupdate /target:computer /force /wait:90? This refreshes ALL computer " +
+            "policies, not only RDP, and can override local settings or affect remote " +
+            "access. There will be NO automatic service restart, logoff or reboot. " +
+            "Keep independent console recovery access."))
+            return;
+        await RunBusy(async () =>
+        {
+            var result = await Task.Run(RdpPostApply.RefreshComputerPolicy);
+            if (!result.Success)
+                throw new InvalidOperationException(
+                    "Group Policy refresh returned exit code " + result.ExitCode +
+                    ". Check gpresult and the Windows Group Policy event logs.");
+            var report = await Task.Run(RdpPolicyDiagnostics.ReadLocal);
+            RdpPolicyGrid.ItemsSource = report.Values;
+            RdpPolicySummary.Text = report.Values.Count + " local/policy settings, " +
+                report.Warnings.Count + " notice(s).";
+            RdpPolicyDetails.Text = report.AsText();
+            RdpServiceText.Text = "TermService: " + report.TermServiceStatus +
+                " | " + report.Warnings.Count + " configuration notice(s).";
+            ReadRdp();
+            RdpApplyImpactText.Text =
+                "Computer Group Policy refresh completed (exit 0). " +
+                "No automatic reboot, logoff or TermService restart was requested. " +
+                "Some policies require a NEW session or a later restart.";
+            RdpPostApplyActions.Text =
+                "Review applied policy results and check the next connection. " +
+                (portRestartNeedsReview
+                    ? "Listener port drift detected: review TermService restart at local console."
+                    : "No observed listener port change since this GUI opened.");
+            FooterText.Text = "Computer Group Policy refreshed; new RDP connection verification remains necessary.";
+        });
+    }
+
+    private void ReviewRdpRestart_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || !portRestartNeedsReview) return;
+        MessageBox.Show(this,
+            "The local RDP listener port was observed changing from " +
+            (previousRdpListenerPort?.ToString() ?? "unknown") + " to " +
+            (observedRdpListenerPort?.ToString() ?? "unknown") + ".\n\n" +
+            "A restart of TermService (or of Windows) may be needed to activate the new " +
+            "listener. Restarting TermService can disconnect every RDP session and " +
+            "interrupt access to this computer.\n\n" +
+            "No restart has been performed. Verify Firewall rules for the new port, " +
+            "confirm console access, and arrange a separate protected or local-console restart. " +
+            "Then reopen the application and verify a new connection.",
+            "Review RDP restart — no changes made",
+            MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
     private void Log_Click(object sender, RoutedEventArgs e)
