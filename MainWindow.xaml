@@ -505,6 +505,20 @@
                                Text="Local saves do not run gpupdate, restart TermService or reboot Windows. Group Policy may override local values; verify a new RDP connection."
                                TextWrapping="Wrap" Margin="0,5,0,0"
                                Foreground="{StaticResource MutedBrush}"/>
+                    <TextBlock x:Name="RdpPostApplyActions"
+                               Text="No pending action. Refresh Group Policy only when a policy has changed."
+                               TextWrapping="Wrap" Margin="0,7,0,8"
+                               Foreground="{StaticResource NavyBrush}"/>
+                    <WrapPanel>
+                      <Button x:Name="RefreshComputerPolicyButton"
+                              Content="Refresh Computer Policy" Tag="&#xE72C;"
+                              Click="RefreshComputerPolicy_Click"
+                              MinWidth="190"/>
+                      <Button x:Name="ReviewRdpRestartButton"
+                              Content="Review service restart" Tag="&#xE7F4;"
+                              Click="ReviewRdpRestart_Click" IsEnabled="False"
+                              MinWidth="185"/>
+                    </WrapPanel>
                   </StackPanel>
                 </Border>
                 <Expander x:Name="RdpSecurityAdvanced" Header="Advanced security: blank passwords"
