@@ -1,4 +1,3 @@
-using UniversalDiagnostics.Transport;
 using System.Text.Json;
 using UniversalDiagnostics.Transport;
 
