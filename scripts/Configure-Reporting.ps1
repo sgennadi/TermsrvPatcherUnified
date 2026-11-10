@@ -19,6 +19,27 @@ if ($Repository -cne $expectedRepo) {
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $generatedDir = Join-Path $root '.build'
 $generatedFile = Join-Path $generatedDir 'reporting.json'
+# Checked-in PUBLIC provider identifiers are safe fallback values.
+$defaultFile = Join-Path $root 'config/reporting-defaults.json'
+$defaults = @{ formspree_form_id = ''; github_oauth_client_id = '' }
+if (Test-Path -LiteralPath $defaultFile -PathType Leaf) {
+    if ((Get-Item -LiteralPath $defaultFile).Length -gt 4096) {
+        throw 'Build reporting defaults exceed 4096 bytes.'
+    }
+    $loaded = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($defaultFile)) -AsHashtable
+    if ($null -eq $loaded -or $loaded -isnot [System.Collections.IDictionary]) {
+        throw 'Build reporting defaults must be a JSON object.'
+    }
+    foreach ($name in @($loaded.Keys)) {
+        if ($name -cnotin @('formspree_form_id','github_oauth_client_id')) {
+            throw 'Unknown field in public reporting defaults.'
+        }
+        if ($null -ne $loaded[$name] -and $loaded[$name] -isnot [string]) {
+            throw 'Reporting default identifiers must be text strings.'
+        }
+        $defaults[$name] = [string]$loaded[$name]
+    }
+}
 $publishVariables = (-not $FromEnvironment) -and (-not $LocalOnly)
 
 if ($publishVariables) {
@@ -35,9 +56,14 @@ if ($FromEnvironment -and $ImportProgramData) {
 }
 if ($FromEnvironment) {
     # No prompts, network requests or gh authentication in CI.
-    # Unset variables produce disabled, never fake, reporting providers.
-    $FormspreeFormId = [string] $env:TPU_FORMSPREE_FORM_ID
-    $GitHubOAuthClientId = [string] $env:TPU_GITHUB_OAUTH_CLIENT_ID
+    # Unset Actions Variables use checked-in public defaults without user setup.
+    # Explicit nonempty repository variables override these defaults.
+    $FormspreeFormId = if ([string]::IsNullOrWhiteSpace($env:TPU_FORMSPREE_FORM_ID)) {
+        [string]$defaults['formspree_form_id']
+    } else { [string]$env:TPU_FORMSPREE_FORM_ID }
+    $GitHubOAuthClientId = if ([string]::IsNullOrWhiteSpace($env:TPU_GITHUB_OAUTH_CLIENT_ID)) {
+        [string]$defaults['github_oauth_client_id']
+    } else { [string]$env:TPU_GITHUB_OAUTH_CLIENT_ID }
 } elseif ($ImportProgramData) {
     if ($PSBoundParameters.ContainsKey('FormspreeFormId') -or
         $PSBoundParameters.ContainsKey('GitHubOAuthClientId')) {
@@ -66,10 +92,16 @@ if ($FromEnvironment) {
     $GitHubOAuthClientId = [string] $parsed['github_oauth_client_id']
 } else {
     if (-not $PSBoundParameters.ContainsKey('FormspreeFormId')) {
-        $FormspreeFormId = Read-Host 'Formspree Form ID (blank disables this provider)'
+        $answer = Read-Host ("Formspree Form ID (Enter uses preset {0})" -f $defaults['formspree_form_id'])
+        $FormspreeFormId = if ([string]::IsNullOrWhiteSpace($answer)) {
+            [string]$defaults['formspree_form_id']
+        } else { [string]$answer }
     }
     if (-not $PSBoundParameters.ContainsKey('GitHubOAuthClientId')) {
-        $GitHubOAuthClientId = Read-Host 'GitHub OAuth App Client ID (blank disables this provider)'
+        $answer = Read-Host 'GitHub OAuth App Client ID (Enter skips)'
+        $GitHubOAuthClientId = if ([string]::IsNullOrWhiteSpace($answer)) {
+            [string]$defaults['github_oauth_client_id']
+        } else { [string]$answer }
     }
 }
 $FormspreeFormId = ([string] $FormspreeFormId).Trim()
