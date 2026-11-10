@@ -224,6 +224,9 @@ print("PASS: reviewed GitHub Issue delivery and private native cache checks.")
 for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow", "SuccessfulFixWindow"):
     view = ET.parse(ROOT / (view_name + ".xaml")).getroot()
     source = (ROOT / (view_name + ".xaml.cs")).read_text(encoding="utf-8")
+    if view_name == "DiagnosticsWindow":
+        # WPF event handlers may be organized in additional partial class files.
+        source += "\n" + (ROOT / "DiagnosticsWindow.DirectReporting.cs").read_text(encoding="utf-8")
     for element in view.iter():
         for key, value in element.attrib.items():
             if key.rsplit("}", 1)[-1] in {"Click", "TextChanged", "SelectionChanged"}:
