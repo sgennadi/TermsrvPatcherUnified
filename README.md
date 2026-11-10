@@ -6,6 +6,8 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 **[Download a Preview](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)**
 
+**In development:** [No-server diagnostics providers (Formspree and GitHub browser authorization)](docs/DIRECT_REPORTING.md) are tracked in draft PR #27. No service is configured or contacted until an operator explicitly opts in, and the feature is not yet included in a released Preview.
+
 ## Disclaimer — use entirely at your own risk
 
 **THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT ANY WARRANTY, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.** The authors, maintainers and contributors do not guarantee compatibility, functionality, recovery or availability. To the extent permitted by law, they disclaim liability for service outages, loss of remote access, damaged systems and data loss. Nothing here overrides [GPLv3](LICENSE), excludes liability where prohibited, or grants permission to bypass Microsoft licensing requirements.
