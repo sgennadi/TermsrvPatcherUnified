@@ -175,6 +175,8 @@ Public NotInheritable Class UniversalDiagnosticsEmbedded
                     If r.ValueKind <> JsonValueKind.String OrElse
                        d.ValueKind <> JsonValueKind.String OrElse
                        h.ValueKind <> JsonValueKind.String OrElse
+                       b.ValueKind <> JsonValueKind.Number OrElse
+                       u.ValueKind <> JsonValueKind.Number OrElse
                        Not b.TryGetInt32(build) OrElse
                        Not u.TryGetInt32(ubr) Then
                         Throw New InvalidDataException("Invalid DLL metadata types.")
