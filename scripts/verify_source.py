@@ -110,13 +110,17 @@ check(len(parse_catalog("Examples.NOT_ACTIVE.txt")) >= 0, "examples segregated")
 project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
-for version in (project, main, readme):
-    check("0.1.0-preview.22" in version, "version consistency")
+release_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+check(bool(re.fullmatch(r"0\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*", release_version)),
+      "VERSION contains an explicit preview identifier")
+for document in (project, main, readme):
+    check(release_version in document, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("0.1.0-preview.22" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
+check("Version = \"" + release_version + "\"" in
+      (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "updater version matches application")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
