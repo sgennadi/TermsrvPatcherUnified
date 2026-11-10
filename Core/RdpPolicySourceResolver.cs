@@ -33,6 +33,33 @@ internal static class RdpPolicySourceResolver
     internal const string TerminalPolicyPath =
         @"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services";
 
+    // Read-only diagnostic mappings; only RdpLocalAdvancedSettings.Editable
+    // controls which local DWORDs can actually be changed.
+    private static readonly IReadOnlyDictionary<string, string> EvidenceValueNames =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Remote Desktop"] = "fDenyTSConnections",
+            ["Network Level Authentication"] = "UserAuthentication",
+            ["One session per user"] = "fSingleSessionPerUser",
+            ["RDP TCP port"] = "PortNumber",
+            ["RDP security layer"] = "SecurityLayer",
+            ["Minimum encryption level"] = "MinEncryptionLevel",
+            ["Always request password"] = "fPromptForPassword",
+            ["Disable clipboard redirection"] = "fDisableClip",
+            ["Disable drive redirection"] = "fDisableCdm",
+            ["Disable printer redirection"] = "fDisableCpm",
+            ["Disable COM port redirection"] = "fDisableCcm",
+            ["Idle session limit"] = "MaxIdleTime",
+            ["Active session time limit"] = "MaxConnectionTime",
+            ["Disconnected session time limit"] = "MaxDisconnectionTime",
+            ["Automatic reconnection disabled"] = "fDisableAutoReconnect",
+            ["TCP/UDP transport policy"] = "SelectTransport"
+        };
+
+    internal static string? ValueForSetting(string? displayName) =>
+        displayName is not null && EvidenceValueNames.TryGetValue(displayName, out var value)
+            ? value : null;
+
     private static readonly Regex GpoGuidRegex = new(
         @"\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}",
         RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -65,9 +92,9 @@ internal static class RdpPolicySourceResolver
         IEnumerable<RdpRsopGpoEntry> gpos)
     {
         if (string.IsNullOrWhiteSpace(valueName) ||
-            !RdpLocalAdvancedSettings.Editable.Any(spec =>
-                string.Equals(spec.RegistryValue, valueName, StringComparison.OrdinalIgnoreCase)))
-            throw new ArgumentException("Only allowlisted RDP settings can be resolved.", nameof(valueName));
+            !EvidenceValueNames.Values.Contains(valueName, StringComparer.OrdinalIgnoreCase))
+            throw new ArgumentException("Only allowlisted RDP policy settings can be resolved.",
+                nameof(valueName));
 
         string registryPath = TerminalPolicyPath + "\\" + valueName;
         string target = NormalizeRegistryKey(TerminalPolicyPath);
