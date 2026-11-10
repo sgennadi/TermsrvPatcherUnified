@@ -150,8 +150,8 @@ internal static class UiSmokeTests
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
                 if (diagnosticsWindow.FindName("FormspreeButton") is not Button formspree ||
                     formspree.IsEnabled ||
-                    diagnosticsWindow.FindName("FormspreeFormIdInput") is not TextBox ||
-                    diagnosticsWindow.FindName("GitHubClientIdInput") is not TextBox ||
+                    diagnosticsWindow.FindName("FormspreeFormIdInput") is not null ||
+                    diagnosticsWindow.FindName("GitHubClientIdInput") is not null ||
                     diagnosticsWindow.FindName("GitHubSignInButton") is not Button ||
                     diagnosticsWindow.FindName("GitHubCancelButton") is not Button ||
                     diagnosticsWindow.FindName("CopyGitHubCodeButton") is not Button ||
