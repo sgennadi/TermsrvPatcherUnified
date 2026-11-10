@@ -1,4 +1,4 @@
-# Anonymous diagnostics in TermsrvPatcherUnified Preview.20
+# Anonymous diagnostics, Windows build and DLL SHA-256 — development branch
 
 This project vendors the canonical .NET relay client maintained in
 [UniversalDiagnocticsModule](https://github.com/sgennadi/UniversalDiagnocticsModule)
@@ -20,6 +20,31 @@ these event properties:
 - `schema`, `id`, `timestamp_utc`, `project`, `component`,
   `error_type`, `code`, `level`, `version`, `platform`,
   `architecture`, `fingerprint`.
+
+For **TermsrvPatcherUnified only**, a checked and operator-reviewed
+**Include Windows build, termsrv.dll version and SHA-256** option adds one
+all-or-nothing typed evidence set: `windows_release`,
+`windows_build`, `windows_ubr`, `dll_version` and `dll_sha256`.
+The app calculates SHA-256 by reading the installed DLL locally, but
+never uploads DLL bytes, file paths, the machine or account name,
+raw stack traces, or the user's description. A SHA-256 of a custom DLL
+may identify that exact custom binary: users may disable the option.
+
+The same five optional fields are validated by the embedded collector,
+the .NET HTTPS client and the Cloudflare Worker. Legacy v1 reports are
+unchanged. The Worker creates a GitHub Issue with these typed metadata
+only after explicit user confirmation and successful server setup.
+GitHub Actions then validates the Issue again and records it in
+`data/diagnostic-observations.csv` with `verification=unverified`.
+These reports are claims, not proof of successful patching, and never
+write or automatically authorize `Patterns/AutomaticPatterns.txt`.
+Only actively reviewed, reproducible signatures can be promoted into
+the verified pattern catalog.
+
+**Important:** This does not mean anonymous delivery is deployed.
+Until the operator deploys and enables the relay, reports can only be
+stored locally or published through existing deliberate GitHub sign-in
+methods. No direct GitHub token is stored in the EXE.
 
 It does **not** copy free-text descriptions, credentials, hostnames, usernames,
 local paths, IP addresses, stack traces, raw logs, or local delivery state into
