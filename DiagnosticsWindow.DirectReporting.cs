@@ -91,7 +91,7 @@ public partial class DiagnosticsWindow
     }
 
     // Typed report is created only in memory. No call to Capture(), no
-    // local file, and no free-text description is required for Formspree.
+    // local file, and no free-text description is required for Google.
     private async Task<(AnonymousDiagnosticPayload Payload, string Json)> CreateDirectReportAsync()
     {
         DiagnosticEnvironment? environment = null;
@@ -103,12 +103,13 @@ public partial class DiagnosticsWindow
                     "Windows/DLL details could not be verified. Choose Retry or uncheck the option.");
         }
         var payload = DiagnosticsBridge.PrepareDirect(draft, environment);
-        return (payload, FormspreeReportClient.BuildSubmission(payload, DiagnosticsBridge.Project));
+        return (payload, GoogleAppsScriptReportClient.BuildSubmission(payload));
     }
 
     private async void PreviewDirect_Click(object sender, RoutedEventArgs e)
     {
-        if (publishing || !reportingSettings.HasFormspree) return;
+        if (publishing || !reportingSettings.HasGoogleScript ||
+            IncludeWindowsEvidenceCheck.IsChecked != true) return;
         try
         {
             PreviewDirectButton.IsEnabled = false;
@@ -122,16 +123,17 @@ public partial class DiagnosticsWindow
             Status.Text = "Could not prepare a report (" + ex.GetType().Name +
                 "). Retry or adjust the Windows details option.";
         }
-        finally { PreviewDirectButton.IsEnabled = true; }
+        finally { PreviewDirectButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true; }
     }
 
-    private async void Formspree_Click(object sender, RoutedEventArgs e)
+    private async void GoogleReport_Click(object sender, RoutedEventArgs e)
     {
-        if (publishing || formspreeConfirmed || submittedIssue is not null ||
-            !reportingSettings.HasFormspree) return;
-        // Lock against double-clicks before the async environment hashing step.
+        if (publishing || googleConfirmed || submittedIssue is not null ||
+            !reportingSettings.HasGoogleScript || IncludeWindowsEvidenceCheck.IsChecked != true)
+            return;
         publishing = true;
-        FormspreeButton.IsEnabled = false;
+        GoogleButton.IsEnabled = false;
         PreviewDirectButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         IncludeWindowsEvidenceCheck.IsEnabled = false;
@@ -139,52 +141,69 @@ public partial class DiagnosticsWindow
         {
             var (payload, outgoing) = await CreateDirectReportAsync();
             ReportPreview.Text = outgoing;
-            string details = IncludeWindowsEvidenceCheck.IsChecked == true
-                ? "Includes Windows version, build and the SHA-256 of termsrv.dll."
-                : "Includes app/version/error category only; Windows DLL details are excluded.";
             if (MessageBox.Show(this,
-                    "Share this compatibility report to help improve the program?\n\n" +
-                    details + "\nIt contains no username, password, computer name or file contents.\n" +
-                    "The reporting provider may receive your network IP address.\n\n" +
-                    "Destination: https://formspree.io/f/" + reportingSettings.FormspreeFormId +
-                    "\n\nExact information to send:\n" + outgoing +
-                    "\n\nSend report?",
-                    "Send compatibility report", MessageBoxButton.YesNo,
+                    "Share a short compatibility report to help improve this program?\n\n" +
+                    "It includes Windows build, DLL version and SHA-256, but no user name, " +
+                    "computer name, passwords, file contents or free-form notes.\n" +
+                    "Google may observe your IP address; the submitted information " +
+                    "will become a PUBLIC GitHub Issue.\n\n" +
+                    "Destination: " + reportingSettings.GoogleAppsScriptUrl +
+                    "\n\nExact report to share:\n" + outgoing +
+                    "\n\nSend to GitHub now?",
+                    "Review compatibility report", MessageBoxButton.YesNo,
                     MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
             {
-                Status.Text = "Nothing sent. You can share it later.";
+                Status.Text = "Nothing sent. You can choose to share later.";
                 return;
             }
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            using var client = new FormspreeReportClient();
-            await client.SendAsync(reportingSettings.FormspreeFormId, outgoing, payload,
-                DiagnosticsBridge.Project, timeout.Token);
-            formspreeConfirmed = true;
-            FormspreeStatus.Text = "Thank you — your report was sent successfully.";
-            Status.Text = "Delivery confirmed by Formspree. No local report was required.";
-            AuditLog.Append("Optional typed compatibility report accepted by Formspree.");
+            using var client = new GoogleAppsScriptReportClient();
+            Uri issue = await client.SendAsync(reportingSettings.GoogleAppsScriptUrl,
+                outgoing, payload, timeout.Token);
+            googleConfirmed = true;
+            submittedIssue = issue;
+            OpenConfirmedIssueButton.Visibility = Visibility.Visible;
+            GoogleStatus.Text = "Thank you — your report was received and added to GitHub.";
+            Status.Text = "Confirmed public GitHub Issue: " + issue.AbsoluteUri;
+            AuditLog.Append("User-approved Google diagnostics submission acknowledged by GitHub.");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or
                                    InvalidOperationException or OperationCanceledException or
                                    JsonException or ArgumentException or IOException)
         {
-            FormspreeStatus.Text = "Delivery could not be confirmed (" + ex.GetType().Name +
-                "). Check the Formspree inbox before trying again.";
-            Status.Text = "No automatic retry. Local patch or restore was not affected.";
+            GoogleStatus.Text = "Delivery not confirmed (" + ex.GetType().Name +
+                "). Check GitHub Issues before sending again.";
+            Status.Text = "No automatic retry. The patch or restore was not affected.";
         }
         finally
         {
             publishing = false;
             SaveButton.IsEnabled = true;
             IncludeWindowsEvidenceCheck.IsEnabled = true;
-            PreviewDirectButton.IsEnabled = reportingSettings.HasFormspree;
-            FormspreeButton.IsEnabled = reportingSettings.HasFormspree && !formspreeConfirmed &&
+            PreviewDirectButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true;
+            GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true && !googleConfirmed &&
                 submittedIssue is null;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null &&
-                !formspreeConfirmed;
+                !googleConfirmed;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null &&
-                submittedIssue is null && !formspreeConfirmed;
+                submittedIssue is null && !googleConfirmed;
         }
     }
 
+    private void OpenConfirmedIssue_Click(object sender, RoutedEventArgs e)
+    {
+        if (!googleConfirmed || submittedIssue is null ||
+            !GitHubIssuePublisher.IsApprovedIssueUri(submittedIssue)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(submittedIssue.AbsoluteUri)
+            { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            Status.Text = "Could not open the browser. Issue: " + submittedIssue.AbsoluteUri;
+        }
+    }
 }

@@ -19,7 +19,7 @@ public partial class DiagnosticsWindow : Window
     private Uri? relayEndpoint;
     private string? githubSessionToken;
     private CancellationTokenSource? githubLoginCancel;
-    private bool formspreeConfirmed;
+    private bool googleConfirmed;
     private DirectReportingSettings reportingSettings = new("", "");
 
     public DiagnosticsWindow() : this(null) { }
@@ -50,19 +50,21 @@ public partial class DiagnosticsWindow : Window
             GitHubDeviceStatus.Text = reportingSettings.HasGitHubOAuth
                 ? "Ready: connect through GitHub browser sign-in when you wish to publish."
                 : "GitHub OAuth is not configured in this EXE; optional temporary token remains available.";
-            FormspreeButton.IsEnabled = reportingSettings.HasFormspree;
-            PreviewDirectButton.IsEnabled = reportingSettings.HasFormspree;
-            FormspreeStatus.Text = reportingSettings.HasFormspree
-                ? "Ready to share, if you choose. No sign-in or local save needed."
+            GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true;
+            PreviewDirectButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true;
+            GoogleStatus.Text = reportingSettings.HasGoogleScript
+                ? "Ready: review the information before creating a PUBLIC GitHub Issue. No sign-in needed."
                 : "Reporting is not configured in this build; no data will be sent.";
         }
         catch (Exception ex) when (ex is InvalidDataException or UnauthorizedAccessException or IOException or JsonException)
         {
             GitHubSignInButton.IsEnabled = false;
-            FormspreeButton.IsEnabled = false;
+            GoogleButton.IsEnabled = false;
             PreviewDirectButton.IsEnabled = false;
             GitHubDeviceStatus.Text = "Embedded GitHub reporting configuration is invalid. Disabled.";
-            FormspreeStatus.Text = "Embedded Formspree reporting configuration is invalid. Disabled.";
+            GoogleStatus.Text = "The Google reporting destination is not configured. Sending disabled.";
         }
         Closed += (_, _) =>
         {
@@ -83,18 +85,21 @@ public partial class DiagnosticsWindow : Window
         if (PublishButton is null || ReportPreview is null) return;
         anonymousPayload = null;
         if (AnonymousButton is not null) AnonymousButton.IsEnabled = false;
-        if (FormspreeButton is not null)
-            FormspreeButton.IsEnabled = reportingSettings.HasFormspree && !publishing;
+        if (GoogleButton is not null)
+            GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck?.IsChecked == true && !publishing;
         if (PreviewDirectButton is not null)
-            PreviewDirectButton.IsEnabled = reportingSettings.HasFormspree && !publishing;
+            PreviewDirectButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck?.IsChecked == true && !publishing;
         savedReport = null;
         savedPath = null;
         savedId = null;
         submittedIssue = null;
-        formspreeConfirmed = false;
+        googleConfirmed = false;
+        if (OpenConfirmedIssueButton is not null) OpenConfirmedIssueButton.Visibility = Visibility.Collapsed;
         PublishButton.IsEnabled = false;
         ReportPreview.Text = "Report options changed. Preview or send again. " +
-            "Saving locally is optional for Formspree.";
+            "Google sending does not require a local save.";
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -149,11 +154,11 @@ public partial class DiagnosticsWindow : Window
             savedPath = receipt.Path;
             savedId = receipt.Id;
             submittedIssue = null;
-            formspreeConfirmed = false;
+            googleConfirmed = false;
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
-            FormspreeButton.IsEnabled = reportingSettings.HasFormspree &&
-                !formspreeConfirmed;
+            GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true && !googleConfirmed;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
@@ -172,7 +177,7 @@ public partial class DiagnosticsWindow : Window
     private async void Publish_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || savedReport is null || savedId is null || savedPath is null ||
-            submittedIssue is not null || formspreeConfirmed || githubLoginCancel is not null) return;
+            submittedIssue is not null || googleConfirmed || githubLoginCancel is not null) return;
         if (string.IsNullOrWhiteSpace(SessionToken.Password) &&
             string.IsNullOrWhiteSpace(githubSessionToken))
         {
@@ -192,7 +197,7 @@ public partial class DiagnosticsWindow : Window
         publishing = true;
         PublishButton.IsEnabled = false;
         AnonymousButton.IsEnabled = false;
-        FormspreeButton.IsEnabled = false;
+        GoogleButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         Uri? created = null;
@@ -228,15 +233,15 @@ public partial class DiagnosticsWindow : Window
             IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
-            FormspreeButton.IsEnabled = reportingSettings.HasFormspree &&
-                submittedIssue is null && !formspreeConfirmed;
+            GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true && submittedIssue is null && !googleConfirmed;
         }
     }
 
     private async void Anonymous_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || relayEndpoint is null || anonymousPayload is null ||
-            savedPath is null || savedId is null || submittedIssue is not null || formspreeConfirmed) return;
+            savedPath is null || savedId is null || submittedIssue is not null || googleConfirmed) return;
         var payload = anonymousPayload;
         // The operator sees the exact JSON that will be sent, not the local summary.
         if (MessageBox.Show(this,
@@ -249,7 +254,7 @@ public partial class DiagnosticsWindow : Window
         publishing = true;
         AnonymousButton.IsEnabled = false;
         PublishButton.IsEnabled = false;
-        FormspreeButton.IsEnabled = false;
+        GoogleButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         IncludeWindowsEvidenceCheck.IsEnabled = false;
@@ -286,8 +291,8 @@ public partial class DiagnosticsWindow : Window
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null &&
                 anonymousPayload is not null && submittedIssue is null;
-            FormspreeButton.IsEnabled = reportingSettings.HasFormspree &&
-                submittedIssue is null && !formspreeConfirmed;
+            GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
+                IncludeWindowsEvidenceCheck.IsChecked == true && submittedIssue is null && !googleConfirmed;
         }
     }
 
