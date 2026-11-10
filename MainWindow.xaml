@@ -496,6 +496,17 @@
                 </WrapPanel>
                 <TextBlock x:Name="RdpDetails" Foreground="{StaticResource MutedBrush}"
                            Margin="0,5,0,12" TextWrapping="Wrap"/>
+                <Border Background="{StaticResource SoftBlueBrush}" CornerRadius="8"
+                        Padding="11" Margin="0,1,0,12">
+                  <StackPanel>
+                    <TextBlock Text="After applying settings" FontWeight="SemiBold"
+                               Foreground="{StaticResource NavyBrush}"/>
+                    <TextBlock x:Name="RdpApplyImpactText"
+                               Text="Local saves do not run gpupdate, restart TermService or reboot Windows. Group Policy may override local values; verify a new RDP connection."
+                               TextWrapping="Wrap" Margin="0,5,0,0"
+                               Foreground="{StaticResource MutedBrush}"/>
+                  </StackPanel>
+                </Border>
                 <Expander x:Name="RdpSecurityAdvanced" Header="Advanced security: blank passwords"
                           IsExpanded="False" Margin="0,3,0,4">
                   <Border Padding="13" Background="#FFF7ED" CornerRadius="8" Margin="0,8,0,0">
