@@ -1476,8 +1476,8 @@ public partial class MainWindow : Window
         bool? restricted = RdpBlankPasswordSecurity.Read();
         BlankPasswordStatus.Text = restricted switch
         {
-            true => "Current: DWORD 1 — console-only restriction ON. Empty-password local accounts are blocked from ordinary remote logon (recommended).",
-            false => "Current: DWORD 0 — restriction OFF. Windows does not block empty-password local accounts under this security option (HIGH RISK).",
+            true => "Current: restriction ON. Empty-password local accounts are blocked from ordinary remote logon (recommended).",
+            false => "Current: restriction OFF. Windows does not block empty-password local accounts under this security option (HIGH RISK).",
             _ => "Current: unknown (missing, invalid or unreadable). Editing disabled."
         };
         BlankPasswordStatus.Text += Environment.NewLine +
@@ -1485,8 +1485,8 @@ public partial class MainWindow : Window
             Environment.NewLine + "Winning security GPO: not identified. RDP sign-in depends on other policies and NLA.";
         RenderRdpTile(RdpEffectiveBlankText, restricted switch
         {
-            true => "Restriction ON (1)",
-            false => "Restriction OFF (0)",
+            true => "Restriction ON",
+            false => "Restriction OFF",
             _ => "Unknown"
         }, restricted.HasValue ? "Local security" : "Unknown", restricted == true);
         BlankPasswordStatus.Foreground = restricted == false

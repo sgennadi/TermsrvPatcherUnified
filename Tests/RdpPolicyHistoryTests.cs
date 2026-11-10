@@ -72,8 +72,8 @@ internal static class RdpPolicyHistoryTests
                RdpLocalAdvancedSettings.Find("Disable camera redirection") is null &&
                RdpLocalAdvancedSettings.Find("RDP keep-alive interval") is null,
                "verified ADMX value names are diagnostic-only, not additional local writers");
-        Verify(RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(true).LocalValue.StartsWith("1", StringComparison.Ordinal) &&
-               RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false).LocalValue.StartsWith("0", StringComparison.Ordinal) &&
+        Verify(RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(true).LocalValue == "Restriction ON" &&
+               RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false).LocalValue == "Restriction OFF" &&
                RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(null).Assessment == "Windows LSA security",
                "blank-password explanations distinguish both LSA DWORD values and unknown source");
 

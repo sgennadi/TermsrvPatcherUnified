@@ -681,8 +681,8 @@
                         <ComboBox x:Name="BlankPasswordChoice" Height="34" MinWidth="300"
                                   HorizontalAlignment="Stretch" Margin="0,0,0,7"
                                   ToolTip="HKLM\SYSTEM\CurrentControlSet\Control\Lsa\LimitBlankPasswordUse">
-                          <ComboBoxItem Content="1 — Restrict blank-password accounts to console (recommended)"/>
-                          <ComboBoxItem Content="0 — Allow by local security policy (high risk)"/>
+                          <ComboBoxItem Content="Restrict blank-password accounts to console (recommended)"/>
+                          <ComboBoxItem Content="Allow by local security policy (high risk)"/>
                         </ComboBox>
                         <WrapPanel>
                           <Button x:Name="SaveBlankPasswordButton"

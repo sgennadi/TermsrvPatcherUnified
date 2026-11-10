@@ -314,7 +314,7 @@ internal static class UiSmokeTests
                 var blankView = RdpRowEditStatus.Annotate(blank, administrator: true,
                     console: false, policyManaged: null, validValue: true);
                 if (!blankView.CanEdit || blankView.PolicyLocked ||
-                    !blank.LocalValue.StartsWith("0", StringComparison.Ordinal) ||
+                    !blank.LocalValue.Equals("Restriction OFF", StringComparison.Ordinal) ||
                     !blank.Explanation.Contains("LimitBlankPasswordUse", StringComparison.Ordinal))
                     throw new Exception("Blank-password policy must explain DWORD 0 and allow guarded local editing.");
                 var blankUnknown = RdpRowEditStatus.Annotate(
