@@ -17,6 +17,9 @@ public partial class DiagnosticsWindow : Window
     private bool publishing;
     private AnonymousDiagnosticPayload? anonymousPayload;
     private Uri? relayEndpoint;
+    private string? githubSessionToken;
+    private CancellationTokenSource? githubLoginCancel;
+    private bool formspreeConfirmed;
 
     public DiagnosticsWindow()
     {
@@ -37,7 +40,22 @@ public partial class DiagnosticsWindow : Window
         {
             RelayState.Text = "Invalid relay configuration — local reports only";
         }
-        Closed += (_, _) => SessionToken.Clear();
+        try
+        {
+            var options = DirectReportingSettings.Load();
+            GitHubClientIdInput.Text = options.GitHubOAuthClientId;
+            FormspreeFormIdInput.Text = options.FormspreeFormId;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or UnauthorizedAccessException or IOException or JsonException)
+        {
+            FormspreeStatus.Text = "Provider configuration unavailable. Enter an ID manually.";
+        }
+        Closed += (_, _) =>
+        {
+            githubLoginCancel?.Cancel();
+            githubSessionToken = null;
+            SessionToken.Clear();
+        };
     }
 
     private void DescriptionChanged(object sender, TextChangedEventArgs e)
@@ -51,10 +69,12 @@ public partial class DiagnosticsWindow : Window
         if (PublishButton is null || ReportPreview is null) return;
         anonymousPayload = null;
         if (AnonymousButton is not null) AnonymousButton.IsEnabled = false;
+        if (FormspreeButton is not null) FormspreeButton.IsEnabled = false;
         savedReport = null;
         savedPath = null;
         savedId = null;
         submittedIssue = null;
+        formspreeConfirmed = false;
         PublishButton.IsEnabled = false;
         ReportPreview.Text = "Report options changed. Review and save the report again before publishing.";
     }
@@ -111,8 +131,11 @@ public partial class DiagnosticsWindow : Window
             savedPath = receipt.Path;
             savedId = receipt.Id;
             submittedIssue = null;
+            formspreeConfirmed = false;
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
+            FormspreeButton.IsEnabled = anonymousPayload is not null &&
+                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
@@ -131,7 +154,7 @@ public partial class DiagnosticsWindow : Window
     private async void Publish_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || savedReport is null || savedId is null || savedPath is null ||
-            submittedIssue is not null) return;
+            submittedIssue is not null || formspreeConfirmed || githubLoginCancel is not null) return;
         if (MessageBox.Show(this,
                 "Publish this saved report to the PUBLIC GitHub Issues page?\n\n" +
                 "Only the text in Review is sent. Do not publish passwords, tokens, " +
@@ -139,11 +162,13 @@ public partial class DiagnosticsWindow : Window
                 "Publish reviewed diagnostics?", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
 
-        var token = SessionToken.Password;
-        SessionToken.Clear(); // Token never persists in the report or application settings.
+        var token = !string.IsNullOrWhiteSpace(SessionToken.Password)
+            ? SessionToken.Password : githubSessionToken ?? "";
+        SessionToken.Clear(); // Manual PAT is never persisted.
         publishing = true;
         PublishButton.IsEnabled = false;
         AnonymousButton.IsEnabled = false;
+        FormspreeButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         Uri? created = null;
@@ -179,13 +204,16 @@ public partial class DiagnosticsWindow : Window
             IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
+            FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
+                submittedIssue is null && !formspreeConfirmed &&
+                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
         }
     }
 
     private async void Anonymous_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || relayEndpoint is null || anonymousPayload is null ||
-            savedPath is null || savedId is null || submittedIssue is not null) return;
+            savedPath is null || savedId is null || submittedIssue is not null || formspreeConfirmed) return;
         var payload = anonymousPayload;
         // The operator sees the exact JSON that will be sent, not the local summary.
         if (MessageBox.Show(this,
@@ -198,6 +226,7 @@ public partial class DiagnosticsWindow : Window
         publishing = true;
         AnonymousButton.IsEnabled = false;
         PublishButton.IsEnabled = false;
+        FormspreeButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         IncludeWindowsEvidenceCheck.IsEnabled = false;
@@ -234,6 +263,9 @@ public partial class DiagnosticsWindow : Window
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null &&
                 anonymousPayload is not null && submittedIssue is null;
+            FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
+                submittedIssue is null && !formspreeConfirmed &&
+                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
         }
     }
 
