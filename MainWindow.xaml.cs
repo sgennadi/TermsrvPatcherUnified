@@ -1133,6 +1133,28 @@ public partial class MainWindow : Window
             : notice.Status.ToString();
     }
 
+    internal void SetBackupPreference(bool createFullBackup)
+        => CreateBackupCheck.IsChecked = createFullBackup;
+
+    private void SimpleMode_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy)
+        {
+            MessageBox.Show(this, "Finish the current operation before switching views.",
+                "Switch view", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        // Switch the WPF MainWindow owner BEFORE closing Advanced. The simple
+        // view performs a new read-only DLL and recovery-evidence inspection;
+        // an old Ready plan must never be carried across this navigation.
+        var simple = new QuickApplyWindow();
+        simple.SetBackupPreference(CreateBackupCheck.IsChecked == true);
+        Application.Current.MainWindow = simple;
+        simple.Show();
+        Close();
+    }
+
     private void Updates_Click(object sender, RoutedEventArgs e)
         => new UpdateCenterWindow(updates) { Owner = this }.ShowDialog();
 
