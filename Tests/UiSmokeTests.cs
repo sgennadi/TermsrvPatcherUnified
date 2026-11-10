@@ -53,6 +53,11 @@ internal static class UiSmokeTests
                     main.FindName("SaveBlankPasswordButton") is not Button ||
                     main.FindName("SimpleModeButton") is not Button)
                     throw new Exception("Unified RDP dashboard, hidden security controls or back navigation missing.");
+                if (main.FindName("AdvancedAutoReapplyCheck") is not CheckBox advancedReapply ||
+                    advancedReapply.IsChecked != false ||
+                    main.FindName("AdvancedAutoReapplyStatus") is not TextBlock ||
+                    main.FindName("CleanupButton") is not Button)
+                    throw new Exception("Advanced Auto Reapply and Cleanup controls are missing.");
                 if (main.FindName("RdpPolicyGrid") is not DataGrid policyGrid ||
                     !policyGrid.IsReadOnly || main.FindName("RdpPolicyDetails") is not TextBox ||
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
@@ -126,6 +131,11 @@ internal static class UiSmokeTests
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
                 var quick = new QuickApplyWindow();
+                if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
+                    quickAuto.IsChecked != false ||
+                    quick.FindName("QuickAutoReapplyStatus") is not TextBlock ||
+                    quick.FindName("QuickCleanupButton") is not Button)
+                    throw new Exception("Simple Auto Reapply checkbox and Cleanup controls missing.");
                 if (quick.FindName("QuickApplyButton") is not Button quickApply ||
                     quickApply.IsEnabled ||
                     quick.FindName("QuickRevertButton") is not Button quickRevert ||
@@ -139,12 +149,27 @@ internal static class UiSmokeTests
                     quick.FindName("QuickCheckButton") is not Button ||
                     quick.FindName("QuickStatusText") is not TextBlock)
                     throw new Exception("Compact Apply / Revert / Check / Advanced / Cancel and safe backup default missing.");
+                var cleanup = new CleanupWindow();
+                if (cleanup.FindName("CleanupBackupsCheck") is not CheckBox ||
+                    cleanup.FindName("CleanupReportsCheck") is not CheckBox ||
+                    cleanup.FindName("CleanupTaskCheck") is not CheckBox taskOption ||
+                    taskOption.IsChecked != false ||
+                    cleanup.FindName("CleanupExecuteButton") is not Button cleanButton ||
+                    cleanButton.IsEnabled)
+                    throw new Exception("Cleanup categories and task deletion must require explicit opt-in.");
+                var overview = CleanupService.Preview(new CleanupService.Options(
+                    Backups: true, LocalReports: true, ScheduledTask: false));
+                if (!overview.Contains("recovery journals", StringComparison.OrdinalIgnoreCase) ||
+                    !overview.Contains("Windows Event Logs", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("Cleanup preview must warn about recovery loss and excluded system logs.");
+
                 var windows = new Window[]
                 {
                     quick,
                     main,
                     updaterWindow,
                     diagnosticsWindow,
+                    cleanup,
                     new AboutWindow(),
                     new SuccessfulFixWindow(record)
                 };
