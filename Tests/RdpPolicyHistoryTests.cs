@@ -27,6 +27,18 @@ internal static class RdpPolicyHistoryTests
             "Local setting", "valid TCP port accepted");
         Verify(RdpPolicyDiagnostics.Evaluate("Security", 0, 2, 0, 2).Assessment ==
             "Policy differs", "security-layer conflicts detected");
+        Verify(RdpBlankPasswordSecurity.Interpret(1) == true &&
+               RdpBlankPasswordSecurity.Interpret(0) == false &&
+               RdpBlankPasswordSecurity.Interpret(2) is null &&
+               RdpBlankPasswordSecurity.Interpret("1") is null &&
+               RdpBlankPasswordSecurity.Interpret(null) is null,
+               "blank-password policy treats malformed/missing values as unknown");
+        Verify(RdpPolicyDiagnostics.Evaluate("Idle limit", null, 300000, 0, int.MaxValue)
+                   .Assessment == "Policy configured",
+               "session time-limit policy is inspected without assuming local defaults");
+        Verify(RdpPolicyDiagnostics.Evaluate("Clipboard", null, null, 0, 1)
+                   .Assessment == "Unavailable",
+               "absent redirection policy is not mistaken for allowing redirection");
 
         var root = Path.Combine(Path.GetTempPath(), "Termsrv-History-QA-" + Guid.NewGuid().ToString("N"));
         var file = Path.Combine(root, "events.jsonl");
@@ -73,8 +85,12 @@ internal static class RdpPolicyHistoryTests
             if (OperatingSystem.IsWindows())
             {
                 var report = RdpPolicyDiagnostics.ReadLocal();
-                Verify(report.Values.Count >= 6 && report.AsText().Contains("READ ONLY"),
-                    "Windows registry/service read-only diagnostic report");
+                Verify(report.Values.Count >= 17 && report.AsText().Contains("READ ONLY"),
+                    "Windows registry/service including extended RDP policy report");
+                Verify(report.Values.Any(x => x.Setting == "Blank-password restriction (local accounts)") &&
+                       report.Values.Any(x => x.Setting == "Idle session limit") &&
+                       report.Values.Any(x => x.Setting == "Disable clipboard redirection"),
+                    "advanced RDP categories present in read-only inventory");
                 Verify(!report.AsText().Contains(Environment.UserName, StringComparison.OrdinalIgnoreCase),
                     "diagnostics never include local account name");
             }
