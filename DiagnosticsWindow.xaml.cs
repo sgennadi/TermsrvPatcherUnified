@@ -107,7 +107,7 @@ public partial class DiagnosticsWindow : Window
     {
         if (string.IsNullOrWhiteSpace(DescriptionInput.Text))
         {
-            MessageBox.Show(this, "Enter a short description before saving a report.");
+            ModernMessageDialog.Show(this, "Enter a short description before saving a report.");
             return;
         }
         var description = DescriptionInput.Text;
@@ -125,7 +125,7 @@ public partial class DiagnosticsWindow : Window
         var proposed = $"Project: {DiagnosticsBridge.Project}\nComponent: {draft.Component}\n" +
             $"Type: {draft.ErrorType}\nCode: {draft.Code}\n" +
             $"Version: {UpdateIntegration.Version}\n\n{evidencePreview}\n\n{description}";
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "Review this description. The diagnostics module will redact common identifiers " +
                 "and save a local event. Nothing will be uploaded automatically.\n\n" + proposed,
                 "Confirm local diagnostic capture", MessageBoxButton.YesNo,
@@ -185,7 +185,7 @@ public partial class DiagnosticsWindow : Window
             Status.Text = "Connect GitHub using browser sign-in, or enter an optional temporary token.";
             return;
         }
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "Publish this saved report to the PUBLIC GitHub Issues page?\n\n" +
                 "Only the text in Review is sent. Do not publish passwords, tokens, " +
                 "identifiers or sensitive information.\n\nContinue?",
@@ -245,7 +245,7 @@ public partial class DiagnosticsWindow : Window
             savedPath is null || savedId is null || submittedIssue is not null || googleConfirmed) return;
         var payload = anonymousPayload;
         // The operator sees the exact JSON that will be sent, not the local summary.
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "Only the following typed fields will be sent over HTTPS to the configured " +
                 "relay and may become a PUBLIC GitHub Issue. No description, logs, " +
                 "passwords or paths are uploaded. Review all fields.\n\n" + payload.Json +
@@ -301,7 +301,7 @@ public partial class DiagnosticsWindow : Window
     {
         if (savedReport is null)
         {
-            MessageBox.Show(this, "Save and review the report first.");
+            ModernMessageDialog.Show(this, "Save and review the report first.");
             return;
         }
         Clipboard.SetText(savedReport);

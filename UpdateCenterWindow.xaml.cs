@@ -124,7 +124,7 @@ public partial class UpdateCenterWindow : Window
         if (release is null || controller.Notice.Status != UpdateNoticeStatus.Available ||
             controller.Notice.IsCached || !canInstall)
         {
-            MessageBox.Show(this, "Check the selected channel again before installing. " +
+            ModernMessageDialog.Show(this, "Check the selected channel again before installing. " +
                 (reason ?? ""), "Install unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -170,7 +170,7 @@ public partial class UpdateCenterWindow : Window
         {
             DiagnosticsBridge.Remember("Updates Install", ex);
             StatusText.Text = "Installation was not started: " + ex.GetType().Name;
-            MessageBox.Show(this, "The original application has not been replaced. " +
+            ModernMessageDialog.Show(this, "The original application has not been replaced. " +
                 ex.Message, "Update installation failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
         finally

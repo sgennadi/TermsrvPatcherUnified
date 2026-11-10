@@ -40,20 +40,20 @@ public partial class CleanupWindow : Window
         if (running) return;
         var selected = Selected;
         if (!selected.Backups && !selected.LocalReports && !selected.ScheduledTask) return;
-        if (selected.Backups && MessageBox.Show(this,
+        if (selected.Backups && ModernMessageDialog.Show(this,
                 "This removes all application-managed DLL backups and protected recovery journals, " +
                 "including the System32 .bak. If the installed DLL is patched, Revert may become impossible. " +
                 "Windows servicing or an original DLL copy may be required. Continue?",
                 "Delete recovery options?", MessageBoxButton.YesNo,
                 MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
-        if (selected.ScheduledTask && MessageBox.Show(this,
+        if (selected.ScheduledTask && ModernMessageDialog.Show(this,
                 "Remove the persistent Auto Reapply Task Scheduler job as well? " +
                 "After removal, Windows Update will no longer trigger automatic checking.",
                 "Remove the scheduled task?", MessageBoxButton.YesNo,
                 MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "Remove the selected TermsrvPatcherUnified files now?\n\n" +
                 CleanupService.Preview(selected) +
                 "\n\nThis action cannot be undone.",
@@ -68,14 +68,14 @@ public partial class CleanupWindow : Window
         try
         {
             var result = await Task.Run(() => CleanupService.Clean(selected));
-            MessageBox.Show(this, result, "Cleanup finished",
+            ModernMessageDialog.Show(this, result, "Cleanup finished",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             DialogResult = true;
         }
         catch (Exception ex)
         {
             DiagnosticsBridge.Remember("Cleanup", ex);
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "Cleanup was not completed. Some selected files may already have been removed.\n\n" +
                 ex.GetType().Name + ": " + ex.Message,
                 "Cleanup needs review", MessageBoxButton.OK, MessageBoxImage.Warning);

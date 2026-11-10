@@ -68,6 +68,26 @@ internal static class UiSmokeTests
                     tabs.Items.OfType<TabItem>().Any(tab =>
                         (tab.Header as string) is "RDP Health" or "RDP Settings"))
                     throw new Exception("RDP settings and health must be merged into exactly one tab.");
+                if (tabs.Items.OfType<TabItem>().Count(tab =>
+                        tab.Header as string == "System Health") != 1)
+                    throw new Exception("DLL monitoring must be in a separate System Health tab.");
+                if (main.FindName("RdpTechnicalAdvanced") is not Expander technicalRdp ||
+                    technicalRdp.IsExpanded ||
+                    main.FindName("RdpEffectiveEnabledText") is not TextBlock ||
+                    main.FindName("RdpEffectiveNlaText") is not TextBlock ||
+                    main.FindName("RdpEffectiveSingleText") is not TextBlock ||
+                    main.FindName("RdpEffectiveBlankText") is not TextBlock ||
+                    main.FindName("RdpEffectivePortText") is not TextBlock ||
+                    main.FindName("RdpEffectiveFirewallText") is not TextBlock ||
+                    main.FindName("RdpEffectiveRestartText") is not TextBlock ||
+                    main.FindName("RdpPolicyOverviewText") is not TextBlock ||
+                    main.FindName("RdpEnabledSourceText") is not TextBlock ||
+                    main.FindName("NlaSourceText") is not TextBlock ||
+                    main.FindName("SingleSourceText") is not TextBlock)
+                    throw new Exception("Compact RDP status, policy source rows or collapsed details are missing.");
+                if (main.FindName("RdpEffectiveFirewallText") is TextBlock firewall &&
+                    !firewall.Text.Contains("not", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("Firewall status must not claim success without verification.");
                 if (main.FindName("RdpSessionsGrid") is not DataGrid grid ||
                     !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox ||
                     main.FindName("RdpSessionsCountText") is not TextBlock ||
@@ -264,6 +284,14 @@ internal static class UiSmokeTests
                     !cancelButton.IsCancel ||
                     confirm.FindName("CopyButton") is not Button)
                     throw new Exception("Modern report/update review must show exact details, require manual consent, and allow cancellation.");
+                var modernMessage = new ModernMessageDialog();
+                if (modernMessage.FindName("HeadingText") is not TextBlock ||
+                    modernMessage.FindName("BodyText") is not TextBlock ||
+                    modernMessage.FindName("AcceptButton") is not Button modernAccept ||
+                    modernAccept.IsDefault ||
+                    modernMessage.FindName("CancelButton") is not Button modernCancel ||
+                    !modernCancel.IsCancel)
+                    throw new Exception("Modern inline help/error/confirmation dialog is incomplete or auto-confirms.");
                 var tinyDesktop = new Rect(0, 0, 800, 560);
                 var fitted = WindowLayout.FitBounds(tinyDesktop, 1120, 795);
                 if (fitted.Left < tinyDesktop.Left ||
@@ -274,6 +302,7 @@ internal static class UiSmokeTests
                     throw new Exception("Window sizing fails to keep the startup window on screen.");
                 var windows = new Window[]
                 {
+                    modernMessage,
                     confirm,
                     quick,
                     main,
