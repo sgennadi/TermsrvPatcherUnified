@@ -27,6 +27,30 @@ internal static class RdpPolicyHistoryTests
             "Local setting", "valid TCP port accepted");
         Verify(RdpPolicyDiagnostics.Evaluate("Security", 0, 2, 0, 2).Assessment ==
             "Policy differs", "security-layer conflicts detected");
+        var unchanged = new RdpStatus(true, true, true);
+        var modified = new RdpStatus(true, false, false);
+        var followUp = RdpPostApply.Build(unchanged, modified, synchronizeFirewall: false);
+        Verify(followUp.ConnectionRetest &&
+               followUp.Rows.Count == 4 &&
+               followUp.Rows.Single(x => x.Setting == "Network Level Authentication")
+                   .Status == "Local value changed" &&
+               followUp.Rows.Single(x => x.Setting == "One session per user")
+                   .RequiredAction.Contains("next user sign-in", StringComparison.OrdinalIgnoreCase),
+               "RDP follow-up identifies NLA and session changes without requiring automatic service restart");
+        var stable = RdpPostApply.Build(unchanged, unchanged, synchronizeFirewall: false);
+        Verify(!stable.ConnectionRetest && stable.Rows.All(x => x.Status != "Local value changed"),
+               "unchanged RDP preferences do not invent pending restart requirements");
+        Verify(RdpPostApply.InterpretPort(3389) == 3389 &&
+               RdpPostApply.InterpretPort(65535) == 65535 &&
+               RdpPostApply.InterpretPort(0) is null &&
+               RdpPostApply.InterpretPort(65536) is null &&
+               RdpPostApply.InterpretPort("3389") is null,
+               "port reader treats invalid and non-numeric values as unknown");
+        Verify(RdpPostApply.ListenerRestartRequired(3389, 3390) &&
+               !RdpPostApply.ListenerRestartRequired(3389, 3389) &&
+               !RdpPostApply.ListenerRestartRequired(null, 3389) &&
+               !RdpPostApply.ListenerRestartRequired(3389, null),
+               "restart review is enabled only by an observed valid listener-port change");
         Verify(RdpBlankPasswordSecurity.Interpret(1) == true &&
                RdpBlankPasswordSecurity.Interpret(0) == false &&
                RdpBlankPasswordSecurity.Interpret(2) is null &&
