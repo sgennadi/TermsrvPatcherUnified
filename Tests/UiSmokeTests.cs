@@ -133,6 +133,12 @@ internal static class UiSmokeTests
                 }
                 finally { Directory.Delete(tempRoot, recursive: true); }
                 var updaterWindow = new UpdateCenterWindow(updater);
+                if (updaterWindow.FindName("StableChannelButton") is not RadioButton stableChannel ||
+                    updaterWindow.FindName("PreviewChannelButton") is not RadioButton previewChannel ||
+                    previewChannel.IsChecked != true || stableChannel.IsChecked == true ||
+                    updaterWindow.FindName("ChannelSelector") is not null ||
+                    updaterWindow.FindName("ChannelHint") is not TextBlock)
+                    throw new Exception("Stable/Preview must be a visible segmented selector with Preview selected for preview builds.");
                 if (updaterWindow.FindName("InstallHelp") is not TextBlock eligibilityHelp ||
                     eligibilityHelp.Text.Contains("signed update installer", StringComparison.OrdinalIgnoreCase) ||
                     updaterWindow.FindName("ReleasePageButton") is not Button ||
@@ -166,6 +172,13 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
                 var quick = new QuickApplyWindow();
+                if (quick.Content is not Grid quickRoot ||
+                    quickRoot.RowDefinitions.Count != 2 ||
+                    quickRoot.Children.OfType<ScrollViewer>()
+                        .Any(scroll => Grid.GetRow(scroll) != 0) ||
+                    !quickRoot.Children.OfType<Grid>()
+                        .Any(panel => Grid.GetRow(panel) == 1))
+                    throw new Exception("Simple view footer must stay outside the scrolling region.");
                 if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
                     quickAuto.IsChecked != false ||
                     quick.FindName("QuickAutoReapplyStatus") is not TextBlock ||
@@ -211,8 +224,26 @@ internal static class UiSmokeTests
                     successReport.FindName("TokenInput") is not PasswordBox ||
                     successReport.FindName("SkipButton") is not Button)
                     throw new Exception("Successful Apply must offer friendly optional sharing without removing advanced GitHub reporting.");
+                var confirm = new ModernConfirmDialog();
+                if (confirm.FindName("DetailsText") is not TextBox reportDetails ||
+                    !reportDetails.IsReadOnly ||
+                    confirm.FindName("ConfirmButton") is not Button confirmButton ||
+                    confirmButton.IsDefault ||
+                    confirm.FindName("CancelButton") is not Button cancelButton ||
+                    !cancelButton.IsCancel ||
+                    confirm.FindName("CopyButton") is not Button)
+                    throw new Exception("Modern report/update review must show exact details, require manual consent, and allow cancellation.");
+                var tinyDesktop = new Rect(0, 0, 800, 560);
+                var fitted = WindowLayout.FitBounds(tinyDesktop, 1120, 795);
+                if (fitted.Left < tinyDesktop.Left ||
+                    fitted.Top < tinyDesktop.Top ||
+                    fitted.Right > tinyDesktop.Right ||
+                    fitted.Bottom > tinyDesktop.Bottom ||
+                    fitted.Width < 400 || fitted.Height < 350)
+                    throw new Exception("Window sizing fails to keep the startup window on screen.");
                 var windows = new Window[]
                 {
+                    confirm,
                     quick,
                     main,
                     updaterWindow,
