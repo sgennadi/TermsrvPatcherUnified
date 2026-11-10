@@ -429,34 +429,70 @@
           </StackPanel>
         </ScrollViewer>
       </TabItem>
-      <TabItem Header="RDP Settings">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <StackPanel Margin="15,18,15,10">
-            <TextBlock Text="Remote Desktop configuration" FontSize="18" FontWeight="SemiBold"/>
-            <TextBlock Text="These are Windows settings and do not bypass Windows licensing or guarantee concurrent sessions. Group Policy can override them."
-                       Margin="0,7,0,15" Foreground="{StaticResource MutedBrush}"/>
-            <CheckBox x:Name="RdpEnabled" Content="Enable Remote Desktop" Margin="0,0,0,12"/>
-            <CheckBox x:Name="NlaEnabled" Content="Require Network Level Authentication (recommended)" Margin="0,0,0,12"/>
-            <CheckBox x:Name="SingleSession" Content="Restrict to one session per user (Windows default)" Margin="0,0,0,12"/>
-            <CheckBox x:Name="FirewallEnabled" Content="Synchronize Domain/Private firewall rules" IsChecked="True"
-                      Margin="0,0,0,16"/>
-            <WrapPanel>
-              <Button Tag="&#xE8A7;" Content="Read settings" Click="ReadSettings_Click"/>
-              <Button Tag="&#xE74E;" Content="Save settings" Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click"/>
-            </WrapPanel>
-            <TextBlock x:Name="RdpDetails" Foreground="{StaticResource MutedBrush}" Margin="0,12,0,0" TextWrapping="Wrap"/>
-            <TextBlock Text="For Group Policy conflicts, open RDP Health and choose Check RDP configuration."
-                       TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/>
-            <TextBlock Text="For security, this manager does not offer blank-password RDP logon." Foreground="#8B531A" Margin="0,15,0,0"/>
-          </StackPanel>
-        </ScrollViewer>
-      </TabItem>
-      <TabItem Header="RDP Health">
+      <TabItem Header="Remote Desktop">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="15,18,15,14">
-            <TextBlock Text="DLL health and RDP sessions" FontSize="18" FontWeight="SemiBold"/>
-            <TextBlock Margin="0,7,0,16" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
-                       Text="Read-only status. Compare the current termsrv.dll with a baseline you explicitly saved. No automatic patching, system-service restart or uploads."/>
+            <TextBlock Text="Remote Desktop" FontSize="21" FontWeight="SemiBold"
+                       Foreground="{StaticResource NavyBrush}"/>
+            <TextBlock Text="Connection, security, sessions and diagnostics in one place."
+                       Margin="0,6,0,13" Foreground="{StaticResource MutedBrush}"/>
+            <Border Background="{StaticResource SoftBlueBrush}" CornerRadius="10"
+                    Padding="15" Margin="0,0,0,15">
+              <StackPanel>
+                <TextBlock Text="Current status" FontSize="15" FontWeight="SemiBold"/>
+                <TextBlock x:Name="RdpOverviewText" Text="Read settings to inspect the current configuration."
+                           Margin="0,6,0,0" TextWrapping="Wrap"/>
+                <TextBlock x:Name="RdpServiceText" Text="Service status: not checked."
+                           Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}"/>
+                <WrapPanel Margin="0,12,0,0">
+                  <Button Tag="&#xE72C;" Content="Refresh settings" Click="ReadSettings_Click"/>
+                  <Button Tag="&#xE721;" Content="Check policies" Click="CheckRdpPolicy_Click"/>
+                  <Button Tag="&#xE72C;" Content="Refresh sessions" Click="RefreshRdpSessions_Click"/>
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+            <GroupBox Header="Connection and security">
+              <StackPanel>
+                <CheckBox x:Name="RdpEnabled" Content="Enable Remote Desktop"
+                          Margin="0,2,0,12"/>
+                <CheckBox x:Name="NlaEnabled" Content="Require Network Level Authentication (recommended)"
+                          Margin="0,0,0,12"/>
+                <CheckBox x:Name="SingleSession" Content="Limit to one session per user"
+                          Margin="0,0,0,12"/>
+                <CheckBox x:Name="FirewallEnabled" Content="Synchronize Domain / Private inbound firewall rules"
+                          IsChecked="True" Margin="0,0,0,12"/>
+                <WrapPanel>
+                  <Button Tag="&#xE74E;" Content="Save settings"
+                          Style="{StaticResource PrimaryButton}" Click="SaveSettings_Click"/>
+                  <Button Tag="&#xE8A7;" Content="Reload" Click="ReadSettings_Click"/>
+                </WrapPanel>
+                <TextBlock x:Name="RdpDetails" Foreground="{StaticResource MutedBrush}"
+                           Margin="0,5,0,12" TextWrapping="Wrap"/>
+                <Expander x:Name="RdpSecurityAdvanced" Header="Advanced security: blank passwords"
+                          IsExpanded="False" Margin="0,3,0,4">
+                  <Border Padding="13" Background="#FFF7ED" CornerRadius="8" Margin="0,8,0,0">
+                    <StackPanel>
+                      <TextBlock Text="Local accounts with blank passwords"
+                                 FontWeight="SemiBold" Foreground="#91400B"/>
+                      <TextBlock Text="Microsoft recommends allowing blank-password accounts to sign in ONLY at the local console. Disabling this restriction increases risk and may be overridden by domain GPO."
+                                 Margin="0,6,0,10" Foreground="#8B531A"/>
+                      <TextBlock x:Name="BlankPasswordStatus" Text="Current policy has not been inspected."
+                                 Margin="0,0,0,10"/>
+                      <CheckBox x:Name="BlankPasswordRestriction"
+                                Content="Restrict blank-password accounts to console logon (recommended)"
+                                IsChecked="True" Margin="0,0,0,12"/>
+                      <Button x:Name="SaveBlankPasswordButton"
+                              Content="Apply local security policy" Tag="&#xE74E;"
+                              Click="SaveBlankPassword_Click" HorizontalAlignment="Left"/>
+                      <TextBlock Text="Independent of NLA and saved credentials. This changes local policy, not Active Directory GPOs."
+                                 Margin="0,2,0,0" Foreground="#8B531A"/>
+                    </StackPanel>
+                  </Border>
+                </Expander>
+              </StackPanel>
+            </GroupBox>
+            <TextBlock Text="Read-only monitoring" FontSize="16" FontWeight="SemiBold"
+                       Margin="0,4,0,13" Foreground="{StaticResource NavyBrush}"/>
             <GroupBox Header="DLL Health — checksum drift">
               <StackPanel>
                 <WrapPanel>
@@ -464,11 +500,13 @@
                           Style="{StaticResource PrimaryButton}"/>
                   <Button Tag="&#xE74E;" Content="Save current as baseline..." Click="SaveDllBaseline_Click"/>
                 </WrapPanel>
+                <Expander Header="Show checksum and baseline details" IsExpanded="False">
                 <TextBox x:Name="DllHealthDetails" IsReadOnly="True" Height="205"
                          FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                          Margin="0,11,0,7"
                          Text="No baseline comparison yet. Choose Check DLL health. Baselines are local reference metadata, not proof a DLL is safe."/>
+                </Expander>
                 <TextBlock TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
                            Text="A changed SHA-256 or DLL version indicates drift, not its cause. A Windows update, manual replacement or another event could be responsible."/>
               </StackPanel>
@@ -502,6 +540,11 @@
                         Style="{StaticResource PrimaryButton}" HorizontalAlignment="Left"/>
                 <TextBlock x:Name="RdpPolicySummary" Text="No configuration diagnostic yet." Margin="0,9,0,8"
                            TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"/>
+                <Expander Header="Show registry values, Group Policy and advanced options"
+                          IsExpanded="False" Margin="0,7,0,0">
+                  <StackPanel>
+                    <TextBlock Text="Includes RDP port, TLS, encryption, password prompts, clipboard, drive/printer redirection, session limits and transport."
+                               Foreground="{StaticResource MutedBrush}" Margin="0,0,0,9"/>
                 <DataGrid x:Name="RdpPolicyGrid" IsReadOnly="True" CanUserAddRows="False"
                           AutoGenerateColumns="False" Height="215" HeadersVisibility="Column"
                           GridLinesVisibility="Horizontal">
@@ -517,6 +560,8 @@
                          TextWrapping="Wrap" FontSize="12" Margin="0,9,0,0"
                          VerticalScrollBarVisibility="Auto"
                          Text="Read-only registry evidence. No Group Policy refresh, service or firewall modification."/>
+                  </StackPanel>
+                </Expander>
                 <TextBlock Text="Policy values do not prove Group Policy has refreshed. Firewall rule effectiveness is not checked."
                            TextWrapping="Wrap" Foreground="#8B531A" Margin="0,8,0,0"/>
               </StackPanel>
