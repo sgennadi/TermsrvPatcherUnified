@@ -32,7 +32,7 @@ A unique matching signature does **not** prove Remote Desktop will work after mo
 2. Start the EXE. Choose **Check DLL** for a read-only local inspection.
 3. Use **Offline DLL** to inspect a file without modifying Windows services, or use **RDP Health** to inspect checksum drift and sessions.
 4. For protected Apply or Revert, use an elevated administrator session with independent console recovery access. Keep full backup enabled whenever possible. Turning it off never removes the automatic recovery journal, and exact catalog reconstruction without a genuine original is high-risk.
-5. Use **Updates → Check → Install** for a manual EXE update only when the current app is running elevated from an administrator-protected Program Files folder. If **Install** is disabled, the updater explains why and provides **Open GitHub release** to download the full ZIP. An extracted EXE launched from Desktop/Downloads is not eligible for in-place update. No silent installation is performed.
+5. Use **Updates → Check → Install** to update the running portable EXE in place from **any regular local folder**, including Desktop or Downloads. Administrator approval is required; the checked release archive and executable must pass hash, architecture and startup health verification. The updater runs separately from an administrator-owned temporary directory, waits for the original EXE to exit and rolls back if its health probe fails. Symlinks, directory junctions and network shares are not automatic update targets. If **Install** is disabled, the updater explains why and offers the official GitHub release ZIP. No silent installation is performed.
 
 Non-elevated, offline-only GUI startup:
 
