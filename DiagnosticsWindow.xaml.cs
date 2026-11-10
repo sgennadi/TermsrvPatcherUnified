@@ -41,6 +41,12 @@ public partial class DiagnosticsWindow : Window
     }
 
     private void DescriptionChanged(object sender, TextChangedEventArgs e)
+        => InvalidateSavedReview();
+
+    private void EvidenceSelectionChanged(object sender, RoutedEventArgs e)
+        => InvalidateSavedReview();
+
+    private void InvalidateSavedReview()
     {
         if (PublishButton is null || ReportPreview is null) return;
         anonymousPayload = null;
@@ -50,7 +56,7 @@ public partial class DiagnosticsWindow : Window
         savedId = null;
         submittedIssue = null;
         PublishButton.IsEnabled = false;
-        ReportPreview.Text = "Description changed. Review and save the updated report before publishing.";
+        ReportPreview.Text = "Report options changed. Review and save the report again before publishing.";
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -61,9 +67,20 @@ public partial class DiagnosticsWindow : Window
             return;
         }
         var description = DescriptionInput.Text;
+        // A digest may be expensive. Read it without blocking the WPF dispatcher.
+        // Evidence is never captured or uploaded unless the user explicitly
+        // reviews the resolved version/hash and confirms the report.
+        bool includeWindowsEvidence = IncludeWindowsEvidenceCheck.IsChecked == true;
+        DiagnosticEnvironment? environment = includeWindowsEvidence
+            ? await Task.Run(DiagnosticEnvironment.TryRead) : null;
+        var evidencePreview = !includeWindowsEvidence
+            ? "Windows build / DLL SHA-256: excluded by operator."
+            : environment is null
+                ? "Windows build / DLL SHA-256: unavailable; report will omit these fields."
+                : environment.AsPreview();
         var proposed = $"Project: {DiagnosticsBridge.Project}\nComponent: {draft.Component}\n" +
             $"Type: {draft.ErrorType}\nCode: {draft.Code}\n" +
-            $"Version: {UpdateIntegration.Version}\n\n{description}";
+            $"Version: {UpdateIntegration.Version}\n\n{evidencePreview}\n\n{description}";
         if (MessageBox.Show(this,
                 "Review this description. The diagnostics module will redact common identifiers " +
                 "and save a local event. Nothing will be uploaded automatically.\n\n" + proposed,
@@ -72,10 +89,12 @@ public partial class DiagnosticsWindow : Window
             return;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
+        IncludeWindowsEvidenceCheck.IsEnabled = false;
         PublishButton.IsEnabled = false;
         try
         {
-            var receipt = await Task.Run(() => DiagnosticsBridge.Capture(draft, description));
+            var receipt = await Task.Run(() =>
+                DiagnosticsBridge.Capture(draft, description, environment));
             var markdown = DiagnosticsBridge.ReportMarkdown(await File.ReadAllTextAsync(receipt.Path));
             // Local capture must succeed even if a category cannot be sent anonymously.
             try
@@ -105,6 +124,7 @@ public partial class DiagnosticsWindow : Window
         {
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
+            IncludeWindowsEvidenceCheck.IsEnabled = true;
         }
     }
 
@@ -156,6 +176,7 @@ public partial class DiagnosticsWindow : Window
             publishing = false;
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
+            IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
         }
@@ -179,6 +200,7 @@ public partial class DiagnosticsWindow : Window
         PublishButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
+        IncludeWindowsEvidenceCheck.IsEnabled = false;
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -208,6 +230,7 @@ public partial class DiagnosticsWindow : Window
             publishing = false;
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
+            IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null &&
                 anonymousPayload is not null && submittedIssue is null;
