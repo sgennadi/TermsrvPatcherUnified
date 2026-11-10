@@ -59,10 +59,25 @@
       <TabItem Header="Automatic">
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="15,18,15,10">
-            <TextBlock Text="Automatic pattern recognition" FontSize="18" FontWeight="SemiBold"/>
-            <TextBlock Text="Checks the actual DLL bytes against three embedded families. If specific and Generic both match, only the installed-Windows-specific profile is proposed for verified review."
-                       TextWrapping="Wrap" Margin="0,7,0,18" Foreground="{StaticResource MutedBrush}"/>
-            <GroupBox Header="Automatic Apply priority — exact signatures first, one target only"
+            <TextBlock Text="Automatic Pattern Recognition" FontSize="19"
+                       FontWeight="SemiBold" Foreground="{StaticResource NavyBrush}"/>
+            <Border Background="{StaticResource SoftBlueBrush}" CornerRadius="9"
+                    Padding="17" Margin="0,12,0,15">
+              <StackPanel>
+                <TextBlock x:Name="AutoSimpleStatus" Text="Press Check DLL to inspect the current file."
+                           FontSize="16" FontWeight="SemiBold"
+                           Foreground="{StaticResource NavyBrush}"/>
+                <TextBlock x:Name="AutoSimpleProfile" Text="Detected pattern: not checked"
+                           Margin="0,6,0,0" Foreground="{StaticResource ContentBrush}"/>
+                <TextBlock x:Name="AutoSimpleReason" Text="No changes can be applied without a verified exact match."
+                           Margin="0,5,0,0" TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedBrush}"/>
+              </StackPanel>
+            </Border>
+            <Expander x:Name="AutoTechnicalDetails" Header="Technical details (read-only)"
+                      IsExpanded="False" Margin="0,0,0,10">
+              <StackPanel Margin="0,10,0,3">
+                <GroupBox Header="Automatic Apply priority — exact signatures first, one target only"
                       Margin="0,0,0,12">
               <StackPanel>
                 <TextBlock Text="All candidates are checked before a target is chosen. Higher priority cannot override collisions, unsupported systems or multiple incompatible matches."
@@ -156,6 +171,8 @@
                            Foreground="#8B531A" TextWrapping="Wrap" Margin="0,7,0,0"/>
               </StackPanel>
             </GroupBox>
+              </StackPanel>
+            </Expander>
             <WrapPanel Margin="0,4,0,0">
               <Button x:Name="ApplyAutoButton" Tag="&#xE8FB;" Content="Apply verified patch" IsEnabled="False"
                       Style="{StaticResource PrimaryButton}" Click="ApplyAuto_Click"/>
