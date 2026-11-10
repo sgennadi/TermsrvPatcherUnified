@@ -9,16 +9,20 @@ namespace TermsrvPatcherUnified.Core;
 /// No per-computer ProgramData file, environment lookup, mutable user overrides,
 /// tokens, passwords, or HTTP initialization is necessary.
 /// </summary>
-internal sealed record DirectReportingSettings(string FormspreeFormId, string GitHubOAuthClientId)
+internal sealed record DirectReportingSettings(string FormspreeFormId, string GitHubOAuthClientId,
+    string GoogleAppsScriptUrl = "")
 {
     internal const string ResourceName = "TermsrvPatcherUnified.ReportingProviders";
 
     internal bool HasFormspree => ValidFormId(FormspreeFormId);
     internal bool HasGitHubOAuth => ValidClientId(GitHubOAuthClientId);
     internal bool HasBoth => HasFormspree && HasGitHubOAuth;
+    internal bool HasGoogleScript => ValidGoogleScriptUrl(GoogleAppsScriptUrl);
 
     internal static bool ValidFormId(string? id) => ReportingProviderIdentifiers.ValidFormId(id);
     internal static bool ValidClientId(string? id) => ReportingProviderIdentifiers.ValidClientId(id);
+    internal static bool ValidGoogleScriptUrl(string? url) =>
+        GoogleAppsScriptReportClient.IsApprovedEndpoint(url);
 
     internal static DirectReportingSettings Load()
     {
@@ -45,7 +49,7 @@ internal sealed record DirectReportingSettings(string FormspreeFormId, string Gi
         foreach (var field in root.EnumerateObject())
         {
             if (!names.Add(field.Name) ||
-                field.Name is not ("formspree_form_id" or "github_oauth_client_id") ||
+                field.Name is not ("formspree_form_id" or "github_oauth_client_id" or "google_apps_script_url") ||
                 field.Value.ValueKind != JsonValueKind.String)
                 throw new InvalidDataException("Unknown, repeated or invalid provider field.");
         }
@@ -53,9 +57,12 @@ internal sealed record DirectReportingSettings(string FormspreeFormId, string Gi
             ? f.GetString() ?? "" : "";
         var github = root.TryGetProperty("github_oauth_client_id", out var g)
             ? g.GetString() ?? "" : "";
+        var scriptUrl = root.TryGetProperty("google_apps_script_url", out var script)
+            ? script.GetString() ?? "" : "";
         if ((form.Length != 0 && !ValidFormId(form)) ||
-            (github.Length != 0 && !ValidClientId(github)))
+            (github.Length != 0 && !ValidClientId(github)) ||
+            (scriptUrl.Length != 0 && !ValidGoogleScriptUrl(scriptUrl)))
             throw new InvalidDataException("Invalid embedded provider identifier.");
-        return new(form, github);
+        return new(form, github, scriptUrl);
     }
 }
