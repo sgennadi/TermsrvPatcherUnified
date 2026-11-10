@@ -36,9 +36,22 @@ internal static class UiSmokeTests
                     main.FindName("OfflineSource") is not TextBox ||
                     main.FindName("OfflineSaveButton") is not Button)
                     throw new Exception("Expected exactly one offline DLL patch tab and its controls.");
+                if (tabs.Items.OfType<TabItem>().Count(tab =>
+                        tab.Header as string == "Remote Desktop") != 1 ||
+                    tabs.Items.OfType<TabItem>().Any(tab =>
+                        (tab.Header as string) is "RDP Health" or "RDP Settings"))
+                    throw new Exception("RDP settings and health must be merged into exactly one tab.");
                 if (main.FindName("RdpSessionsGrid") is not DataGrid grid ||
-                    !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox)
-                    throw new Exception("Read-only RDP Health controls are missing.");
+                    !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox ||
+                    main.FindName("RdpSessionsCountText") is not TextBlock ||
+                    main.FindName("RdpOverviewText") is not TextBlock ||
+                    main.FindName("BlankPasswordStatus") is not TextBlock ||
+                    main.FindName("RdpSecurityAdvanced") is not Expander secExpanded ||
+                    secExpanded.IsExpanded ||
+                    main.FindName("BlankPasswordRestriction") is not CheckBox ||
+                    main.FindName("SaveBlankPasswordButton") is not Button ||
+                    main.FindName("SimpleModeButton") is not Button)
+                    throw new Exception("Unified RDP dashboard, hidden security controls or back navigation missing.");
                 if (main.FindName("RdpPolicyGrid") is not DataGrid policyGrid ||
                     !policyGrid.IsReadOnly || main.FindName("RdpPolicyDetails") is not TextBox ||
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
@@ -80,6 +93,24 @@ internal static class UiSmokeTests
                     main.FindName("ManualHexCopy") is not Button copy ||
                     copy.IsEnabled)
                     throw new Exception("Read-only 16-column HEX viewer and navigation controls are missing.");
+                // Desktop/Downloads are legal portable update targets; no EXE
+                // is executed and no system application is changed by this smoke test.
+                var tempRoot = Path.Combine(Path.GetTempPath(),
+                    "TermsrvPortableQA-" + Guid.NewGuid().ToString("N"));
+                var pseudoDesktop = Path.Combine(tempRoot, "Desktop");
+                Directory.CreateDirectory(pseudoDesktop);
+                try
+                {
+                    var dummyExe = Path.Combine(pseudoDesktop, UpdateInstallBridge.ExecutableName);
+                    File.WriteAllBytes(dummyExe, [0x4D, 0x5A]);
+                    if (!UpdateInstallBridge.IsSafePortableInstallTarget(dummyExe, out _) ||
+                        UpdateInstallBridge.IsSafePortableInstallTarget(
+                            Path.Combine(pseudoDesktop, "not-our-program.exe"), out _) ||
+                        UpdateInstallBridge.IsSafePortableInstallTarget(
+                            @"\\server\share\TermsrvPatcherUnified.exe", out _))
+                        throw new Exception("Portable update location rules rejected local desktop or accepted an invalid target.");
+                }
+                finally { Directory.Delete(tempRoot, recursive: true); }
                 var updaterWindow = new UpdateCenterWindow(updater);
                 if (updaterWindow.FindName("InstallHelp") is not TextBlock eligibilityHelp ||
                     eligibilityHelp.Text.Contains("signed update installer", StringComparison.OrdinalIgnoreCase) ||
