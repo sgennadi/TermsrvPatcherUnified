@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
 using TermsrvPatcherUnified.Core;
+using UniversalDiagnostics.Transport;
 
 namespace TermsrvPatcherUnified;
 
@@ -123,7 +124,7 @@ public partial class DiagnosticsWindow
             return;
         }
         string outgoing;
-        try { outgoing = FormspreeReportClient.BuildSubmission(anonymousPayload); }
+        try { outgoing = FormspreeReportClient.BuildSubmission(anonymousPayload, DiagnosticsBridge.Project); }
         catch (Exception ex) when (ex is InvalidDataException or JsonException)
         {
             FormspreeStatus.Text = "The report must be saved and reviewed again: " + ex.GetType().Name;
@@ -150,7 +151,7 @@ public partial class DiagnosticsWindow
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             using var client = new FormspreeReportClient();
-            await client.SendAsync(formId, outgoing, anonymousPayload, deadline.Token);
+            await client.SendAsync(formId, outgoing, anonymousPayload, DiagnosticsBridge.Project, deadline.Token);
             formspreeConfirmed = true;
             try
             {
