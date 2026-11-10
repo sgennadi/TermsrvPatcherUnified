@@ -29,17 +29,15 @@
       <Border BorderThickness="1" BorderBrush="#CBD5E1" CornerRadius="9" Padding="13" Margin="0,0,0,11">
         <StackPanel>
           <TextBlock FontWeight="SemiBold" FontSize="15" Text="GitHub — directly, no receiver or personal token"/>
-          <TextBlock Text="Connect in your browser, then publish the reviewed report as a public GitHub Issue."
+          <TextBlock Text="No client ID entry needed. Sign in with GitHub in your browser, then publish an approved public Issue."
                      Foreground="#64748B" TextWrapping="Wrap" Margin="0,5,0,9"/>
           <WrapPanel>
-            <TextBox x:Name="GitHubClientIdInput" Width="208" Margin="0,0,8,6"
-                     ToolTip="GitHub OAuth App client ID. The app owner must enable Device Flow."
-                     TextChanged="GitHubClientIdChanged"/>
-            <Button x:Name="GitHubSignInButton" Content="Connect GitHub" Click="GitHubConnect_Click" Margin="0,0,8,6"/>
+            <Button x:Name="GitHubSignInButton" Content="Connect GitHub"
+                    Click="GitHubConnect_Click" IsEnabled="False" Margin="0,0,8,6"/>
             <Button x:Name="GitHubCancelButton" Content="Cancel sign-in" Click="GitHubCancel_Click"
                     IsEnabled="False" Margin="0,0,8,6"/>
           </WrapPanel>
-          <TextBlock x:Name="GitHubDeviceStatus" Text="Enter an OAuth App client ID to sign in."
+          <TextBlock x:Name="GitHubDeviceStatus" Text="Direct GitHub sign-in is not configured in this build."
                      TextWrapping="Wrap" Foreground="#64748B" Margin="0,2,0,7"/>
           <WrapPanel>
             <TextBox x:Name="GitHubCodeInput" Width="118" IsReadOnly="True" Margin="0,0,7,6"
@@ -66,16 +64,14 @@
       <Border BorderThickness="1" BorderBrush="#CBD5E1" CornerRadius="9" Padding="13" Margin="0,0,0,11">
         <StackPanel>
           <TextBlock FontWeight="SemiBold" FontSize="15" Text="Formspree — no GitHub account"/>
-          <TextBlock Text="Sends only reviewed typed metadata to a configured third-party form. Does not create GitHub Issues or update our CSV."
+          <TextBlock Text="No account or setup needed on this PC. Send only after reviewing. Formspree does not create GitHub Issues or update our CSV."
                      TextWrapping="Wrap" Foreground="#64748B" Margin="0,5,0,8"/>
           <WrapPanel>
-            <TextBox x:Name="FormspreeFormIdInput" Width="205" Margin="0,0,8,6" TextChanged="FormspreeIdChanged"
-                     ToolTip="Form ID from https://formspree.io — not an arbitrary URL"/>
-            <Button x:Name="FormspreeButton" Content="Send via Formspree"
+            <Button x:Name="FormspreeButton" Content="Send report"
                     Style="{StaticResource PrimaryButton}" Click="Formspree_Click"
                     IsEnabled="False" Margin="0,0,8,6"/>
           </WrapPanel>
-          <TextBlock x:Name="FormspreeStatus" Text="A Formspree form ID is required; nothing is sent automatically."
+          <TextBlock x:Name="FormspreeStatus" Text="Direct reporting is not configured in this build."
                      TextWrapping="Wrap" Foreground="#64748B"/>
         </StackPanel>
       </Border>
