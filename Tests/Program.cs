@@ -62,6 +62,12 @@ if (args is ["--ui-smoke"])
     return;
 }
 
+if (args is ["--direct-report-qa"])
+{
+    Environment.ExitCode = DirectReportingTests.Run() >= 16 ? 0 : 2;
+    return;
+}
+
 int assertions = 0;
 void Ensure(bool condition, string message)
 {
