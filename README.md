@@ -1,5 +1,10 @@
 # TermsrvPatcherUnified
 
+**Source version:** 1.0.4 candidate (unpublished). Latest downloadable Stable release remains 1.0.3 until Windows CI and release gates pass.
+
+**RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md).
+
+
 **RDP security inspections:** [RDP Firewall, local logon rights, TLS certificate and graphics](docs/RDP_SECURITY_INSPECTION.md). **Auto-update settings:** [Auto-update Stable, recurring check, SYSTEM task restrictions and manual EXE approval](docs/AUTO_UPDATE_POLICY.md).
 
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.4 — RDP Doctor (candidate; not yet published)
+
+- **RDP Doctor:** new dedicated Advanced tab with one-click read-only local diagnostic, a priority-sorted evidence grid, clear blocker/attention/unknown counts and recommended operator next steps. Separate RDP settings shortcut and local-only copy of a privacy-reviewed diagnostic report.
+- **Connectivity evidence:** inspect TermService status, local RDP enable/NLA settings and GPO conflicts, configured TCP port, local TCP listening/loopback bindings, blank-password restriction, existing Firewall rule metadata, LSA logon-rights metadata and RDP certificate status.
+- **Event analysis:** read the last 24 hours of TerminalServices LocalSessionManager / RemoteConnectionManager and RdpCoreTS channels. Show only timestamp, channel, ID and severity, with hard bounded enumeration. Never copy event messages, account names or IP addresses.
+- **Fail-closed assessments:** inaccessible security data, missing event channels, unverified Firewall effectiveness, TLS trust or client connectivity remain UNKNOWN. A local TCP listening socket never proves that the remote client can connect or that Windows licensing permits session usage.
+- **Safety:** no automatic gpupdate, firewall edits, certificate changes, service restart, account access, DLL patching, Task Scheduler changes or report transmission. No network testing or authentication attempt.
+- **Validation:** Windows CI synthetic/GUI smoke and read-only published EXE check required before Stable publication. Real Windows 11 network connection and physical 200% DPI rendering remain manual validation tasks.
+
+
 ## 1.0.3 — 2026-11-10 (Stable released)
 
 - **RDP diagnostics:** read-only Firewall COM rule metadata (protocol, profile, ports, address scope), local LSA Allow/Deny remote-interactive logon rights, WMI/registry RDP TLS certificate binding and validity, and GPU/H.264/AVC/WDDM computer-policy settings. Clearly identify unknown/effective-verification limits; no RDP policy, firewall, certificate or user rights are changed.

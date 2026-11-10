@@ -1,4 +1,5 @@
 using System.IO;
+using System.Net;
 using TermsrvPatcherUnified.Core;
 
 internal static class RdpPolicyHistoryTests
@@ -12,6 +13,57 @@ internal static class RdpPolicyHistoryTests
 
     internal static int Run()
     {
+        var loopback = RdpDoctor.InspectSockets(3389,
+            [new IPEndPoint(IPAddress.Loopback, 3389)]);
+        var allInterface = RdpDoctor.InspectSockets(3389,
+            [new IPEndPoint(IPAddress.Any, 3389)]);
+        Verify(loopback == RdpDoctorSocket.LoopbackOnly &&
+               allInterface == RdpDoctorSocket.Listening &&
+               RdpDoctor.InspectSockets(3389, Array.Empty<IPEndPoint>()) ==
+                   RdpDoctorSocket.NotListening &&
+               RdpDoctor.InspectSockets(0, Array.Empty<IPEndPoint>()) ==
+                   RdpDoctorSocket.Unknown,
+               "RDP Doctor distinguishes loopback, local bound TCP and missing listener");
+        Verify(RdpDoctorEventReader.MapLevel(2) == "Error" &&
+               RdpDoctorEventReader.MapLevel(3) == "Warning" &&
+               RdpDoctorEventReader.MapLevel(null) == "Unknown",
+               "RDP Doctor uses invariant numeric event levels, not localized strings");
+        var doctorDisabled = new RdpConfigurationReport(DateTimeOffset.UtcNow,
+            [RdpPolicyDiagnostics.Evaluate("Remote Desktop", 1, null, 0, 1,
+                v => v == 1 ? "Disabled (1)" : "Enabled (0)"),
+             RdpPolicyDiagnostics.Evaluate("Network Level Authentication", 0,
+                null, 0, 1, v => v == 1 ? "Required (1)" : "Not required (0)"),
+             RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false)],
+             "Stopped", []);
+        var diagnosed = RdpDoctor.Analyze(new(doctorDisabled, null, 3389,
+            RdpDoctorSocket.NotListening, [], ["RdpCoreTS: unavailable"]));
+        Verify(diagnosed.Blockers >= 3 &&
+               diagnosed.AttentionCount >= 2 &&
+               diagnosed.UnknownCount > 0 &&
+               diagnosed.Verdict.Contains("NOT been tested", StringComparison.Ordinal) &&
+               diagnosed.Findings.Any(x => x.Area == "Windows Firewall" &&
+                                          x.Level == RdpDoctorLevel.Unknown),
+               "Stopped service, disabled RDP and absent listener yield local blockers, not remote success");
+        Verify(!diagnosed.AsText().Contains("C:\\Users\\", StringComparison.OrdinalIgnoreCase) &&
+               diagnosed.AsText().Contains("No registry, service", StringComparison.Ordinal) &&
+               diagnosed.Events.Count == 0,
+               "Read-only Doctor export is an informational report with no identity or event payload");
+        var doctorReady = new RdpConfigurationReport(DateTimeOffset.UtcNow,
+            [RdpPolicyDiagnostics.Evaluate("Remote Desktop", 0, null, 0, 1,
+                v => v == 0 ? "Enabled (0)" : "Disabled (1)"),
+             RdpPolicyDiagnostics.Evaluate("Network Level Authentication", 1,
+                null, 0, 1, v => v == 1 ? "Required (1)" : "Not required (0)"),
+             RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(true)],
+             "Running", []);
+        var noRemoteAssertion = RdpDoctor.Analyze(new(doctorReady, null, 3389,
+            RdpDoctorSocket.Listening, [], []));
+        Verify(noRemoteAssertion.Blockers == 0 &&
+               noRemoteAssertion.Verdict.Contains("NOT verified", StringComparison.Ordinal) &&
+               noRemoteAssertion.Findings.Any(x =>
+                   x.Area == "External client connection" &&
+                   x.Level == RdpDoctorLevel.Unknown),
+               "Local listener and service running never certify external access");
+
         Verify(RdpSecurityInspector.IsRdpRuleGroup("@FirewallAPI.dll,-28752") &&
                !RdpSecurityInspector.IsRdpRuleGroup("Unrelated rule"),
                "only known built-in Remote Desktop rule groups are treated as RDP");
