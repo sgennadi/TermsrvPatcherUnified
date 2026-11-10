@@ -45,8 +45,9 @@ public partial class MainWindow : Window
             WindowSettings.Save(this);
             updates.Dispose();
         };
-        updates.Get(UpdateChannel.Prerelease).NoticeChanged += (_, _) =>
-            Dispatcher.BeginInvoke(RefreshUpdateIndicator);
+        foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
+            updates.Get(channel).NoticeChanged += (_, _) =>
+                Dispatcher.BeginInvoke(RefreshUpdateIndicator);
         RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
@@ -1421,8 +1422,9 @@ public partial class MainWindow : Window
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            await updates.Get(UpdateChannel.Prerelease).CheckAsync(
-                forced: false, cancellationToken: timeout.Token);
+            foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
+                await updates.Get(channel).CheckAsync(
+                    forced: false, cancellationToken: timeout.Token);
         }
         catch (Exception ex)
         {
@@ -1431,25 +1433,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshUpdateIndicator()
-    {
-        var notice = updates.Get(UpdateChannel.Prerelease).Notice;
-        if (notice.ShowUpdateBadge)
-        {
-            UpdatesButton.Content = $"● Update {notice.AvailableVersion}";
-            UpdatesButton.Background = new SolidColorBrush(Color.FromRgb(255, 228, 181));
-            UpdatesButton.Foreground = Brushes.Black;
-        }
-        else
-        {
-            UpdatesButton.Content = "Updates";
-            UpdatesButton.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
-            UpdatesButton.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
-        }
-        UpdatesButton.ToolTip = notice.IsCached
-            ? "Cached status. Open Updates and press Check for a live result."
-            : notice.Status.ToString();
-    }
+    private void RefreshUpdateIndicator() =>
+        UpdateButtonIndicator.Apply(
+            UpdatesButton,
+            updates.Get(UpdateChannel.Stable).Notice,
+            updates.Get(UpdateChannel.Prerelease).Notice);
 
     internal void SetBackupPreference(bool createFullBackup)
         => CreateBackupCheck.IsChecked = createFullBackup;
