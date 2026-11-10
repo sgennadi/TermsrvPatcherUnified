@@ -38,7 +38,9 @@ internal static class RdpSecurityInspector
             IOException or InvalidOperationException or NotSupportedException or
             COMException or System.Management.ManagementException or
             System.Security.Cryptography.CryptographicException or
-            ArgumentException or System.Reflection.TargetInvocationException)
+            Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or
+            InvalidCastException or ArgumentException or
+            System.Reflection.TargetInvocationException)
         {
             return "Unable to inspect: " + ex.GetType().Name +
                 ". Status UNKNOWN. No changes made.";
@@ -64,6 +66,9 @@ internal static class RdpSecurityInspector
         try
         {
             dynamic policy = instance;
+            int activeProfiles = (int)policy.CurrentProfileTypes;
+            lines.AppendLine("Active Windows network profiles (COM): " +
+                             DescribeProfiles(activeProfiles));
             foreach (dynamic rule in policy.Rules)
             {
                 try
@@ -84,6 +89,10 @@ internal static class RdpSecurityInspector
                                     "; Protocol: " + protocol)
                         .AppendLine("  Local ports: " + Clip(Convert.ToString((object?)rule.LocalPorts)) +
                                     "; Profiles: " + profileNames)
+                        .AppendLine("  Active-profile intersection: " +
+                            (profiles == int.MaxValue || (profiles & activeProfiles) != 0
+                                ? "Yes (profile only; other restrictions unknown)"
+                                : "No (rule not active on the current network profile)"))
                         .AppendLine("  Remote address scope: " + scope);
                 }
                 catch (Exception ex) when (ex is COMException or InvalidCastException or
