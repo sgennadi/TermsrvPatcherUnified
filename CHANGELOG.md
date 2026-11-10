@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Diagnostics direct delivery (draft PR #27)
+
+- **No self-hosted receiver required:** add Formspree submission of canonical typed diagnostics (explicitly consented Windows build / DLL SHA-256 optional) and direct GitHub Issues with OAuth App Device Flow, no manual PAT required for OAuth. GitHub token only held in dialog memory. OAuth `public_repo` access is broader than Issues; the permission warning appears before login.
+- **Separate acknowledgements:** Formspree's `ok=true` acknowledgement records a Formspree-only local delivery with no invented GitHub Issue URL, while GitHub still requires a validated, repository-pinned Issue receipt. Neither provider silently retries or auto-sends, and Formspree does not update GitHub CSV.
+- **UX and testing:** provider configuration IDs (nonsecret), browser code/cancel/copy, exact outgoing Formspree JSON preview, safe disabled defaults and synthetic network tests. Relay and advanced PAT methods remain optional.
+- **Not released:** external provider credentials/forms, real OAuth sign-in, operational delivery and production Windows 11 acceptance remain unverified. The existing Preview.23 release is unchanged.
+
 ## 0.1.0-preview.23 — 2026-11-10
 
 - **Simple GUI:** rebuild the compact startup window with separate Patch and Status cards, concise Automatic Pattern Recognition, backup and Auto Reapply options, and Cleanup/Updates/Advanced actions. Advanced has a direct **Back to Simple** button and preserves the no-backup selection in both directions.
