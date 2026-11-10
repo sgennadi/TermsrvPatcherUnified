@@ -77,6 +77,36 @@ internal static class DirectReportingTests
     internal static int Run()
     {
         var payload = Example();
+        var embedded = DirectReportingSettings.Load();
+        Verify((!embedded.HasFormspree || DirectReportingSettings.ValidFormId(embedded.FormspreeFormId)) &&
+               (!embedded.HasGitHubOAuth || DirectReportingSettings.ValidClientId(embedded.GitHubOAuthClientId)),
+            "embedded provider identifiers are valid or safely disabled");
+        var configured = DirectReportingSettings.Parse(
+            "{\"formspree_form_id\":\"mabc1234\",\"github_oauth_client_id\":\"Iv1.12345678\"}");
+        Verify(configured.HasBoth &&
+               configured.FormspreeFormId == "mabc1234" &&
+               configured.GitHubOAuthClientId == "Iv1.12345678",
+            "one-time setup IDs are parsed from the embedded resource schema");
+        Verify(!DirectReportingSettings.Parse(
+            "{\"formspree_form_id\":\"\",\"github_oauth_client_id\":\"\"}").HasBoth,
+            "no provider is silently enabled when build variables are absent");
+        Throws<InvalidDataException>(() =>
+            DirectReportingSettings.Parse(
+                "{\"formspree_form_id\":\"mabc1234\",\"formspree_form_id\":\"evil1234\"}"),
+            "duplicate embedded JSON keys are forbidden");
+        Throws<InvalidDataException>(() =>
+            DirectReportingSettings.Parse(
+                "{\"formspree_form_id\":\"https://evil.example\",\"github_oauth_client_id\":\"\"}"),
+            "embedded provider ID cannot contain an arbitrary URL");
+        Throws<InvalidDataException>(() =>
+            DirectReportingSettings.Parse(
+                "{\"formspree_form_id\":\"mabc1234\",\"secret\":\"not allowed\"}"),
+            "embedded configuration refuses secrets or unknown fields");
+        if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true",
+                StringComparison.OrdinalIgnoreCase))
+            Verify(typeof(DirectReportingSettings).Assembly.GetManifestResourceNames()
+                    .Contains(DirectReportingSettings.ResourceName, StringComparer.Ordinal),
+                "GitHub Actions EXE must actually embed provider configuration as a .NET resource");
         Verify(DirectReportingSettings.ValidFormId("mabc1234") &&
                !DirectReportingSettings.ValidFormId("x/../../secret") &&
                !DirectReportingSettings.ValidFormId("https://evil.example"),
