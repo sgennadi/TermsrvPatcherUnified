@@ -17,6 +17,8 @@ public partial class QuickApplyWindow : Window
     private bool checking;
     private bool queued;
     private string? activeJobId;
+    private bool autoTaskLoading;
+    private bool autoTaskChanging;
 
     public QuickApplyWindow()
     {
@@ -27,6 +29,7 @@ public partial class QuickApplyWindow : Window
         Loaded += async (_, _) =>
         {
             statusTimer.Start();
+            await RefreshAutoReapplyAsync();
             await CheckAsync();
         };
     }
@@ -371,6 +374,97 @@ public partial class QuickApplyWindow : Window
     }
 
     private async void Check_Click(object sender, RoutedEventArgs e) => await CheckAsync();
+
+
+    private async Task RefreshAutoReapplyAsync()
+    {
+        if (autoTaskChanging) return;
+        var state = await Task.Run(AutoReapplyScheduler.ReadStatus);
+        autoTaskLoading = true;
+        try
+        {
+            QuickAutoReapplyCheck.IsChecked = state.Installed && state.Trusted && state.Enabled;
+            QuickAutoReapplyCheck.IsEnabled = !checking && !queued &&
+                (!state.Installed || state.Trusted);
+            QuickAutoReapplyStatus.Text = state.Message +
+                (state.Installed && !state.Trusted
+                    ? " Open Task Scheduler for manual review." : "");
+        }
+        finally { autoTaskLoading = false; }
+    }
+
+    private async void AutoReapplyChanged(object sender, RoutedEventArgs e)
+    {
+        if (QuickAutoReapplyStatus is null || autoTaskLoading || autoTaskChanging) return;
+        if (checking || queued) { await RefreshAutoReapplyAsync(); return; }
+        bool enable = QuickAutoReapplyCheck.IsChecked == true;
+        var status = AutoReapplyScheduler.ReadStatus();
+        if (status.Installed && !status.Trusted ||
+            !enable && !status.Installed)
+        {
+            await RefreshAutoReapplyAsync();
+            return;
+        }
+        if (enable && MessageBox.Show(this,
+                "Create a protected SYSTEM task to inspect termsrv.dll after Windows Update, " +
+                "after restart and daily? It will apply ONLY a verified exact automatic profile " +
+                "to a changed DLL, with full backup. You must have console recovery access. " +
+                "No pattern will be guessed.",
+                "Enable Auto Reapply", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            await RefreshAutoReapplyAsync();
+            return;
+        }
+        if (!enable && MessageBox.Show(this,
+                "Remove the persistent Auto Reapply task? Your DLL and backups remain unchanged.",
+                "Disable Auto Reapply", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            await RefreshAutoReapplyAsync();
+            return;
+        }
+        autoTaskChanging = true;
+        QuickAutoReapplyCheck.IsEnabled = false;
+        QuickAutoReapplyStatus.Text = enable ? "Creating protected task..." : "Removing task...";
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (enable) AutoReapplyScheduler.Enable();
+                else AutoReapplyScheduler.Disable();
+            });
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Auto Reapply", ex);
+            MessageBox.Show(this, "Could not update the scheduled task: " + ex.Message,
+                "Auto Reapply", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            autoTaskChanging = false;
+            await RefreshAutoReapplyAsync();
+        }
+    }
+
+    private async void Cleanup_Click(object sender, RoutedEventArgs e)
+    {
+        if (checking || queued)
+        {
+            MessageBox.Show(this, "Finish the current protected operation before Cleanup.");
+            return;
+        }
+        new CleanupWindow { Owner = this }.ShowDialog();
+        await RefreshAutoReapplyAsync();
+        await CheckAsync();
+    }
+
+    private void Updates_Click(object sender, RoutedEventArgs e)
+    {
+        using var updates = new UpdateIntegration();
+        new UpdateCenterWindow(updates) { Owner = this }.ShowDialog();
+    }
 
     private void Advanced_Click(object sender, RoutedEventArgs e)
     {
