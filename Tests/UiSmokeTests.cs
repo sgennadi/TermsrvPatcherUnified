@@ -53,6 +53,15 @@ internal static class UiSmokeTests
                     main.FindName("SaveBlankPasswordButton") is not Button ||
                     main.FindName("SimpleModeButton") is not Button)
                     throw new Exception("Unified RDP dashboard, hidden security controls or back navigation missing.");
+                if (main.FindName("RdpApplyImpactText") is not TextBlock ||
+                    main.FindName("RdpPostApplyActions") is not TextBlock ||
+                    main.FindName("RefreshComputerPolicyButton") is not Button policyRefresh ||
+                    policyRefresh.Content is not string policyText ||
+                    !policyText.Contains("Refresh Computer Policy", StringComparison.Ordinal) ||
+                    main.FindName("ReviewRdpRestartButton") is not Button restartReview ||
+                    restartReview.IsEnabled)
+                    throw new Exception(
+                        "RDP post-apply action guidance and fail-safe restart review controls are missing.");
                 if (main.FindName("AdvancedAutoReapplyCheck") is not CheckBox advancedReapply ||
                     advancedReapply.IsChecked != false ||
                     main.FindName("AdvancedAutoReapplyStatus") is not TextBlock ||
