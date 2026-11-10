@@ -1,13 +1,13 @@
 # Changelog
 
-## 1.0.3 — RDP security inspection and opt-in automatic Stable checks (candidate)
+## 1.0.3 — 2026-11-10 (Stable released)
 
 - **RDP diagnostics:** read-only Firewall COM rule metadata (protocol, profile, ports, address scope), local LSA Allow/Deny remote-interactive logon rights, WMI/registry RDP TLS certificate binding and validity, and GPU/H.264/AVC/WDDM computer-policy settings. Clearly identify unknown/effective-verification limits; no RDP policy, firewall, certificate or user rights are changed.
 - **Auto-update checkbox:** a machine-wide administrator opt-in in Simple and Advanced. Check Stable at startup and every four hours while the GUI is open; offer newer verified Stable releases through the existing operator-approved updater. New scheduled Stable checks run read-only from the already-trusted Auto Reapply SYSTEM task (no new task created) with a 24-hour cooldown.
 - **EXE update safety:** no unattended unsigned EXE downloads, launches or replacements; existing manual confirmation, hash/ZIP checks, protected staging and rollback remain mandatory.
 - **Preview / Stable separation:** strict GitHub prerelease flag AND semantic-version suffix must match selected channel. Old cached cross-channel results are ignored. Update Center labels actual Stable / Preview signing warnings correctly.
 - **Blank-password display:** show "Restriction ON" or "Restriction OFF" without the raw zero/one; detailed registry evidence remains readable.
-- **Validation:** Windows CI, safe GUI smoke, synthetic security tests and published EXE/ZIP gates must pass before any Stable release. Network reachability and live Windows 11 RDP reconnection require separate on-device checks.
+- **Validation:** [Windows push CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42893210409), [PR CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42893283992), and the [Stable release gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42893688563) passed. Network reachability and live Windows 11 RDP reconnection still require separate on-device checks.
 
 
 ## 1.0.2 — 2026-11-10 (Stable released)

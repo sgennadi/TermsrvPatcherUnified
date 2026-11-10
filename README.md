@@ -1,20 +1,26 @@
 # TermsrvPatcherUnified
 
-**Source version:** 1.0.3 (candidate; not yet published). The current downloadable Stable build remains 1.0.2 pending Windows CI and release approval.
-
-**New candidate inspections:** [RDP Firewall, local logon rights, TLS certificate and graphics](docs/RDP_SECURITY_INSPECTION.md). **New opt-in checks:** [Auto-update Stable, recurring check, SYSTEM task restrictions and manual EXE approval](docs/AUTO_UPDATE_POLICY.md).
+**RDP security inspections:** [RDP Firewall, local logon rights, TLS certificate and graphics](docs/RDP_SECURITY_INSPECTION.md). **Auto-update settings:** [Auto-update Stable, recurring check, SYSTEM task restrictions and manual EXE approval](docs/AUTO_UPDATE_POLICY.md).
 
 
 **RDP settings audit:** [local/GPO registry map, inline security editor and future features](docs/RDP_SETTINGS_AUDIT.md).
 
 
-**Latest Stable release:** [`1.0.2`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.2) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
+**Latest Stable release:** [`1.0.3`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.3) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 **Google reporting verified:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replaced Formspree in Preview.28. A real user-authorized submission from Preview.28 was accepted as [GitHub Issue #32](https://github.com/sgennadi/TermsrvPatcherUnified/issues/32), and its reviewed Windows/DLL metadata appears in [the observations CSV](data/diagnostic-observations.csv) with `verification=unverified`. This proves receipt of that report, **not** that a patch worked or that all deployments will succeed. Sending is opt-in, requires a preview of the exact typed metadata, creates a **public** GitHub Issue only after explicit approval, and requires no end-user token, login, or local file. The former public Formspree ID remains solely in source archive documentation.
+
+## Stable 1.0.3
+
+[Stable 1.0.3](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.3) was published on 2026-11-10 after [Windows push CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42893210409), [PR CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42893283992), and the [Stable publishing gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42893688563) passed.
+
+Read-only RDP connection inspection covers Windows Firewall rule metadata, LSA Allow/Deny logon rights, the listener TLS certificate and GPU/AVC/WDDM computer policies. The separate machine-wide **Auto-update Stable** checkbox checks GitHub at startup and every four hours while the GUI is open. An enabled protected Auto Reapply task can also perform a read-only daily version check. **No unsigned EXE is installed unattended**; every installation must be approved interactively using the existing verification and rollback workflow.
+
+Preview and Stable channels now strictly filter both GitHub's prerelease flag and SemVer; incorrect cached cross-channel results are ignored. Blank-password status is shown as Restriction ON/OFF without raw numeric suffixes. These checks cannot guarantee external RDP connectivity or full GPO effectiveness.
 
 ## Stable 1.0.2
 
