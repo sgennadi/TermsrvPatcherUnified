@@ -90,7 +90,7 @@ internal static class RdpPolicySourceResolver
     {
         var match = GpoGuidRegex.Match(value ?? "");
         return match.Success && Guid.TryParse(match.Value, out var parsed)
-            ? parsed.ToString("D") : null;
+            ? parsed.ToString("B") : null;
     }
 
     /// <summary>
