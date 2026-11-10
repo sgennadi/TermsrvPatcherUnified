@@ -4,28 +4,34 @@ Draft feature in PR #27; release and live provider acceptance have not yet been 
 
 ## Operating modes
 
-**Formspree (no GitHub sign-in).** An operator first creates/owns a Formspree form and enters its public form ID in Diagnostics. After saving and reviewing a diagnostic, the app offers the *exact JSON* to be submitted to `https://formspree.io/f/FORM_ID`. It POSTs only canonical typed v1 metadata (including optional Windows build / DLL version / SHA-256 if explicitly selected), never free-text descriptions, raw logs, credentials, private paths, or native DLL bytes. The form submission may process the user's IP address. Successful receipt is stored locally with provider `formspree`; no GitHub Issue URL is fabricated. **Formspree does not automatically populate `data/diagnostic-observations.csv`**. Configure retention and filtering in the Formspree dashboard. Formspree service account and active form are required; no form ID is embedded. Formspree may reject submissions or impose plan limits.
+**Formspree (no GitHub sign-in).** An administrator registers the form once; the form ID is compiled into the EXE and never typed by end users. After saving and reviewing a diagnostic, the app offers the *exact JSON* to be submitted to `https://formspree.io/f/FORM_ID`. It POSTs only canonical typed v1 metadata (including optional Windows build / DLL version / SHA-256 if explicitly selected), never free-text descriptions, raw logs, credentials, private paths, or native DLL bytes. The form submission may process the user's IP address. Successful receipt is stored locally with provider `formspree`; no GitHub Issue URL is fabricated. **Formspree does not automatically populate `data/diagnostic-observations.csv`**. Configure retention and filtering in the Formspree dashboard. Formspree service account and active form are required; no form ID is embedded. Formspree may reject submissions or impose plan limits.
 
-**GitHub browser Device Flow (no PAT entry).** Register a GitHub OAuth App under an administrator-controlled account and enable Device Flow in its settings. Enter the OAuth App **client ID**, click Connect GitHub, and enter the displayed code at `https://github.com/login/device`. Once authorization completes, the app retains the OAuth access token in memory for the dialog session only; no client secret, GitHub token or refresh token is stored. After saving/reviewing, select Publish via GitHub: the existing pinned Issue publisher sends the reviewed Markdown directly to `sgennadi/TermsrvPatcherUnified`. The public Issue becomes visible to everyone. A valid issue receipt is required before local delivery is acknowledged. A user must possess GitHub Issue creation rights for the repository. Device Flow is **not anonymous**, and OAuth scope `public_repo` is broader than issue-only permissions: the OAuth App can access public repository code. GitHub recommends code+PKCE for some native apps and GitHub Apps for finer-grained rights; this option is a conscious compatibility tradeoff. See [GitHub OAuth device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) and [OAuth scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps).
+**GitHub browser Device Flow (no PAT entry).** Register a GitHub OAuth App under an administrator-controlled account and enable Device Flow in its settings. The administrator embeds the OAuth App **Client ID** at build time; the end user clicks Connect GitHub, and enter the displayed code at `https://github.com/login/device`. Once authorization completes, the app retains the OAuth access token in memory for the dialog session only; no client secret, GitHub token or refresh token is stored. After saving/reviewing, select Publish via GitHub: the existing pinned Issue publisher sends the reviewed Markdown directly to `sgennadi/TermsrvPatcherUnified`. The public Issue becomes visible to everyone. A valid issue receipt is required before local delivery is acknowledged. A user must possess GitHub Issue creation rights for the repository. Device Flow is **not anonymous**, and OAuth scope `public_repo` is broader than issue-only permissions: the OAuth App can access public repository code. GitHub recommends code+PKCE for some native apps and GitHub Apps for finer-grained rights; this option is a conscious compatibility tradeoff. See [GitHub OAuth device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) and [OAuth scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps).
 
 **Advanced PAT / self-hosted relay.** Existing manual PAT publication remains available behind the Advanced expander; existing HTTPS relay remains optional and is disabled without a trusted endpoint.
 
-## Configuration
+## One-time administrator setup — both IDs embedded in the EXE
 
-To prefill public (nonsecret) provider identifiers for all users, an administrator may create the UTF-8 JSON file:
+The end user **does not install a script, create a config file, enter a Formspree form ID or enter a GitHub OAuth Client ID**. Neither `%PROGRAMDATA%\TermsrvPatcherUnified\reporting.json` nor environment variables are read by the application.
 
-`%PROGRAMDATA%\TermsrvPatcherUnified\reporting.json`
+**Administrator setup, once (before new builds):**
 
-```json
-{
-  "formspree_form_id": "REPLACE_WITH_YOUR_FORM_ID",
-  "github_oauth_client_id": "REPLACE_WITH_YOUR_OAUTH_APP_CLIENT_ID"
-}
+1. Create your own Formspree form at [formspree.io](https://formspree.io/). Note its public **form ID** from the URL (not an API key).
+2. Register a trusted GitHub OAuth App in [GitHub Developer Settings](https://github.com/settings/developers), enable **Device Flow**, and copy its public **Client ID**. **Do not embed a client secret or PAT.** OAuth scope `public_repo` is broader than Issues-only access.
+3. On the administrator's Windows machine install/sign into GitHub CLI (`gh auth login`) with permission to manage repository Actions Variables. In the checkout of this repository run **once**:
+
+```powershell
+pwsh -NoProfile -File .\scripts\Configure-Reporting.ps1
 ```
 
-The above strings are placeholders, **not valid working credentials**. The file may omit either field. User-entered values last only for the dialog session. The app refuses unrelated JSON keys, control characters, unsafe URLs and malformed provider IDs. It never writes these settings itself.
+The interactive script asks for the two public IDs, validates them and saves `TPU_FORMSPREE_FORM_ID` and `TPU_GITHUB_OAUTH_CLIENT_ID` as GitHub repository **Variables** (not Secrets). Future `windows-ci.yml` and `release-preview.yml` builds automatically regenerate the local `.build/reporting.json`, embed it into the one-file EXE as resource `TermsrvPatcherUnified.ReportingProviders` and do not package any `*.json` or `*.ps1` sidecar.
+
+For **local-only builds**, pass `-LocalOnly`; for CI use `-FromEnvironment`, which never prompts, never connects to GitHub, and disables any provider whose ID is absent. To reconfigure the published application, update the repository variables and rebuild the EXE. Updating the client EXE then distributes the new public IDs without per-PC setup.
+
+**Important:** An OAuth Client ID does not sign users in automatically: GitHub always requires a browser authorization step. The Formspree method needs no account or setup on client PCs, but sending a report still requires an explicit user review and confirmation. A live Formspree form and GitHub OAuth App must actually exist; the script does not create third-party accounts or registrations.
 
 ## Safe delivery protocol
+
 
 1. Write a **local** sanitized universal diagnostic event. Windows build / DLL SHA-256 is opted in separately (default OFF).
 2. Select a provider. Review the **exact outgoing report** and pinned destination in a second confirmation.
