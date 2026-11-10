@@ -89,6 +89,9 @@ internal static class DirectReportingTests
         Verify(endpoint.AbsoluteUri == "https://formspree.io/f/mabc1234",
             "Formspree endpoint is pinned to official HTTPS host");
         var outgoing = FormspreeReportClient.BuildSubmission(payload, DiagnosticsBridge.Project);
+        Throws<InvalidDataException>(() =>
+            FormspreeReportClient.BuildSubmission(payload, "sgennadi/OtherProject"),
+            "Formspree report cannot be reassigned to a different project");
         using (var doc = JsonDocument.Parse(outgoing))
         {
             var root = doc.RootElement;
