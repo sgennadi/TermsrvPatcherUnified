@@ -5,7 +5,7 @@ using System.Text.RegularExpressions;
 
 namespace TermsrvPatcherUnified.Core;
 
-internal enum DllDriftStatus { NoBaseline, Unchanged, FileVersionChanged, BytesChanged, InvalidBaseline }
+internal enum DllDriftStatus { NoBaseline, Unchanged, FileVersionChanged, BytesChanged, InvalidBaseline, FirstSeenUnverified }
 
 /// <summary>
 /// A user-approved, locally stored observation. This is not an authenticated
@@ -33,7 +33,8 @@ internal sealed record DllHealthSnapshot(
 
 internal sealed record DllHealthReport(
     DllHealthSnapshot Current, DllHealthSnapshot? Baseline,
-    DllDriftStatus Status, string? Warning)
+    DllDriftStatus Status, string? Warning, DllHealthSnapshot? FirstSeen = null,
+    string? FirstSeenWarning = null)
 {
     internal string AsText()
     {
@@ -52,8 +53,17 @@ internal sealed record DllHealthReport(
                 .AppendLine($"Recorded baseline SHA-256: {Baseline.Sha256}")
                 .AppendLine($"Recorded baseline UTC: {Baseline.ObservedUtc:yyyy-MM-ddTHH:mm:ssZ}");
         }
+        if (FirstSeen is not null)
+        {
+            text.AppendLine("First seen (UNVERIFIED local observation):")
+                .AppendLine($"  Version: {FirstSeen.DllVersion}")
+                .AppendLine($"  SHA-256: {FirstSeen.Sha256}")
+                .AppendLine($"  Observed UTC: {FirstSeen.ObservedUtc:yyyy-MM-ddTHH:mm:ssZ}");
+            text.AppendLine("This first observation is NOT verified original Microsoft DLL evidence.");
+        }
         text.AppendLine($"Status: {Status}");
         if (!string.IsNullOrWhiteSpace(Warning)) text.AppendLine(Warning);
+        if (!string.IsNullOrWhiteSpace(FirstSeenWarning)) text.AppendLine(FirstSeenWarning);
         text.AppendLine("A checksum difference cannot prove why the DLL changed. " +
                         "It may be a Windows update, manual replacement or another event.");
         text.AppendLine("Never use this metadata as permission to patch or restore a DLL.");
@@ -67,10 +77,99 @@ internal static class DllHealthMonitor
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "TermsrvPatcherUnified", "Health", "baseline.json");
 
+    internal static string LocalFirstSeenFile => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "TermsrvPatcherUnified", "Health", "first-seen.json");
+
     internal static DllHealthReport CheckLocal()
     {
         var info = SystemInfo.Read();
-        return CheckFile(info.DllPath, info.DllVersion, LocalBaselineFile);
+        return CheckWithFirstSeen(info.DllPath, info.DllVersion,
+            LocalBaselineFile, LocalFirstSeenFile);
+    }
+
+    // Only the first local observation is automatic; there is never an
+    // automatic verified-original or authenticated-recovery designation.
+    internal static DllHealthReport CheckWithFirstSeen(
+        string file, string version, string manualBaseline, string firstSeenPath)
+    {
+        var report = CheckFile(file, version, manualBaseline);
+        DllHealthSnapshot firstSeen;
+        try
+        {
+            firstSeen = ReadOrCreateFirstSeen(file, firstSeenPath, report.Current);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   System.Security.SecurityException or InvalidDataException or
+                                   JsonException or ArgumentException)
+        {
+            return report with
+            {
+                FirstSeenWarning = "First-seen observation unavailable (" +
+                                   ex.GetType().Name + "). Existing file was not overwritten."
+            };
+        }
+        string difference = firstSeen.DllVersion != report.Current.DllVersion
+            ? "DLL version changed since first observation."
+            : firstSeen.Sha256 != report.Current.Sha256 ||
+              firstSeen.FileLength != report.Current.FileLength
+                ? "DLL bytes differ from first observation, even though the version may match."
+                : "The current DLL matches the first local observation.";
+        return report with
+        {
+            FirstSeen = firstSeen,
+            Status = report.Status == DllDriftStatus.NoBaseline
+                ? firstSeen.DllVersion == report.Current.DllVersion &&
+                  firstSeen.Sha256 == report.Current.Sha256 &&
+                  firstSeen.FileLength == report.Current.FileLength
+                    ? DllDriftStatus.FirstSeenUnverified
+                    : firstSeen.DllVersion != report.Current.DllVersion
+                        ? DllDriftStatus.FileVersionChanged : DllDriftStatus.BytesChanged
+                : report.Status,
+            Warning = report.Status == DllDriftStatus.NoBaseline
+                ? difference + " This observation is UNVERIFIED and never a proof of an original DLL."
+                : report.Warning,
+            FirstSeenWarning = "First-seen comparison: " + difference
+        };
+    }
+
+    private static DllHealthSnapshot ReadOrCreateFirstSeen(
+        string dllPath, string firstSeenPath, DllHealthSnapshot current)
+    {
+        var target = Path.GetFullPath(firstSeenPath);
+        if (!Path.GetExtension(target).Equals(".json", StringComparison.OrdinalIgnoreCase) ||
+            Path.GetFullPath(dllPath).Equals(target, StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Invalid first-seen metadata path.");
+        if (File.Exists(target))
+        {
+            if (new FileInfo(target).Length > 2048)
+                throw new InvalidDataException("First-seen metadata exceeds the size limit.");
+            var previous = JsonSerializer.Deserialize<DllHealthSnapshot>(File.ReadAllText(target))
+                ?? throw new InvalidDataException("First-seen metadata is empty.");
+            previous.Validate();
+            return previous;
+        }
+        var directory = Path.GetDirectoryName(target)
+            ?? throw new ArgumentException("First-seen metadata requires a directory.");
+        Directory.CreateDirectory(directory);
+        try
+        {
+            using var output = new FileStream(target, FileMode.CreateNew,
+                FileAccess.Write, FileShare.None);
+            using var writer = new StreamWriter(output, new UTF8Encoding(false));
+            writer.Write(JsonSerializer.Serialize(current));
+            writer.Flush();
+        }
+        catch (IOException) when (File.Exists(target))
+        {
+            // A simultaneous inspection may have created the first observation.
+        }
+        if (new FileInfo(target).Length > 2048)
+            throw new InvalidDataException("First-seen metadata exceeds the size limit.");
+        var firstSeen = JsonSerializer.Deserialize<DllHealthSnapshot>(File.ReadAllText(target))
+            ?? throw new InvalidDataException("First-seen metadata is empty.");
+        firstSeen.Validate();
+        return firstSeen;
     }
 
     internal static DllHealthReport RecordLocalBaseline()

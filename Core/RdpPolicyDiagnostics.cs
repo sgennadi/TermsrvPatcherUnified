@@ -6,7 +6,14 @@ namespace TermsrvPatcherUnified.Core;
 
 /// <summary>Read-only evidence. A policy registry value is not proof GP has refreshed.</summary>
 internal sealed record RdpPolicyEvidence(
-    string Setting, string LocalValue, string PolicyValue, string Assessment, string Explanation);
+    string Setting, string LocalValue, string PolicyValue, string Assessment, string Explanation)
+{
+    // UI-only status computed from local permissions and policy evidence.
+    // Does not grant permission: the actual editor re-checks all guards.
+    public bool CanEdit { get; init; }
+    public bool PolicyLocked { get; init; }
+    public string EditStatus { get; init; } = "Read-only";
+}
 
 internal sealed record RdpConfigurationReport(
     DateTimeOffset CheckedUtc, IReadOnlyList<RdpPolicyEvidence> Values,
@@ -68,6 +75,31 @@ internal static class RdpPolicyDiagnostics
                 "The local value is absent or cannot be read. Do not assume a default is effective.");
     }
 
+    internal const string BlankPasswordSetting = "Blank-password restriction (local accounts)";
+
+    // The Windows LSA setting is not an RDP-Tcp policy value. This report
+    // deliberately does not infer a winning security GPO from a registry read.
+    internal static RdpPolicyEvidence DescribeBlankPasswordPolicy(bool? restricted)
+    {
+        string value = restricted switch
+        {
+            true => "1 - Restrict remote logon",
+            false => "0 - Restriction disabled",
+            _ => "Unknown (unreadable or invalid)"
+        };
+        string explanation = restricted switch
+        {
+            true => "LimitBlankPasswordUse=1. Local accounts with empty passwords are restricted to local console logon (recommended).",
+            false => "LimitBlankPasswordUse=0. This Windows security restriction does not block remote logon using an empty password (high risk).",
+            _ => "The LSA registry value is missing, unreadable or invalid. Changes are blocked until it can be verified."
+        };
+        return new(BlankPasswordSetting, value, "Security GPO source not resolved",
+            "Windows LSA security",
+            @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa\LimitBlankPasswordUse. " +
+            explanation + " The winning domain security GPO is not determined by RDP registry diagnostics. " +
+            "NLA, account rights and other restrictions may still prevent an RDP sign-in.");
+    }
+
     internal static RdpConfigurationReport ReadLocal()
     {
         if (!OperatingSystem.IsWindows())
@@ -110,28 +142,46 @@ internal static class RdpPolicyDiagnostics
                 ReadDword(policy, "fDisableCpm"), 0, 1, DescribeDisabled),
             Evaluate("Disable COM port redirection", null,
                 ReadDword(policy, "fDisableCcm"), 0, 1, DescribeDisabled),
+            Evaluate("Disable LPT port redirection", null,
+                ReadDword(policy, "fDisableLPT"), 0, 1, DescribeDisabled),
+            Evaluate("Disable Plug and Play device redirection", null,
+                ReadDword(policy, "fDisablePNPRedir"), 0, 1, DescribeDisabled),
+            Evaluate("Disable camera redirection", null,
+                ReadDword(policy, "fDisableCameraRedir"), 0, 1, DescribeDisabled),
+            Evaluate("Disable microphone redirection", null,
+                ReadDword(policy, "fDisableAudioCapture"), 0, 1, DescribeDisabled),
+            Evaluate("Disable audio/video playback redirection", null,
+                ReadDword(policy, "fDisableCam"), 0, 1, DescribeDisabled),
+            Evaluate("Allow time-zone redirection", null,
+                ReadDword(policy, "fEnableTimeZoneRedirection"), 0, 1,
+                value => value == 1 ? "Enabled (1)" : "Disabled (0)"),
+            Evaluate("Use Easy Print driver first", null,
+                ReadDword(policy, "UseUniversalPrinterDriverFirst"), 0, 1,
+                value => value == 1 ? "Enabled (1)" : "Disabled (0)"),
             Evaluate("Idle session limit", ReadDword(tcp, "MaxIdleTime"),
                 ReadDword(policy, "MaxIdleTime"), 0, int.MaxValue, DescribeMilliseconds),
             Evaluate("Active session time limit", ReadDword(tcp, "MaxConnectionTime"),
                 ReadDword(policy, "MaxConnectionTime"), 0, int.MaxValue, DescribeMilliseconds),
             Evaluate("Disconnected session time limit", ReadDword(tcp, "MaxDisconnectionTime"),
                 ReadDword(policy, "MaxDisconnectionTime"), 0, int.MaxValue, DescribeMilliseconds),
-            Evaluate("Automatic reconnection disabled", null,
-                ReadDword(policy, "fDisableAutoReconnect"), 0, 1, DescribeDisabled),
+            Evaluate("Automatic reconnection", null,
+                ReadDword(policy, "fDisableAutoReconnect"), 0, 1,
+                value => value == 1 ? "Disabled (1)" : "Allowed (0)"),
+            Evaluate("End sessions on time limit", null,
+                ReadDword(policy, "fResetBroken"), 0, 1,
+                value => value == 1 ? "Log off on timeout (1)" : "Disconnect (0)"),
+            Evaluate("RDP keep-alive enabled", ReadDword(terminal, "KeepAliveEnable"),
+                ReadDword(policy, "KeepAliveEnable"), 0, 1,
+                value => value == 1 ? "Enabled (1)" : "Disabled (0)"),
+            Evaluate("RDP keep-alive interval", ReadDword(terminal, "KeepAliveInterval"),
+                ReadDword(policy, "KeepAliveInterval"), 0, 10080,
+                value => value == 0 ? "Not set (0)" :
+                    value.ToString(System.Globalization.CultureInfo.InvariantCulture) + " min"),
             Evaluate("TCP/UDP transport policy", null,
                 ReadDword(policy, "SelectTransport"), 0, 2,
                 value => value.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                     " (confirm current ADMX before changing)"),
-            Evaluate("Blank-password restriction (local accounts)",
-                RdpBlankPasswordSecurity.Read() switch
-                {
-                    true => 1,
-                    false => 0,
-                    _ => (int?)null
-                }, null, 0, 1,
-                value => value == 1
-                    ? "Restricted to console (secure)"
-                    : "Remote blank-password sign-in permitted (unsafe)")
+            DescribeBlankPasswordPolicy(RdpBlankPasswordSecurity.Read())
         };
 
         var warnings = new List<string>();

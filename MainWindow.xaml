@@ -1,8 +1,8 @@
 <Window x:Class="TermsrvPatcherUnified.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 1.0.1"
-        Width="1120" Height="795" MinWidth="780" MinHeight="600"
+        Title="TermsrvPatcherUnified 1.0.2"
+        Width="1290" Height="830" MinWidth="810" MinHeight="600"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
   <Grid Margin="22">
@@ -17,7 +17,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="1.0.1  |  Windows x64" FontSize="12"
+          <TextBlock Text="1.0.2  |  Windows x64" FontSize="12"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
           <TextBlock Text="Remote Desktop inspection, verified patterns and reversible changes"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
@@ -500,7 +500,11 @@
                     <StackPanel>
                       <TextBlock Text="Blank passwords" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
                       <TextBlock x:Name="RdpEffectiveBlankText" Text="Unknown" FontSize="16"
-                                 FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,0"/>
+                                 FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,5,0,3"/>
+                      <Button x:Name="OpenBlankPasswordSettingButton" Content="Configure..."
+                              Click="OpenBlankPasswordSetting_Click"
+                              HorizontalAlignment="Left" MinWidth="92" Padding="8,3"
+                              ToolTip="Open the blank-password restriction row and its local editor"/>
                     </StackPanel>
                   </Border>
                 </UniformGrid>
@@ -585,27 +589,6 @@
               </Border>
             </Expander>
 
-            <Expander x:Name="RdpSecurityAdvanced" Header="Advanced security - local blank-password policy"
-                      IsExpanded="False" Margin="0,0,0,9">
-              <Border Background="#FFF7ED" CornerRadius="8" Padding="12" Margin="0,6,0,0">
-                <StackPanel>
-                  <TextBlock Text="Windows local security policy - console-only restriction"
-                             FontWeight="SemiBold" Foreground="#91400B" TextWrapping="Wrap"/>
-                  <TextBlock x:Name="BlankPasswordStatus" Text="Checking local policy..."
-                             Margin="0,5,0,7" TextWrapping="Wrap"/>
-                  <CheckBox x:Name="BlankPasswordRestriction"
-                            Content="Restrict blank-password accounts to console logon (recommended)"
-                            IsChecked="True" Margin="0,0,0,8"/>
-                  <Button x:Name="SaveBlankPasswordButton" Content="Apply local security policy"
-                          Click="SaveBlankPassword_Click" Tag="&#xE74E;"
-                          HorizontalAlignment="Left"/>
-                  <TextBlock Text="Changing this setting can weaken local logon security. Domain policy may override it. No domain GPO is edited here."
-                             Foreground="#8B531A" FontSize="12"
-                             TextWrapping="Wrap" Margin="0,5,0,0"/>
-                </StackPanel>
-              </Border>
-            </Expander>
-
             <Expander x:Name="RdpTechnicalAdvanced" Header="Advanced - policy sources, listener and sessions"
                       IsExpanded="False">
               <StackPanel Margin="0,8,0,0">
@@ -618,17 +601,101 @@
                                  TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
                                  VerticalAlignment="Center" Margin="8,0,0,0"/>
                     </WrapPanel>
+                    <TextBlock Text="Light green: local editing available. Amber: controlled by GPO. Gray: inspection only or additional rights required. Double-click an editable row or select Edit."
+                               FontSize="11" Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" Margin="0,7,0,2"/>
                     <DataGrid x:Name="RdpPolicyGrid" IsReadOnly="True" CanUserAddRows="False"
-                              AutoGenerateColumns="False" Height="208" HeadersVisibility="Column"
+                              AutoGenerateColumns="False" Height="385" MinHeight="260"
+                              HorizontalAlignment="Stretch" HeadersVisibility="Column"
                               GridLinesVisibility="Horizontal" SelectionMode="Single"
-                              SelectionChanged="RdpPolicySelectionChanged" Margin="0,8,0,0">
+                              SelectionChanged="RdpPolicySelectionChanged"
+                              MouseDoubleClick="RdpPolicyGrid_MouseDoubleClick"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              Margin="0,8,0,0">
+                      <DataGrid.Resources>
+                        <Style x:Key="RdpGridWrapText" TargetType="TextBlock">
+                          <Setter Property="TextWrapping" Value="Wrap"/>
+                          <Setter Property="VerticalAlignment" Value="Center"/>
+                          <Setter Property="Margin" Value="4,4,4,4"/>
+                        </Style>
+                      </DataGrid.Resources>
+                      <DataGrid.RowStyle>
+                        <Style TargetType="DataGridRow">
+                          <Setter Property="MinHeight" Value="34"/>
+                          <Setter Property="ToolTip" Value="{Binding EditStatus}"/>
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding CanEdit}" Value="True">
+                              <Setter Property="Background" Value="#F0FAF4"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding PolicyLocked}" Value="True">
+                              <Setter Property="Background" Value="#FFF7ED"/>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </DataGrid.RowStyle>
                       <DataGrid.Columns>
-                        <DataGridTextColumn Header="Setting" Binding="{Binding Setting}" Width="182"/>
-                        <DataGridTextColumn Header="Local" Binding="{Binding LocalValue}" Width="145"/>
-                        <DataGridTextColumn Header="Policy" Binding="{Binding PolicyValue}" Width="145"/>
-                        <DataGridTextColumn Header="Source / assessment" Binding="{Binding Assessment}" Width="*"/>
+                        <DataGridTextColumn Header="Setting" Binding="{Binding Setting}"
+                                            Width="1.8*" MinWidth="180"
+                                            ElementStyle="{StaticResource RdpGridWrapText}"/>
+                        <DataGridTextColumn Header="Local value" Binding="{Binding LocalValue}"
+                                            Width="1.8*" MinWidth="175"
+                                            ElementStyle="{StaticResource RdpGridWrapText}"/>
+                        <DataGridTextColumn Header="Group Policy" Binding="{Binding PolicyValue}"
+                                            Width="1.55*" MinWidth="160"
+                                            ElementStyle="{StaticResource RdpGridWrapText}"/>
+                        <DataGridTextColumn Header="Source" Binding="{Binding Assessment}"
+                                            Width="1.35*" MinWidth="135"
+                                            ElementStyle="{StaticResource RdpGridWrapText}"/>
+                        <DataGridTextColumn Header="Editing" Binding="{Binding EditStatus}"
+                                            Width="1.5*" MinWidth="150"
+                                            ElementStyle="{StaticResource RdpGridWrapText}"/>
+                        <DataGridTextColumn Header="Details" Binding="{Binding Explanation}"
+                                            Width="2.3*" MinWidth="270"
+                                            ElementStyle="{StaticResource RdpGridWrapText}"/>
+                        <DataGridTemplateColumn Header="Action" Width="100" MinWidth="94">
+                          <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                              <Button Content="Edit..." Tag="{Binding}" IsEnabled="{Binding CanEdit}"
+                                      ToolTip="{Binding EditStatus}"
+                                      Click="EditRdpPolicyRow_Click" MinWidth="77"
+                                      Margin="2,1,2,1" Padding="6,3"/>
+                            </DataTemplate>
+                          </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                       </DataGrid.Columns>
                     </DataGrid>
+                    <Border x:Name="BlankPasswordInlineEditor" Visibility="Collapsed"
+                            Background="#F0F6FF" BorderBrush="#BDD4F1"
+                            BorderThickness="1" CornerRadius="8" Padding="12"
+                            Margin="0,9,0,8">
+                      <StackPanel>
+                        <TextBlock Text="Blank passwords — Windows local security policy"
+                                   FontWeight="SemiBold" Foreground="{StaticResource NavyBrush}"
+                                   TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock x:Name="BlankPasswordStatus" Text="Security policy not checked."
+                                   TextWrapping="Wrap" Margin="0,2,0,7"/>
+                        <TextBlock Text="Choose the local setting. This does not guarantee RDP sign-in or override a domain security GPO."
+                                   FontSize="12" TextWrapping="Wrap"
+                                   Foreground="{StaticResource MutedBrush}" Margin="0,0,0,8"/>
+                        <ComboBox x:Name="BlankPasswordChoice" Height="34" MinWidth="300"
+                                  HorizontalAlignment="Stretch" Margin="0,0,0,7"
+                                  ToolTip="HKLM\SYSTEM\CurrentControlSet\Control\Lsa\LimitBlankPasswordUse">
+                          <ComboBoxItem Content="1 — Restrict blank-password accounts to console (recommended)"/>
+                          <ComboBoxItem Content="0 — Allow by local security policy (high risk)"/>
+                        </ComboBox>
+                        <WrapPanel>
+                          <Button x:Name="SaveBlankPasswordButton"
+                                  Content="Save this local security setting"
+                                  Click="SaveBlankPassword_Click" Tag="&#xE74E;"
+                                  HorizontalAlignment="Left" MinWidth="205"/>
+                          <TextBlock Text="Administrator required; changes are verified and may be overwritten by Group Policy."
+                                     Foreground="#8B531A" FontSize="12"
+                                     VerticalAlignment="Center" TextWrapping="Wrap"
+                                     Margin="9,2,0,2"/>
+                        </WrapPanel>
+                      </StackPanel>
+                    </Border>
                     <Border Background="#F0F6FF" BorderBrush="#BDD4F1" BorderThickness="1"
                             CornerRadius="8" Padding="10" Margin="0,8,0,7">
                       <StackPanel>
@@ -636,10 +703,10 @@
                                    Foreground="#334155" FontSize="12"
                                    Text="Choose a setting to inspect its source and local edit permissions."/>
                         <WrapPanel Margin="0,7,0,0">
-                          <Button x:Name="EditSelectedRdpPolicyButton"
-                                  Content="Edit selected local setting..."
-                                  Click="EditSelectedRdpPolicy_Click"
-                                  IsEnabled="False" MinWidth="206"/>
+                          <TextBlock Text="Editable? Use the row's Edit button or double-click it."
+                                     VerticalAlignment="Center" TextWrapping="Wrap"
+                                     Foreground="{StaticResource MutedBrush}"
+                                     Margin="0,2,9,2"/>
                           <Button Content="Copy policy source" Click="CopySelectedPolicy_Click"
                                   MinWidth="152"/>
                         </WrapPanel>
@@ -703,12 +770,16 @@
                   <Button Content="Save current as baseline..."
                           Tag="&#xE74E;" Click="SaveDllBaseline_Click"/>
                 </WrapPanel>
+                <TextBlock x:Name="DllHealthStatusText"
+                           Text="First check can record the initial observation (unverified)."
+                           Foreground="#91400B" FontWeight="SemiBold" TextWrapping="Wrap"
+                           Margin="0,7,0,2"/>
                 <TextBox x:Name="DllHealthDetails" IsReadOnly="True" Height="226"
                          FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                          Margin="0,9,0,7"
                          Text="No baseline comparison yet. Check DLL health to review local evidence."/>
-                <TextBlock Text="A changed SHA-256 or version means drift, not proof of cause or malicious activity. Baselines are local reference metadata, not trust certificates."
+                <TextBlock Text="First seen is saved automatically once in the local profile and is NEVER claimed to be an original Microsoft DLL. An operator-saved baseline is separate. Neither observation grants permission to modify or restore the DLL."
                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
               </StackPanel>
             </GroupBox>

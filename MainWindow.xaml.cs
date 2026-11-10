@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private int? previousRdpListenerPort;
     private bool portRestartNeedsReview;
     private RdpConfigurationReport? lastRdpPolicyReport;
+    private bool openBlankAfterPolicyRefresh;
     private readonly UpdateIntegration updates = new();
 
     public MainWindow(bool offlineStartup = false)
@@ -1046,13 +1047,41 @@ public partial class MainWindow : Window
         FooterText.Text = "Read-only scan report copied.";
     }
 
+    private void DisplayDllHealth(DllHealthReport report)
+    {
+        DllHealthDetails.Text = report.AsText();
+        DllHealthStatusText.Text = report.Status switch
+        {
+            DllDriftStatus.FirstSeenUnverified =>
+                "First observation recorded locally — UNVERIFIED. Matches the first seen DLL, not a verified Microsoft original.",
+            DllDriftStatus.Unchanged =>
+                "Current DLL matches the operator-recorded baseline. Original Microsoft origin is NOT proven.",
+            DllDriftStatus.FileVersionChanged =>
+                "DLL version changed since the reference. Compare Windows Update and signed system files.",
+            DllDriftStatus.BytesChanged =>
+                "DLL SHA-256 changed since the reference. Investigate before any repair.",
+            DllDriftStatus.InvalidBaseline =>
+                "Saved baseline is invalid or unavailable — comparison could not be verified.",
+            _ => "No baseline. First-seen observation could not be established."
+        };
+        if (!string.IsNullOrWhiteSpace(report.FirstSeenWarning) &&
+            report.FirstSeen is null)
+            DllHealthStatusText.Text += " " + report.FirstSeenWarning;
+        DllHealthStatusText.Foreground = report.Status is
+            DllDriftStatus.BytesChanged or DllDriftStatus.InvalidBaseline or
+            DllDriftStatus.FileVersionChanged
+            ? new SolidColorBrush(Color.FromRgb(160, 92, 14))
+            : new SolidColorBrush(Color.FromRgb(52, 90, 126));
+    }
+
     private async void CheckDllHealth_Click(object sender, RoutedEventArgs e)
     {
         await RunBusy(async () =>
         {
             var report = await Task.Run(DllHealthMonitor.CheckLocal);
-            DllHealthDetails.Text = report.AsText();
-            FooterText.Text = "DLL health: " + report.Status + ". No system changes.";
+            DisplayDllHealth(report);
+            FooterText.Text = "DLL health: " + report.Status +
+                ". An unverified first-seen snapshot is local reference metadata only.";
         });
     }
 
@@ -1064,8 +1093,9 @@ public partial class MainWindow : Window
                 "or authorizes Apply/Restore.")) return;
         await RunBusy(async () =>
         {
-            var report = await Task.Run(DllHealthMonitor.RecordLocalBaseline);
-            DllHealthDetails.Text = report.AsText();
+            await Task.Run(DllHealthMonitor.RecordLocalBaseline);
+            var report = await Task.Run(DllHealthMonitor.CheckLocal);
+            DisplayDllHealth(report);
             FooterText.Text = "Local DLL reference saved. No RDP or system settings were changed.";
             OperationHistory.TryRecord("Baseline", "Success", report.Current.DllVersion,
                 report.Current.Sha256, report.Current.Sha256);
@@ -1086,26 +1116,91 @@ public partial class MainWindow : Window
         });
     }
 
-    private async void RdpPolicySelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    private static RdpConfigurationReport AnnotateRdpPolicyRows(RdpConfigurationReport report)
     {
-        if (RdpPolicySelectedOwner is null || EditSelectedRdpPolicyButton is null) return;
-        EditSelectedRdpPolicyButton.IsEnabled = false;
+        bool admin = SystemInfo.IsAdministrator();
+        bool console = InteractiveSessionDetector.Detect() == SessionKind.Console;
+        var rows = new List<RdpPolicyEvidence>(report.Values.Count);
+        foreach (var row in report.Values)
+        {
+            if (row.Setting == RdpPolicyDiagnostics.BlankPasswordSetting)
+            {
+                // LSA security policy has its own explicit, verified writer.
+                // We cannot infer a winning security GPO from the RDP policy key.
+                rows.Add(RdpRowEditStatus.Annotate(row, admin, console,
+                    policyManaged: null, validValue: RdpBlankPasswordSecurity.Read().HasValue));
+                continue;
+            }
+            var spec = RdpLocalAdvancedSettings.Find(row.Setting);
+            if (spec is null)
+            {
+                rows.Add(RdpRowEditStatus.Annotate(row, admin, console,
+                    policyManaged: null, validValue: false));
+                continue;
+            }
+            try
+            {
+                bool managed = RdpLocalAdvancedSettings.IsPolicyManaged(spec);
+                bool valid = RdpLocalAdvancedSettings.ReadLocal(spec).HasValue;
+                rows.Add(RdpRowEditStatus.Annotate(row, admin, console,
+                    policyManaged: managed, validValue: valid));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                       System.Security.SecurityException or ArgumentException or
+                                       InvalidOperationException)
+            {
+                rows.Add(RdpRowEditStatus.Annotate(row, admin, console,
+                    policyManaged: null, validValue: false));
+            }
+        }
+        return report with { Values = rows };
+    }
+
+    private void OpenBlankPasswordSetting_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        RdpTechnicalAdvanced.IsExpanded = true;
+        var row = lastRdpPolicyReport?.Values.FirstOrDefault(x =>
+            x.Setting == RdpPolicyDiagnostics.BlankPasswordSetting);
+        if (row is null)
+        {
+            openBlankAfterPolicyRefresh = true;
+            CheckRdpPolicy_Click(sender, e);
+            return;
+        }
+        RdpPolicyGrid.SelectedItem = row;
+        RdpPolicyGrid.ScrollIntoView(row);
+        BlankPasswordInlineEditor.Visibility = Visibility.Visible;
+    }
+
+    private async void RdpPolicySelectionChanged(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (RdpPolicySelectedOwner is null || BlankPasswordInlineEditor is null) return;
+        BlankPasswordInlineEditor.Visibility = Visibility.Collapsed;
         if (RdpPolicyGrid.SelectedItem is not RdpPolicyEvidence selected)
         {
-            RdpPolicySelectedOwner.Text = "Select a setting to inspect its controlling policy.";
+            RdpPolicySelectedOwner.Text = "Select a row to inspect its source and editing permissions.";
+            return;
+        }
+        if (selected.Setting == RdpPolicyDiagnostics.BlankPasswordSetting)
+        {
+            ReadBlankPasswordPolicy();
+            BlankPasswordInlineEditor.Visibility = Visibility.Visible;
+            RdpPolicySelectedOwner.Text = selected.Explanation + Environment.NewLine +
+                "Editing: " + selected.EditStatus +
+                ". This Windows security option does not apply to domain accounts. " +
+                "Changing it never proves an RDP session can authenticate.";
             return;
         }
         string? registryName = RdpPolicySourceResolver.ValueForSetting(selected.Setting);
-        RdpLocalSettingSpec? editable = RdpLocalAdvancedSettings.Find(selected.Setting);
         if (registryName is null)
         {
-            RdpPolicySelectedOwner.Text =
-                "Read-only security setting. Source: Windows Security Policy / Group Policy Results. " +
-                "If a domain GPO manages it, use gpresult /scope computer /h report.html to inspect the winning policy.";
+            RdpPolicySelectedOwner.Text = selected.Explanation + Environment.NewLine +
+                "Editing: " + selected.EditStatus;
             return;
         }
-        RdpPolicySelectedOwner.Text = "Checking which computer policy controls " +
-            selected.Setting + "...";
+        RdpPolicySelectedOwner.Text = "Checking computer GPO source for " + selected.Setting + "...";
         try
         {
             var info = await Task.Run(() =>
@@ -1115,48 +1210,58 @@ public partial class MainWindow : Window
                 return (managed, source);
             });
             if (!ReferenceEquals(RdpPolicyGrid.SelectedItem, selected)) return;
-            if (info.managed)
-            {
-                RdpPolicySelectedOwner.Text = "Local editing is BLOCKED. " +
-                    (info.source?.Details ?? "Policy source unavailable.");
-                return;
-            }
-            RdpPolicySelectedOwner.Text = "No matching computer GPO registry value is present. " +
-                RdpPolicySourceResolver.TerminalPolicyPath + "\\" + registryName +
-                Environment.NewLine +
-                (editable is null
-                    ? "This setting is diagnostic-only in this version."
-                    : "Editable local value; domain policy can change later.");
-            EditSelectedRdpPolicyButton.IsEnabled = editable is not null && !busy &&
-                SystemInfo.IsAdministrator() &&
-                (!editable.ConsoleOnly || InteractiveSessionDetector.Detect() == SessionKind.Console);
+            RdpPolicySelectedOwner.Text = info.managed
+                ? "Computer GPO controls this value. " +
+                  (info.source?.Details ?? "Winning GPO not verified.") +
+                  Environment.NewLine + "Editing: " + selected.EditStatus
+                : "No matching Terminal Services computer policy registry value was detected. " +
+                  RdpPolicySourceResolver.TerminalPolicyPath + "\\" + registryName +
+                  Environment.NewLine + selected.Explanation + Environment.NewLine +
+                  "Editing: " + selected.EditStatus +
+                  ". A missing registry policy does not prove all Windows policies are absent.";
         }
         catch (Exception ex)
         {
             if (!ReferenceEquals(RdpPolicyGrid.SelectedItem, selected)) return;
             RdpPolicySelectedOwner.Text =
-                "Cannot determine the effective computer policy (" +
-                ex.GetType().Name + "). Local editing is disabled for safety. " +
+                "Policy origin cannot be verified (" + ex.GetType().Name +
+                "). Editing is blocked until the policy is rechecked. " +
                 RdpPolicySourceResolver.TerminalPolicyPath + "\\" + registryName;
         }
     }
 
-    private void EditSelectedRdpPolicy_Click(object sender, RoutedEventArgs e)
+    private void RdpPolicyGrid_MouseDoubleClick(object sender,
+        System.Windows.Input.MouseButtonEventArgs e)
     {
-        if (busy || RdpPolicyGrid.SelectedItem is not RdpPolicyEvidence selected)
-            return;
-        var spec = RdpLocalAdvancedSettings.Find(selected.Setting);
-        if (spec is null)
+        if (busy || e.OriginalSource is not DependencyObject source) return;
+        var row = System.Windows.Controls.ItemsControl.ContainerFromElement(RdpPolicyGrid, source)
+            as System.Windows.Controls.DataGridRow;
+        if (row?.Item is RdpPolicyEvidence selected)
+            OpenRdpPolicyEditor(selected);
+    }
+
+    private void EditRdpPolicyRow_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button button &&
+            button.Tag is RdpPolicyEvidence row)
+            OpenRdpPolicyEditor(row);
+    }
+
+    private void OpenRdpPolicyEditor(RdpPolicyEvidence selected)
+    {
+        if (busy || !selected.CanEdit) return;
+        if (selected.Setting == RdpPolicyDiagnostics.BlankPasswordSetting)
         {
-            ModernMessageDialog.Show(this,
-                "This setting is read-only in this version. Check the source above " +
-                "and edit the controlling GPO in Group Policy Management if required.",
-                "RDP setting is not locally editable", MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
+            RdpTechnicalAdvanced.IsExpanded = true;
+            RdpPolicyGrid.SelectedItem = selected;
+            BlankPasswordInlineEditor.Visibility = Visibility.Visible;
+            RdpPolicyGrid.ScrollIntoView(selected);
+            return; // The user still must explicitly select and save a value.
         }
+        var spec = RdpLocalAdvancedSettings.Find(selected.Setting);
+        if (spec is null) return;
         new RdpLocalSettingEditWindow(spec) { Owner = this }.ShowDialog();
-        CheckRdpPolicy_Click(sender, new RoutedEventArgs());
+        CheckRdpPolicy_Click(this, new RoutedEventArgs());
     }
 
     private void CopySelectedPolicy_Click(object sender, RoutedEventArgs e)
@@ -1170,9 +1275,13 @@ public partial class MainWindow : Window
 
     private async void CheckRdpPolicy_Click(object sender, RoutedEventArgs e)
     {
+        if (busy) return;
+        var previouslySelected = (RdpPolicyGrid.SelectedItem as RdpPolicyEvidence)?.Setting;
+        lastRdpPolicyReport = null; // Never present stale policy evidence as current.
         await RunBusy(async () =>
         {
-            var report = await Task.Run(RdpPolicyDiagnostics.ReadLocal);
+            var report = await Task.Run(() =>
+                AnnotateRdpPolicyRows(RdpPolicyDiagnostics.ReadLocal()));
             ShowRdpPolicyReport(report);
             RdpPolicyGrid.ItemsSource = report.Values;
             RdpPolicySummary.Text = report.Values.Count + " settings inspected, " +
@@ -1181,6 +1290,21 @@ public partial class MainWindow : Window
             RdpPolicyDetails.Text = report.AsText();
             FooterText.Text = "RDP configuration diagnostic completed (read-only).";
         });
+        if (lastRdpPolicyReport is not null)
+        {
+            string? select = openBlankAfterPolicyRefresh
+                ? RdpPolicyDiagnostics.BlankPasswordSetting : previouslySelected;
+            openBlankAfterPolicyRefresh = false;
+            var row = lastRdpPolicyReport.Values.FirstOrDefault(x => x.Setting == select);
+            if (row is not null)
+            {
+                RdpPolicyGrid.SelectedItem = row;
+                RdpPolicyGrid.ScrollIntoView(row);
+                if (row.Setting == RdpPolicyDiagnostics.BlankPasswordSetting)
+                    BlankPasswordInlineEditor.Visibility = Visibility.Visible;
+            }
+            ReadBlankPasswordPolicy();
+        }
     }
 
     private void MainTabs_SelectionChanged(object sender,
@@ -1352,33 +1476,50 @@ public partial class MainWindow : Window
         bool? restricted = RdpBlankPasswordSecurity.Read();
         BlankPasswordStatus.Text = restricted switch
         {
-            true => "Current: remote blank-password logon restricted (recommended).",
-            false => "WARNING: local accounts with empty passwords may log on remotely.",
-            _ => "Current local policy is unavailable; no change permitted."
+            true => "Current: DWORD 1 — console-only restriction ON. Empty-password local accounts are blocked from ordinary remote logon (recommended).",
+            false => "Current: DWORD 0 — restriction OFF. Windows does not block empty-password local accounts under this security option (HIGH RISK).",
+            _ => "Current: unknown (missing, invalid or unreadable). Editing disabled."
         };
+        BlankPasswordStatus.Text += Environment.NewLine +
+            "LSA: HKLM\\SYSTEM\\CurrentControlSet\\Control\\Lsa\\LimitBlankPasswordUse" +
+            Environment.NewLine + "Winning security GPO: not identified. RDP sign-in depends on other policies and NLA.";
         RenderRdpTile(RdpEffectiveBlankText, restricted switch
         {
-            true => "Restricted",
-            false => "Not restricted",
+            true => "Restriction ON (1)",
+            false => "Restriction OFF (0)",
             _ => "Unknown"
         }, restricted.HasValue ? "Local security" : "Unknown", restricted == true);
         BlankPasswordStatus.Foreground = restricted == false
             ? new SolidColorBrush(Color.FromRgb(153, 49, 24))
             : new SolidColorBrush(Color.FromRgb(30, 84, 104));
-        BlankPasswordRestriction.IsEnabled = restricted.HasValue;
-        SaveBlankPasswordButton.IsEnabled = restricted.HasValue && SystemInfo.IsAdministrator();
-        if (restricted.HasValue) BlankPasswordRestriction.IsChecked = restricted.Value;
+        bool canEdit = restricted.HasValue && SystemInfo.IsAdministrator() && !busy;
+        BlankPasswordChoice.IsEnabled = canEdit;
+        SaveBlankPasswordButton.IsEnabled = canEdit;
+        BlankPasswordChoice.SelectedIndex = restricted switch
+        {
+            true => 0,
+            false => 1,
+            _ => -1
+        };
     }
 
     private async void SaveBlankPassword_Click(object sender, RoutedEventArgs e)
     {
         if (busy || !SystemInfo.IsAdministrator()) return;
-        bool restrict = BlankPasswordRestriction.IsChecked == true;
-        if (RdpBlankPasswordSecurity.Read() is null)
+        if (BlankPasswordChoice.SelectedIndex is not (0 or 1))
+            return;
+        bool restrict = BlankPasswordChoice.SelectedIndex == 0;
+        bool? currentBlankRestriction = RdpBlankPasswordSecurity.Read();
+        if (currentBlankRestriction is null)
         {
             ReadBlankPasswordPolicy();
             ModernMessageDialog.Show(this, "The local security policy cannot be inspected. No changes made.",
                 "Security setting unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (currentBlankRestriction.Value == restrict)
+        {
+            FooterText.Text = "Blank-password local policy is already set. No change required.";
             return;
         }
         if (!restrict)
@@ -1414,8 +1555,9 @@ public partial class MainWindow : Window
             RdpPostApplyActions.Text =
                 "Reconnect or sign in again to validate policy. gpupdate is only for pending computer GPO changes.";
         }, "RdpSettings");
-        if (!succeeded)
-            ReadBlankPasswordPolicy(); // Never leave a speculative success state.
+        ReadBlankPasswordPolicy(); // Never leave speculative or disabled status behind.
+        if (succeeded)
+            CheckRdpPolicy_Click(sender, new RoutedEventArgs());
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
@@ -1500,7 +1642,8 @@ public partial class MainWindow : Window
                 throw new InvalidOperationException(
                     "Group Policy refresh returned exit code " + result.ExitCode +
                     ". Check gpresult and the Windows Group Policy event logs.");
-            var report = await Task.Run(RdpPolicyDiagnostics.ReadLocal);
+            var report = await Task.Run(() =>
+                AnnotateRdpPolicyRows(RdpPolicyDiagnostics.ReadLocal()));
             ShowRdpPolicyReport(report);
             RdpPolicyGrid.ItemsSource = report.Values;
             RdpPolicySummary.Text = report.Values.Count + " local/policy settings, " +

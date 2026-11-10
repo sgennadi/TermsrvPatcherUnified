@@ -51,10 +51,20 @@ internal static class RdpPolicySourceResolver
             ["Disable drive redirection"] = "fDisableCdm",
             ["Disable printer redirection"] = "fDisableCpm",
             ["Disable COM port redirection"] = "fDisableCcm",
+            ["Disable LPT port redirection"] = "fDisableLPT",
+            ["Disable Plug and Play device redirection"] = "fDisablePNPRedir",
+            ["Disable camera redirection"] = "fDisableCameraRedir",
+            ["Disable microphone redirection"] = "fDisableAudioCapture",
+            ["Disable audio/video playback redirection"] = "fDisableCam",
+            ["Allow time-zone redirection"] = "fEnableTimeZoneRedirection",
+            ["Use Easy Print driver first"] = "UseUniversalPrinterDriverFirst",
             ["Idle session limit"] = "MaxIdleTime",
             ["Active session time limit"] = "MaxConnectionTime",
             ["Disconnected session time limit"] = "MaxDisconnectionTime",
-            ["Automatic reconnection disabled"] = "fDisableAutoReconnect",
+            ["Automatic reconnection"] = "fDisableAutoReconnect",
+            ["End sessions on time limit"] = "fResetBroken",
+            ["RDP keep-alive enabled"] = "KeepAliveEnable",
+            ["RDP keep-alive interval"] = "KeepAliveInterval",
             ["TCP/UDP transport policy"] = "SelectTransport"
         };
 

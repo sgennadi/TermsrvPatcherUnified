@@ -62,6 +62,21 @@ internal static class RdpPolicyHistoryTests
                RdpLocalAdvancedSettings.Find("Disable clipboard redirection") is null &&
                RdpPolicySourceResolver.ValueForSetting("Disable clipboard redirection") == "fDisableClip",
                "editable registry names remain allowlisted separately from read-only RSoP source lookup");
+        Verify(RdpPolicySourceResolver.ValueForSetting("Disable camera redirection") == "fDisableCameraRedir" &&
+               RdpPolicySourceResolver.ValueForSetting("Disable microphone redirection") == "fDisableAudioCapture" &&
+               RdpPolicySourceResolver.ValueForSetting("Disable LPT port redirection") == "fDisableLPT" &&
+               RdpPolicySourceResolver.ValueForSetting("Disable Plug and Play device redirection") == "fDisablePNPRedir" &&
+               RdpPolicySourceResolver.ValueForSetting("Allow time-zone redirection") == "fEnableTimeZoneRedirection" &&
+               RdpPolicySourceResolver.ValueForSetting("Automatic reconnection") == "fDisableAutoReconnect" &&
+               RdpPolicySourceResolver.ValueForSetting("RDP keep-alive interval") == "KeepAliveInterval" &&
+               RdpLocalAdvancedSettings.Find("Disable camera redirection") is null &&
+               RdpLocalAdvancedSettings.Find("RDP keep-alive interval") is null,
+               "verified ADMX value names are diagnostic-only, not additional local writers");
+        Verify(RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(true).LocalValue.StartsWith("1", StringComparison.Ordinal) &&
+               RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false).LocalValue.StartsWith("0", StringComparison.Ordinal) &&
+               RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(null).Assessment == "Windows LSA security",
+               "blank-password explanations distinguish both LSA DWORD values and unknown source");
+
         Verify(RdpLocalAdvancedSettings.ParseValue(allowedPort!, "3389") == 3389 &&
                RdpLocalAdvancedSettings.ParseValue(allowedPort, "65535") == 65535,
                "numeric port editor accepts exact valid values");
