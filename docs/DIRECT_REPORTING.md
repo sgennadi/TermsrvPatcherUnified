@@ -26,6 +26,8 @@ pwsh -NoProfile -File .\scripts\Configure-Reporting.ps1
 
 The interactive script asks for the two public IDs, validates them and saves `TPU_FORMSPREE_FORM_ID` and `TPU_GITHUB_OAUTH_CLIENT_ID` as GitHub repository **Variables** (not Secrets). Future `windows-ci.yml` and `release-preview.yml` builds automatically regenerate the local `.build/reporting.json`, embed it into the one-file EXE as resource `TermsrvPatcherUnified.ReportingProviders` and do not package any `*.json` or `*.ps1` sidecar.
 
+If the administrator already has `%PROGRAMDATA%\TermsrvPatcherUnified\reporting.json` on the **build computer**, run the same script with `-ImportProgramData` to import its two IDs once and store them as GitHub Variables. The installed application will never read that file.
+
 For **local-only builds**, pass `-LocalOnly`; for CI use `-FromEnvironment`, which never prompts, never connects to GitHub, and disables any provider whose ID is absent. To reconfigure the published application, update the repository variables and rebuild the EXE. Updating the client EXE then distributes the new public IDs without per-PC setup.
 
 **Important:** An OAuth Client ID does not sign users in automatically: GitHub always requires a browser authorization step. The Formspree method needs no account or setup on client PCs, but sending a report still requires an explicit user review and confirmation. A live Formspree form and GitHub OAuth App must actually exist; the script does not create third-party accounts or registrations.
