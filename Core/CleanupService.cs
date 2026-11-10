@@ -32,13 +32,15 @@ internal static class CleanupService
             throw new InvalidOperationException("Select at least one cleanup category.");
         if (!OperatingSystem.IsWindows() || !SystemInfo.IsAdministrator())
             throw new UnauthorizedAccessException("Administrator rights required for Cleanup.");
-        if (IsolatedApplyExecutor.AnyActiveJob())
+        if (IsolatedApplyExecutor.AnyActiveJob() ||
+            AutoReapplyScheduler.ReadStatus().Running)
             throw new InvalidOperationException(
-                "A SYSTEM Apply/Revert job is pending, active or unconfirmed. Finish it before Cleanup.");
+                "A SYSTEM worker is pending, running or unconfirmed. Finish it before Cleanup.");
         using var gate = OperationLock.Acquire();
-        if (IsolatedApplyExecutor.AnyActiveJob())
+        if (IsolatedApplyExecutor.AnyActiveJob() ||
+            AutoReapplyScheduler.ReadStatus().Running)
             throw new InvalidOperationException(
-                "A SYSTEM job started while Cleanup was preparing; no files were removed.");
+                "A SYSTEM worker started while Cleanup was preparing; no files were removed.");
         int removed = 0;
 
         // Task removal is explicit and independent from ordinary data cleanup.
