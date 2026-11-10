@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 1.0.4"
+        Title="TermsrvPatcherUnified 1.0.5"
         Width="1290" Height="830" MinWidth="810" MinHeight="600"
         WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
@@ -17,7 +17,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="1.0.4  |  Windows x64" FontSize="12"
+          <TextBlock Text="1.0.5  |  Windows x64" FontSize="12"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
           <TextBlock Text="Remote Desktop inspection, verified patterns and reversible changes"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
@@ -962,6 +962,51 @@
                          Text="No baseline comparison yet. Check DLL health to review local evidence."/>
                 <TextBlock Text="First seen is saved automatically once in the local profile and is NEVER claimed to be an original Microsoft DLL. An operator-saved baseline is separate. Neither observation grants permission to modify or restore the DLL."
                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+              </StackPanel>
+            </GroupBox>
+            <GroupBox Header="DLL compatibility evidence — offline index" Margin="0,14,0,0">
+              <StackPanel>
+                <TextBlock Text="Diagnostic observations and self-reported fixes are UNVERIFIED. Exact SHA-256 matches do not establish an original Microsoft DLL, successful RDP connection or Apply eligibility."
+                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="12"/>
+                <WrapPanel Margin="0,10,0,8">
+                  <Button x:Name="CheckDllCompatibilityButton" Content="Check compatibility evidence"
+                          Tag="&#xE721;" Style="{StaticResource PrimaryButton}"
+                          Click="CheckDllCompatibility_Click" MinWidth="210"/>
+                  <Button x:Name="CopyDllCompatibilityButton" Content="Copy evidence"
+                          Tag="&#xE8C8;" Click="CopyDllCompatibility_Click"
+                          IsEnabled="False" MinWidth="130"/>
+                </WrapPanel>
+                <TextBlock x:Name="DllCompatibilitySummaryText"
+                           Text="No offline compatibility comparison yet."
+                           Foreground="{StaticResource NavyBrush}" TextWrapping="Wrap"
+                           FontWeight="SemiBold" Margin="0,0,0,10"/>
+                <DataGrid x:Name="DllCompatibilityGrid" IsReadOnly="True"
+                          AutoGenerateColumns="False" CanUserAddRows="False"
+                          CanUserDeleteRows="False" SelectionMode="Single"
+                          HeadersVisibility="Column" Height="300"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                  <DataGrid.Resources>
+                    <Style x:Key="CompatibilityWrapText" TargetType="TextBlock">
+                      <Setter Property="TextWrapping" Value="Wrap"/>
+                      <Setter Property="VerticalAlignment" Value="Center"/>
+                      <Setter Property="Margin" Value="4,5,4,5"/>
+                    </Style>
+                  </DataGrid.Resources>
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Evidence" Binding="{Binding Check}" Width="1.35*"
+                                        MinWidth="170" ElementStyle="{StaticResource CompatibilityWrapText}"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1.05*"
+                                        MinWidth="140" ElementStyle="{StaticResource CompatibilityWrapText}"/>
+                    <DataGridTextColumn Header="What we know" Binding="{Binding Evidence}" Width="2.6*"
+                                        MinWidth="320" ElementStyle="{StaticResource CompatibilityWrapText}"/>
+                    <DataGridTextColumn Header="Next step" Binding="{Binding NextStep}" Width="2.2*"
+                                        MinWidth="300" ElementStyle="{StaticResource CompatibilityWrapText}"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Text="Data is bundled with this EXE. The index never connects to GitHub, updates patch patterns, or changes the installed DLL."
+                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+                           FontSize="11" Margin="0,8,0,0"/>
               </StackPanel>
             </GroupBox>
           </StackPanel>

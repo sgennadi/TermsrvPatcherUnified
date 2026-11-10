@@ -1,3 +1,7 @@
+# 1.0.5 candidate QA
+
+Pending Windows CI: read-only DLL compatibility evidence index and GUI. Stable release remains 1.0.4. Neither CI nor the index establishes original Microsoft DLL provenance, real Windows 11 remote login, or licensed RDP session operation.
+
 # QA status — 2026-11-10
 
 ## Stable 1.0.0 — published

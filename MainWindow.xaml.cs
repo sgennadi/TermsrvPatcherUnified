@@ -29,6 +29,7 @@ public partial class MainWindow : Window
     private bool portRestartNeedsReview;
     private RdpConfigurationReport? lastRdpPolicyReport;
     private RdpDoctorReport? latestRdpDoctorReport;
+    private DllCompatibilityReport? latestDllCompatibilityReport;
     private bool openBlankAfterPolicyRefresh;
     private bool autoUpdateLoading;
     private bool autoUpdateChanging;
@@ -1082,6 +1083,43 @@ public partial class MainWindow : Window
             DllDriftStatus.FileVersionChanged
             ? new SolidColorBrush(Color.FromRgb(160, 92, 14))
             : new SolidColorBrush(Color.FromRgb(52, 90, 126));
+    }
+
+    private async void CheckDllCompatibility_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        latestDllCompatibilityReport = null;
+        DllCompatibilityGrid.ItemsSource = null;
+        DllCompatibilitySummaryText.Text = "Checking local SHA-256 against bundled unverified reports...";
+        CopyDllCompatibilityButton.IsEnabled = false;
+        await RunBusy(async () =>
+        {
+            var health = await Task.Run(DllHealthMonitor.CheckLocal);
+            DisplayDllHealth(health);
+            var index = await Task.Run(() => DllCompatibilityIndex.ReadLocal(health));
+            latestDllCompatibilityReport = index;
+            DllCompatibilityGrid.ItemsSource = index.Rows;
+            DllCompatibilitySummaryText.Text = index.Summary;
+            CopyDllCompatibilityButton.IsEnabled = true;
+            FooterText.Text = "DLL compatibility: local-only metadata comparison; no Windows system files changed.";
+        });
+    }
+
+    private void CopyDllCompatibility_Click(object sender, RoutedEventArgs e)
+    {
+        if (latestDllCompatibilityReport is null) return;
+        try
+        {
+            Clipboard.SetText(latestDllCompatibilityReport.AsText());
+            FooterText.Text = "Read-only compatibility evidence copied locally. No report submitted.";
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.ExternalException or
+                                   System.Threading.ThreadStateException)
+        {
+            ModernMessageDialog.Show(this, "Windows clipboard is unavailable: " +
+                ex.GetType().Name, "DLL compatibility evidence", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
     }
 
     private async void CheckDllHealth_Click(object sender, RoutedEventArgs e)

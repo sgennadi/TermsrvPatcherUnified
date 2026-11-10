@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.0.4 — RDP Doctor (candidate; not yet published)
+## 1.0.5 — DLL compatibility evidence index (candidate; not yet published)
+
+- Offline read-only System Health table compares exact DLL SHA-256/version against bundled anonymous observations and self-reported fixes; both sources are clearly UNVERIFIED.
+- First Seen and operator baselines are not authenticated Microsoft original-file provenance. Missing or malformed CSV sources show Unavailable, never compatible/verified.
+- The metadata index cannot authorize Apply/Revert, change automatic signature selection, modify protected DLLs or make licensing guarantees. No automated network calls or report submission.
+- Synthetic Windows QA and WPF offscreen control checks have been added; do not publish as Stable until all gates pass.
+
+## 1.0.4 — 2026-11-10 (Stable released)
 
 - **RDP Doctor:** new dedicated Advanced tab with one-click read-only local diagnostic, a priority-sorted evidence grid, clear blocker/attention/unknown counts and recommended operator next steps. Separate RDP settings shortcut and local-only copy of a privacy-reviewed diagnostic report.
 - **Connectivity evidence:** inspect TermService status, local RDP enable/NLA settings and GPO conflicts, configured TCP port, local TCP listening/loopback bindings, blank-password restriction, existing Firewall rule metadata, LSA logon-rights metadata and RDP certificate status.

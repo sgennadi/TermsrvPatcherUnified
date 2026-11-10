@@ -71,6 +71,14 @@ internal static class UiSmokeTests
                 if (tabs.Items.OfType<TabItem>().Count(tab =>
                         tab.Header as string == "System Health") != 1)
                     throw new Exception("DLL monitoring must be in a separate System Health tab.");
+                if (main.FindName("CheckDllCompatibilityButton") is not Button ||
+                    main.FindName("CopyDllCompatibilityButton") is not Button copyCompatibility ||
+                    copyCompatibility.IsEnabled ||
+                    main.FindName("DllCompatibilitySummaryText") is not TextBlock ||
+                    main.FindName("DllCompatibilityGrid") is not DataGrid compatibilityGrid ||
+                    !compatibilityGrid.IsReadOnly || compatibilityGrid.Columns.Count != 4)
+                    throw new Exception("Offline compatibility evidence must be read-only and its copy button disabled before inspection.");
+
                 if (tabs.Items.OfType<TabItem>().Count(tab =>
                         tab.Header as string == "RDP Doctor") != 1 ||
                     main.FindName("RunRdpDoctorButton") is not Button ||
