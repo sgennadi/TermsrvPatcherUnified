@@ -336,12 +336,15 @@ public partial class QuickApplyWindow : Window
     {
         if (QuickBackupInfoText is null || QuickNoBackupCheck is null) return;
         bool verifiedBackup = revertPlan?.RecoverySource is "System32Backup" or "TrustedBackup";
-        QuickBackupInfoText.Text = QuickNoBackupCheck.IsChecked == true
-            ? "No NEW full backup will be created. Protected recovery journal is still required."
-            : verifiedBackup
-                ? "Verified original backup is available for Revert."
-                : "Full backup selected for the next Apply (not yet verified on disk).";
-        QuickBackupInfoText.Foreground = verifiedBackup
+        bool verifiedJournal = revertPlan?.RecoverySource == "Journal";
+        QuickBackupInfoText.Text = verifiedBackup
+            ? "Verified original DLL backup available for Revert."
+            : verifiedJournal
+                ? "Verified protected recovery journal available for Revert."
+                : QuickNoBackupCheck.IsChecked == true
+                    ? "Next Apply: no full backup, protected recovery journal still required."
+                    : "Next Apply: full backup selected (not yet verified on disk).";
+        QuickBackupInfoText.Foreground = verifiedBackup || verifiedJournal
             ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
             : new SolidColorBrush(Color.FromRgb(100, 116, 139));
     }
