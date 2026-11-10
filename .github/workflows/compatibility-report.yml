@@ -3,6 +3,8 @@ name: Aggregate approved successful-fix versions
 on:
   issue_comment:
     types: [created]
+  issues:
+    types: [opened]
   workflow_dispatch:
 
 permissions:
@@ -44,4 +46,35 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- data/successful-fixes.csv data/offline-fixes.csv
           git commit -m "chore: aggregate reviewed DLL compatibility metadata"
+          git push origin HEAD:main
+  record-diagnostic-observation:
+    if: >-
+      github.event_name == 'issues' &&
+      github.event.action == 'opened' &&
+      startsWith(github.event.issue.title, '[Diagnostics] TermsrvPatcherUnified ')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Validate anonymous report as UNVERIFIED observation (never as an Apply pattern)
+        run: |
+          python3 scripts/record_diagnostic_observation.py "$GITHUB_EVENT_PATH" data/diagnostic-observations.csv
+      - name: Commit unverified, opt-in observations without changing active signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- data/diagnostic-observations.csv; then
+            echo "No new valid observation to record."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- data/diagnostic-observations.csv
+          git commit -m "chore: aggregate unverified DLL diagnostic observation"
           git push origin HEAD:main
