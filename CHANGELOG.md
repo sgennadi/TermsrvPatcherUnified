@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.28 — 2026-11-10
+
+- **Google reporting instead of Formspree:** the operator-supplied Google Apps Script deployment URL is embedded in the EXE and produces a public GitHub Issue only after the user reviews the exact typed report and confirms sending.
+- **Remove obsolete provider:** no Formspree endpoint, ID, transport, or user-facing text is compiled into the application. The former public ID is archived in source documentation, not shipped in the executable.
+- **Verified delivery:** support the Google ContentService redirect only to the expected Google response host; accept delivery solely with a validated Issue URL for this repository. No hidden uploads, retries, or local-save requirement.
+- **Diagnostics:** Windows build, UBR, DLL version and SHA-256 remain selected by default. The current deployed v1 gateway requires these values; unchecking them disables direct Google send instead of inventing evidence. Optional GitHub OAuth and manual local reports remain in Advanced.
+- **Testing:** synthetic HTTP and UI tests cover trusted redirects, malicious responses, consent data, and stable-updater packaging. Live Google / GitHub acceptance is not claimed without a user-approved production submission.
+
 ## 0.1.0-preview.27 — 2026-11-10
 
 - **Revert status:** successful authenticated Restore/Revert explicitly uses green, failures use red, and catalog-only reconstruction without verified original uses amber. Checking resets stale status colors.

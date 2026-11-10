@@ -1,12 +1,12 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.27` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.28` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Download a Preview](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)**
 
-**Preview.27:** [Receiver-free diagnostics](docs/DIRECT_REPORTING.md) use the built-in Formspree destination `mvkkernb`. Sending requires only review and confirmation; local saving is optional. Windows build, DLL version and SHA-256 are selected by default (can be deselected). Successful Apply may offer an optional report. The Auto Reapply task has a protected-ACL verification/repair workflow; live ACL repair still requires validation on the target machine. Verified Revert results are now green, while catalog-only recovery is marked amber; a successful Apply offers a friendly optional Formspree report in both Simple and Advanced views.
+**Preview.28:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replace the former Formspree service. An operator-approved Google Apps Script deployment URL is embedded in the EXE. Sending is voluntary, requires reviewing the exact metadata, and counts as delivered only after a valid PUBLIC GitHub Issue receipt. No end-user account, API token, local save or setup file is needed. Windows and DLL evidence is selected by default. The old public Formspree ID is kept only in source archival documentation; live Google acceptance remains to be confirmed.
 
 ## Disclaimer — use entirely at your own risk
 

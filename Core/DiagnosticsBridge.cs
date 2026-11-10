@@ -63,7 +63,7 @@ internal static class DiagnosticsBridge
     }
 
     /// <summary>
-    /// Prepare the same strict typed v1 metadata in memory for Formspree.
+    /// Prepare the same strict typed v1 metadata in memory for Google.
     /// Unlike Capture(), this method never writes a local queue record.
     /// Descriptions, raw errors, usernames, paths, passwords and DLL bytes
     /// are not included in the outbound payload.
@@ -118,18 +118,6 @@ internal static class DiagnosticsBridge
             !GitHubIssuePublisher.IsApprovedIssueUri(issueUrl))
             throw new InvalidDataException("The report ID or GitHub Issue URL is invalid.");
         RecordDelivery(path, eventId, "github", issueUrl.AbsoluteUri, null);
-    }
-
-    /// <summary>
-    /// Formspree has confirmed receipt, NOT GitHub Issue creation or CSV ingestion.
-    /// The form ID is the only stored destination descriptor; it is not a receipt URL.
-    /// </summary>
-    internal static void MarkFormspreeSubmitted(string path, string eventId, string formId)
-    {
-        if (!Guid.TryParseExact(eventId, "D", out _) ||
-            !DirectReportingSettings.ValidFormId(formId))
-            throw new InvalidDataException("The report ID or Formspree form ID is invalid.");
-        RecordDelivery(path, eventId, "formspree", null, formId);
     }
 
     private static void RecordDelivery(string path, string eventId, string provider,

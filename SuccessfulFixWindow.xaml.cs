@@ -37,7 +37,7 @@ public partial class SuccessfulFixWindow : Window
     private void SimpleReport_Click(object sender, RoutedEventArgs e)
     {
         if (offlineMetadata is not null || sending) return;
-        // This only opens a prefilled dialog. Formspree still requires a
+        // This only opens a prefilled dialog. Google reporting still requires a
         // separate explicit confirmation with the exact outgoing JSON.
         try
         {

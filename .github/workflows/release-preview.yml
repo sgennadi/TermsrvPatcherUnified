@@ -38,7 +38,7 @@ jobs:
       - name: Embed preconfigured public diagnostics provider IDs (no per-user setup)
         shell: pwsh
         env:
-          TPU_FORMSPREE_FORM_ID: ${{ vars.TPU_FORMSPREE_FORM_ID }}
+          TPU_GOOGLE_APPS_SCRIPT_URL: ${{ vars.TPU_GOOGLE_APPS_SCRIPT_URL }}
           TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
         run: |
           ./scripts/Configure-Reporting.ps1 -FromEnvironment
@@ -113,8 +113,8 @@ jobs:
             'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
             'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
             'Preview.27 improves successful Revert/backup colors and offers friendly opt-in compatibility sharing after confirmed local Apply in Simple and Advanced.'
-            'Formspree endpoint mvkkernb is preconfigured in the EXE: no Form ID, ProgramData reporting.json or separate setup script is needed for end users.'
-            'Formspree reports are confirmed only after explicit review; detailed GitHub reporting remains available through Advanced. Task Scheduler ACL repair and GitHub OAuth sign-in remain unverified on live systems; CI uses simulated HTTP.'
+            'The approved Google Apps Script endpoint is embedded in the EXE. Reports create public GitHub Issues only after user confirmation.'
+            'Google reporting requires an explicit review and a verified GitHub Issue URL; no local save or account required. Live Google delivery, Scheduler ACL repair and OAuth sign-in remain unverified; CI uses simulated HTTP.'
             'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
             ''
             'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'
