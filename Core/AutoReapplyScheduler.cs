@@ -118,6 +118,8 @@ internal static class AutoReapplyScheduler
             folder = ((dynamic)service).GetFolder(@"\");
             registered = ((dynamic)folder).GetTask(TaskName);
             definition = ((dynamic)registered).Definition;
+            if ((int)((dynamic)registered).State == 4)
+                throw new InvalidOperationException("Scheduled task is currently running; try repair after it finishes.");
             if (!HasExpectedTaskIdentity((dynamic)definition) ||
                 !Directory.Exists(Root) || !File.Exists(WorkerPath) ||
                 (File.GetAttributes(WorkerPath) & FileAttributes.ReparsePoint) != 0)
@@ -174,13 +176,14 @@ internal static class AutoReapplyScheduler
                 return new(true, false, false, "Protected worker executable is missing or linked.");
             NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
             NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+            bool enabled = (bool)((dynamic)registered).Enabled;
+            bool running = (int)((dynamic)registered).State == 4; // TASK_STATE_RUNNING
             string dacl = Convert.ToString(((dynamic)registered).GetSecurityDescriptor(4)) ?? "";
             if (!HasProtectedTaskDacl(dacl))
                 return new(true, false, false,
-                    "Task ACL differs from SYSTEM + Administrators. Repair permissions after administrator confirmation.",
-                    Repairable: true);
-            bool enabled = (bool)((dynamic)registered).Enabled;
-            bool running = (int)((dynamic)registered).State == 4; // TASK_STATE_RUNNING
+                    running ? "Auto Reapply task is running with unverified permissions. Wait for completion."
+                            : "Task permissions need repair. Only SYSTEM + Administrators may modify it.",
+                    Running: running, Repairable: !running);
             return new(true, true, enabled,
                 running ? "SYSTEM worker is running now; do not clean up its files." :
                 enabled ? "Enabled. Checks after Windows Update and on startup."
