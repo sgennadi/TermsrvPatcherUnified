@@ -58,12 +58,30 @@ internal static class DiagnosticsBridge
         return UniversalDiagnosticsEmbedded.Capture(JsonSerializer.Serialize(fields));
     }
 
-    /// <summary>Records a confirmed issue URL locally; never performs a network request.</summary>
+    /// <summary>Records a confirmed GitHub Issue URL locally; no network request.</summary>
     public static void MarkSubmitted(string path, string eventId, Uri issueUrl)
     {
         if (!Guid.TryParseExact(eventId, "D", out _) ||
             !GitHubIssuePublisher.IsApprovedIssueUri(issueUrl))
             throw new InvalidDataException("The report ID or GitHub Issue URL is invalid.");
+        RecordDelivery(path, eventId, "github", issueUrl.AbsoluteUri, null);
+    }
+
+    /// <summary>
+    /// Formspree has confirmed receipt, NOT GitHub Issue creation or CSV ingestion.
+    /// The form ID is the only stored destination descriptor; it is not a receipt URL.
+    /// </summary>
+    internal static void MarkFormspreeSubmitted(string path, string eventId, string formId)
+    {
+        if (!Guid.TryParseExact(eventId, "D", out _) ||
+            !DirectReportingSettings.ValidFormId(formId))
+            throw new InvalidDataException("The report ID or Formspree form ID is invalid.");
+        RecordDelivery(path, eventId, "formspree", null, formId);
+    }
+
+    private static void RecordDelivery(string path, string eventId, string provider,
+        string? confirmedUrl, string? formId)
+    {
         var expected = Path.GetFullPath(Path.Combine(
             UniversalDiagnosticsEmbedded.QueueDirectory(Project), eventId + ".json"));
         if (!string.Equals(Path.GetFullPath(path), expected, StringComparison.OrdinalIgnoreCase))
@@ -80,7 +98,9 @@ internal static class DiagnosticsBridge
             node["delivery"] = new JsonObject
             {
                 ["status"] = "submitted",
-                ["url"] = issueUrl.AbsoluteUri,
+                ["provider"] = provider,
+                ["url"] = confirmedUrl,
+                ["form_id"] = formId,
                 ["at_utc"] = DateTimeOffset.UtcNow.ToString("O")
             };
             var staging = Path.Combine(Path.GetDirectoryName(expected)!,
