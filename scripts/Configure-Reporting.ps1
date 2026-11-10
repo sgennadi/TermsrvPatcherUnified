@@ -1,167 +1,115 @@
-# One-time ADMIN / BUILD configuration. End users NEVER run this script.
-# The output is an EmbeddedResource inside TermsrvPatcherUnified.exe.
-# No GitHub PATs, OAuth client secrets, Formspree API keys or credentials are stored.
+# Build-time public reporting configuration. End users never run this script.
+# The EXE contains only a public Google Apps Script URL and (optionally)
+# a public GitHub OAuth client ID. GitHub PATs stay SERVER-SIDE in Apps Script.
 [CmdletBinding()]
 param(
-    [AllowEmptyString()][string] $FormspreeFormId,
+    [AllowEmptyString()][string] $GoogleAppsScriptUrl,
     [AllowEmptyString()][string] $GitHubOAuthClientId,
     [switch] $FromEnvironment,
-    [switch] $ImportProgramData,
     [switch] $LocalOnly,
     [string] $Repository = 'sgennadi/TermsrvPatcherUnified'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-$expectedRepo = 'sgennadi/TermsrvPatcherUnified'
-if ($Repository -cne $expectedRepo) {
-    throw "Reporting setup is pinned to $expectedRepo; refusing another repository."
+if ($Repository -cne 'sgennadi/TermsrvPatcherUnified') {
+    throw 'Reporting configuration is pinned to sgennadi/TermsrvPatcherUnified.'
 }
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
-$generatedDir = Join-Path $root '.build'
-$generatedFile = Join-Path $generatedDir 'reporting.json'
-# Checked-in PUBLIC provider identifiers are safe fallback values.
 $defaultFile = Join-Path $root 'config/reporting-defaults.json'
-$defaults = @{ formspree_form_id = ''; github_oauth_client_id = '' }
-if (Test-Path -LiteralPath $defaultFile -PathType Leaf) {
-    if ((Get-Item -LiteralPath $defaultFile).Length -gt 4096) {
-        throw 'Build reporting defaults exceed 4096 bytes.'
-    }
-    $loaded = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($defaultFile)) -AsHashtable
-    if ($null -eq $loaded -or $loaded -isnot [System.Collections.IDictionary]) {
-        throw 'Build reporting defaults must be a JSON object.'
-    }
-    foreach ($name in @($loaded.Keys)) {
-        if ($name -cnotin @('formspree_form_id','github_oauth_client_id')) {
-            throw 'Unknown field in public reporting defaults.'
-        }
-        if ($null -ne $loaded[$name] -and $loaded[$name] -isnot [string]) {
-            throw 'Reporting default identifiers must be text strings.'
-        }
-        $defaults[$name] = [string]$loaded[$name]
-    }
+if (-not (Test-Path -LiteralPath $defaultFile -PathType Leaf) -or
+    (Get-Item -LiteralPath $defaultFile).Length -gt 4096) {
+    throw 'Public Google reporting defaults are missing or too large.'
 }
-$publishVariables = (-not $FromEnvironment) -and (-not $LocalOnly)
-
-if ($publishVariables) {
-    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
-        throw "GitHub CLI (gh) is required for one-time repository variables setup. Install gh and run 'gh auth login', or use -LocalOnly."
-    }
-    & gh auth status 2>$null | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        throw "GitHub CLI is not signed in. Run 'gh auth login' on the administrator's PC (only once)."
-    }
+$defaults = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($defaultFile)) -AsHashtable
+if ($null -eq $defaults -or $defaults -isnot [System.Collections.IDictionary]) {
+    throw 'Public reporting defaults must be a JSON object.'
 }
-if ($FromEnvironment -and $ImportProgramData) {
-    throw 'Choose either -FromEnvironment or -ImportProgramData, not both.'
+foreach ($name in @($defaults.Keys)) {
+    if ($name -cnotin @('google_apps_script_url', 'github_oauth_client_id') -or
+        $defaults[$name] -isnot [string]) {
+        throw 'Unexpected public reporting configuration field.'
+    }
 }
 if ($FromEnvironment) {
-    # No prompts, network requests or gh authentication in CI.
-    # Unset Actions Variables use checked-in public defaults without user setup.
-    # Explicit nonempty repository variables override these defaults.
-    $FormspreeFormId = if ([string]::IsNullOrWhiteSpace($env:TPU_FORMSPREE_FORM_ID)) {
-        [string]$defaults['formspree_form_id']
-    } else { [string]$env:TPU_FORMSPREE_FORM_ID }
+    $GoogleAppsScriptUrl = if ([string]::IsNullOrWhiteSpace($env:TPU_GOOGLE_APPS_SCRIPT_URL)) {
+        [string]$defaults['google_apps_script_url']
+    } else { [string]$env:TPU_GOOGLE_APPS_SCRIPT_URL }
     $GitHubOAuthClientId = if ([string]::IsNullOrWhiteSpace($env:TPU_GITHUB_OAUTH_CLIENT_ID)) {
         [string]$defaults['github_oauth_client_id']
     } else { [string]$env:TPU_GITHUB_OAUTH_CLIENT_ID }
-} elseif ($ImportProgramData) {
-    if ($PSBoundParameters.ContainsKey('FormspreeFormId') -or
-        $PSBoundParameters.ContainsKey('GitHubOAuthClientId')) {
-        throw 'Do not combine -ImportProgramData with explicit provider IDs.'
-    }
-    $source = Join-Path (Join-Path $env:ProgramData 'TermsrvPatcherUnified') 'reporting.json'
-    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-        throw 'No existing administrator reporting.json was found under ProgramData.'
-    }
-    if ((Get-Item -LiteralPath $source).Length -gt 4096) {
-        throw 'ProgramData reporting.json is too large.'
-    }
-    $parsed = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($source)) -AsHashtable
-    if ($null -eq $parsed -or $parsed -isnot [System.Collections.IDictionary]) {
-        throw 'ProgramData reporting.json must be a JSON object.'
-    }
-    foreach ($name in @($parsed.Keys)) {
-        if ($name -cnotin @('formspree_form_id', 'github_oauth_client_id')) {
-            throw 'Unrecognized field in the ProgramData reporting configuration.'
-        }
-        if ($null -ne $parsed[$name] -and $parsed[$name] -isnot [string]) {
-            throw 'Provider identifiers must be text strings.'
-        }
-    }
-    $FormspreeFormId = [string] $parsed['formspree_form_id']
-    $GitHubOAuthClientId = [string] $parsed['github_oauth_client_id']
 } else {
-    if (-not $PSBoundParameters.ContainsKey('FormspreeFormId')) {
-        $answer = Read-Host ("Formspree Form ID (Enter uses preset {0})" -f $defaults['formspree_form_id'])
-        $FormspreeFormId = if ([string]::IsNullOrWhiteSpace($answer)) {
-            [string]$defaults['formspree_form_id']
-        } else { [string]$answer }
+    if (-not $PSBoundParameters.ContainsKey('GoogleAppsScriptUrl')) {
+        $value = Read-Host 'Google Apps Script /exec URL (Enter keeps repository default)'
+        $GoogleAppsScriptUrl = if ([string]::IsNullOrWhiteSpace($value)) {
+            [string]$defaults['google_apps_script_url']
+        } else { [string]$value }
     }
     if (-not $PSBoundParameters.ContainsKey('GitHubOAuthClientId')) {
-        $answer = Read-Host 'GitHub OAuth App Client ID (Enter skips)'
-        $GitHubOAuthClientId = if ([string]::IsNullOrWhiteSpace($answer)) {
+        $value = Read-Host 'Optional GitHub OAuth App Client ID (Enter skips)'
+        $GitHubOAuthClientId = if ([string]::IsNullOrWhiteSpace($value)) {
             [string]$defaults['github_oauth_client_id']
-        } else { [string]$answer }
+        } else { [string]$value }
     }
 }
-$FormspreeFormId = ([string] $FormspreeFormId).Trim()
-$GitHubOAuthClientId = ([string] $GitHubOAuthClientId).Trim()
-if ($FormspreeFormId.Length -gt 0 -and $FormspreeFormId -cnotmatch '^[A-Za-z0-9]{6,40}$') {
-    throw 'Invalid Formspree Form ID: expected 6-40 ASCII letters or digits (not a full URL).'
+$GoogleAppsScriptUrl = ([string]$GoogleAppsScriptUrl).Trim()
+$GitHubOAuthClientId = ([string]$GitHubOAuthClientId).Trim()
+$approved = $false
+if ($GoogleAppsScriptUrl.Length -ge 60 -and $GoogleAppsScriptUrl.Length -le 256) {
+    $parsed = $null
+    if ([System.Uri]::TryCreate($GoogleAppsScriptUrl,
+            [System.UriKind]::Absolute, [ref]$parsed)) {
+        $approved = $parsed.Scheme -ceq 'https' -and
+            $parsed.Host -ceq 'script.google.com' -and
+            $parsed.IsDefaultPort -and $parsed.UserInfo.Length -eq 0 -and
+            $parsed.Query.Length -eq 0 -and $parsed.Fragment.Length -eq 0 -and
+            $parsed.AbsolutePath -cmatch '^/macros/s/[A-Za-z0-9_-]{25,180}/exec$' -and
+            $parsed.AbsoluteUri -ceq $GoogleAppsScriptUrl
+    }
 }
-if ($GitHubOAuthClientId.Length -gt 0 -and $GitHubOAuthClientId -cnotmatch '^[A-Za-z0-9._-]{8,100}$') {
-    throw 'Invalid GitHub OAuth App Client ID (not a secret or URL).'
+if (-not $approved) {
+    throw 'Google Apps Script must be an approved, public HTTPS /exec deployment URL.'
 }
-if ($publishVariables -and $FormspreeFormId.Length -eq 0 -and $GitHubOAuthClientId.Length -eq 0) {
-    throw 'No provider IDs were supplied. Nothing was changed in GitHub.'
+if ($GitHubOAuthClientId.Length -gt 0 -and
+    $GitHubOAuthClientId -cnotmatch '^[A-Za-z0-9._-]{8,100}$') {
+    throw 'Invalid GitHub OAuth client ID. Never supply the OAuth secret.'
 }
-# Public IDs may be stored as repository VARIABLES (not Secrets). They are
-# embedded into subsequent Actions-built EXEs, including normal updates.
-# No Formspree/GitHub tokens or private credentials ever enter the EXE.
+$publishVariables = (-not $FromEnvironment) -and (-not $LocalOnly)
 if ($publishVariables) {
-    $existing = @(& gh variable list --repo $Repository --json name | ConvertFrom-Json)
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Unable to read existing GitHub repository variables.'
+    if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+        throw 'GitHub CLI (gh) is required to update repository variables; use -LocalOnly to skip.'
     }
+    & gh auth status 2>$null | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Run gh auth login using the repository owner account.' }
+    $existing = @(& gh variable list --repo $Repository --json name | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0) { throw 'Unable to list repository Actions Variables.' }
     foreach ($item in @(
-        @{ Name = 'TPU_FORMSPREE_FORM_ID'; Value = $FormspreeFormId },
+        @{ Name = 'TPU_GOOGLE_APPS_SCRIPT_URL'; Value = $GoogleAppsScriptUrl },
         @{ Name = 'TPU_GITHUB_OAUTH_CLIENT_ID'; Value = $GitHubOAuthClientId }
     )) {
         if ($item.Value.Length -gt 0) {
             & gh variable set $item.Name --repo $Repository --body $item.Value
-            if ($LASTEXITCODE -ne 0) {
-                throw ("Could not update GitHub Actions variable {0}." -f $item.Name)
-            }
+            if ($LASTEXITCODE -ne 0) { throw ("Could not set {0}" -f $item.Name) }
         } elseif (@($existing | Where-Object { $_.name -eq $item.Name }).Count -gt 0) {
-            # Explicitly clearing a provider must not leave an old ID in CI.
             & gh variable delete $item.Name --repo $Repository
-            if ($LASTEXITCODE -ne 0) {
-                throw ("Could not clear obsolete GitHub Actions variable {0}." -f $item.Name)
-            }
+            if ($LASTEXITCODE -ne 0) { throw ("Could not clear {0}" -f $item.Name) }
         }
     }
 }
-New-Item -ItemType Directory -Path $generatedDir -Force | Out-Null
-$values = [ordered]@{
-    formspree_form_id = $FormspreeFormId
+$dir = Join-Path $root '.build'
+New-Item -ItemType Directory -Path $dir -Force | Out-Null
+$file = Join-Path $dir 'reporting.json'
+$payload = ConvertTo-Json -InputObject ([ordered]@{
+    google_apps_script_url = $GoogleAppsScriptUrl
     github_oauth_client_id = $GitHubOAuthClientId
-}
-$json = ConvertTo-Json -InputObject $values -Depth 2
-# Atomic overwrite; never use the local machine ProgramData directory.
-$tmp = Join-Path $generatedDir ('reporting-' + [guid]::NewGuid().ToString('N') + '.tmp')
+}) -Depth 2
+$temp = Join-Path $dir ('reporting-' + [guid]::NewGuid().ToString('N') + '.tmp')
 try {
-    [System.IO.File]::WriteAllText($tmp, $json, [System.Text.UTF8Encoding]::new($false))
-    Move-Item -LiteralPath $tmp -Destination $generatedFile -Force
+    [System.IO.File]::WriteAllText($temp, $payload, [System.Text.UTF8Encoding]::new($false))
+    Move-Item -LiteralPath $temp -Destination $file -Force
 } finally {
-    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Force }
+    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }
 }
-$formStatus = if ($FormspreeFormId.Length -gt 0) { 'configured' } else { 'disabled' }
-$githubStatus = if ($GitHubOAuthClientId.Length -gt 0) { 'configured' } else { 'disabled' }
-Write-Host ('Formspree: {0}; GitHub OAuth: {1}' -f $formStatus, $githubStatus)
-Write-Host 'PASS: generated private build-time reporting.json for embedding in TermsrvPatcherUnified.exe.'
-if ($publishVariables) {
-    Write-Host 'PASS: repository variables saved. Future GitHub Actions builds will embed these public IDs automatically.'
-} else {
-    Write-Host 'No GitHub variables were changed. Local build uses the generated resource only.'
-}
-Write-Host 'Note: users do not configure provider IDs; actual report sending still requires their explicit approval.'
+Write-Host 'PASS: Google reporting endpoint verified and embedded into EXE build resource.'
+Write-Host 'Google reports require explicit review/approval and are published as public GitHub Issues.'
+if ($publishVariables) { Write-Host 'PASS: public GitHub Actions Variables saved for future builds.' }
+else { Write-Host 'No repository settings changed. Only the build resource was generated.' }
