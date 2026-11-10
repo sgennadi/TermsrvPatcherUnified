@@ -39,14 +39,16 @@ internal sealed record DiagnosticEnvironment(
             var infoBefore = new FileInfo(os.DllPath);
             if (!infoBefore.Exists || infoBefore.Length is < 1024 or > 128_000_000)
                 return null;
+            long originalLength = infoBefore.Length;
+            DateTime originalWriteTime = infoBefore.LastWriteTimeUtc;
             string hash;
             using (var stream = new FileStream(os.DllPath, FileMode.Open, FileAccess.Read,
                        FileShare.ReadWrite | FileShare.Delete))
                 hash = Convert.ToHexStringLower(SHA256.HashData(stream));
             var infoAfter = new FileInfo(os.DllPath);
             infoAfter.Refresh();
-            if (!infoAfter.Exists || infoBefore.Length != infoAfter.Length ||
-                infoBefore.LastWriteTimeUtc != infoAfter.LastWriteTimeUtc)
+            if (!infoAfter.Exists || originalLength != infoAfter.Length ||
+                originalWriteTime != infoAfter.LastWriteTimeUtc)
                 return null;
             var stamp = FileVersionInfo.GetVersionInfo(os.DllPath);
             if (!string.Equals(stamp.FileVersion, os.DllVersion,
