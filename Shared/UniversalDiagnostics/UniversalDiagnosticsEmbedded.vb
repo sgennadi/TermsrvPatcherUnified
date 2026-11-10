@@ -150,6 +150,56 @@ Public NotInheritable Class UniversalDiagnosticsEmbedded
                 {"architecture", ArchitectureName()},
                 {"fingerprint", fingerprint}
             }
+            ' The TermsrvPatcherUnified extension is ALL-OR-NOTHING and fully
+            ' typed. Older callers and other products still produce schema v1.
+            ' Do not accept free-form environment data or an arbitrary file path.
+            If project = "sgennadi/TermsrvPatcherUnified" Then
+                Dim keys = New String() {"windows_release", "windows_build",
+                    "windows_ubr", "dll_version", "dll_sha256"}
+                Dim count = 0
+                For Each key In keys
+                    Dim ignored As JsonElement
+                    If root.TryGetProperty(key, ignored) Then count += 1
+                Next
+                If count <> 0 Then
+                    If count <> keys.Length Then
+                        Throw New InvalidDataException("Incomplete DLL metadata.")
+                    End If
+                    Dim r = root.GetProperty("windows_release")
+                    Dim d = root.GetProperty("dll_version")
+                    Dim h = root.GetProperty("dll_sha256")
+                    Dim b = root.GetProperty("windows_build")
+                    Dim u = root.GetProperty("windows_ubr")
+                    Dim build As Integer = 0
+                    Dim ubr As Integer = 0
+                    If r.ValueKind <> JsonValueKind.String OrElse
+                       d.ValueKind <> JsonValueKind.String OrElse
+                       h.ValueKind <> JsonValueKind.String OrElse
+                       Not b.TryGetInt32(build) OrElse
+                       Not u.TryGetInt32(ubr) Then
+                        Throw New InvalidDataException("Invalid DLL metadata types.")
+                    End If
+                    Dim release = r.GetString()
+                    Dim dllVersion = d.GetString()
+                    Dim dllHash = h.GetString()
+                    If Not Regex.IsMatch(If(release, ""),
+                            "\A[A-Za-z0-9._-]{1,20}\z", RegexOptions.CultureInvariant) OrElse
+                       Not Regex.IsMatch(If(dllVersion, ""),
+                            "\A[0-9]{1,5}(?:\.[0-9]{1,8}){1,4}\z",
+                            RegexOptions.CultureInvariant) OrElse
+                       Not Regex.IsMatch(If(dllHash, ""),
+                            "\A[a-f0-9]{64}\z", RegexOptions.CultureInvariant) OrElse
+                       build < 19041 OrElse build > 99999 OrElse
+                       ubr < 0 OrElse ubr > 999999 Then
+                        Throw New InvalidDataException("Invalid DLL metadata values.")
+                    End If
+                    entry.Add("windows_release", release)
+                    entry.Add("windows_build", build)
+                    entry.Add("windows_ubr", ubr)
+                    entry.Add("dll_version", dllVersion)
+                    entry.Add("dll_sha256", dllHash)
+                End If
+            End If
             Dim record As New Dictionary(Of String, Object) From {
                 {"event", entry},
                 {"delivery", New Dictionary(Of String, String) From {
