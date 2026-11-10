@@ -155,6 +155,12 @@ public partial class DiagnosticsWindow : Window
     {
         if (publishing || savedReport is null || savedId is null || savedPath is null ||
             submittedIssue is not null || formspreeConfirmed || githubLoginCancel is not null) return;
+        if (string.IsNullOrWhiteSpace(SessionToken.Password) &&
+            string.IsNullOrWhiteSpace(githubSessionToken))
+        {
+            Status.Text = "Connect GitHub using browser sign-in, or enter an optional temporary token.";
+            return;
+        }
         if (MessageBox.Show(this,
                 "Publish this saved report to the PUBLIC GitHub Issues page?\n\n" +
                 "Only the text in Review is sent. Do not publish passwords, tokens, " +
