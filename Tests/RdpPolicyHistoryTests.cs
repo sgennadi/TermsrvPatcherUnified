@@ -40,6 +40,30 @@ internal static class RdpPolicyHistoryTests
                    .Assessment == "Unavailable",
                "absent redirection policy is not mistaken for allowing redirection");
 
+        Verify(!AutoReapplyScheduler.NeedsInspection("abcdef", UpdateIntegration.Version,
+                    "abcdef", UpdateIntegration.Version),
+               "unchanged DLL with same automatic pattern database is not retried");
+        Verify(AutoReapplyScheduler.NeedsInspection("abcdef", UpdateIntegration.Version,
+                    "123456", UpdateIntegration.Version),
+               "changed DLL triggers a fresh exact-signature inspection");
+        Verify(AutoReapplyScheduler.NeedsInspection("abcdef", UpdateIntegration.Version,
+                    "abcdef", "0.0.0"),
+               "new application build can recheck previously unsupported DLLs");
+        Verify(AutoReapplyScheduler.HasProtectedTaskDacl(
+                    "D:P(A;;GA;;;SY)(A;;GA;;;BA)"),
+               "SYSTEM/Administrators-only task DACL accepted");
+        Verify(!AutoReapplyScheduler.HasProtectedTaskDacl(
+                    "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GW;;;BU)") &&
+               !AutoReapplyScheduler.HasProtectedTaskDacl(
+                    "D:AI(A;;GA;;;SY)(A;;GA;;;BA)") &&
+               !AutoReapplyScheduler.HasProtectedTaskDacl(null),
+               "user-writable or inherited task DACL fails closed");
+        Verify(AutoReapplyScheduler.TaskName == "TermsrvPatcherUnified-AutoReapply" &&
+               AutoReapplyScheduler.WorkerPath.StartsWith(
+                   Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                   StringComparison.OrdinalIgnoreCase),
+               "automatic task worker lives in machine-owned ProgramData, not Desktop");
+
         var root = Path.Combine(Path.GetTempPath(), "Termsrv-History-QA-" + Guid.NewGuid().ToString("N"));
         var file = Path.Combine(root, "events.jsonl");
         try
