@@ -77,6 +77,44 @@ internal static class DirectReportingTests
     internal static int Run()
     {
         var payload = Example();
+        // A direct Formspree submission must not first create a local queue file.
+        var memoryOnly = Path.Combine(Path.GetTempPath(),
+            "TermsrvDirectNoDisk-" + Guid.NewGuid().ToString("N"));
+        var oldQueue = Environment.GetEnvironmentVariable("UDX_STATE_DIR");
+        try
+        {
+            Environment.SetEnvironmentVariable("UDX_STATE_DIR", memoryOnly);
+            var metadata = new DiagnosticEnvironment("25H2", 26200, 1234,
+                "10.0.26200.1234", new string('a', 64));
+            var direct = DiagnosticsBridge.PrepareDirect(
+                new DiagnosticsBridge.DiagnosticDraft("Protected Apply",
+                    "VerifiedSuccess", "SUCCESS", "Private machine description"), metadata);
+            var directJson = FormspreeReportClient.BuildSubmission(direct, DiagnosticsBridge.Project);
+            using (var doc = JsonDocument.Parse(directJson))
+            {
+                var root = doc.RootElement;
+                Verify(root.GetProperty("level").GetString() == "info" &&
+                       root.GetProperty("windows_build").GetInt32() == 26200 &&
+                       root.GetProperty("dll_sha256").GetString() == new string('a', 64) &&
+                       !root.TryGetProperty("summary", out _) &&
+                       !directJson.Contains("Private machine description", StringComparison.Ordinal),
+                    "successful Apply event includes typed Windows metadata without free-text notes");
+            }
+            Verify(!Directory.Exists(memoryOnly),
+                "direct Formspree preparation must not create any local report folder");
+            var minimal = DiagnosticsBridge.PrepareDirect(
+                new DiagnosticsBridge.DiagnosticDraft("Application", "USER_REPORT",
+                    "MANUAL", "Private user description"));
+            using var parsed = JsonDocument.Parse(minimal.Json);
+            Verify(!parsed.RootElement.GetProperty("event").TryGetProperty("dll_sha256", out _) &&
+                   !Directory.Exists(memoryOnly),
+                "unchecked Windows evidence is omitted and no local files are generated");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("UDX_STATE_DIR", oldQueue);
+            if (Directory.Exists(memoryOnly)) Directory.Delete(memoryOnly, true);
+        }
         var embedded = DirectReportingSettings.Load();
         Verify((!embedded.HasFormspree || DirectReportingSettings.ValidFormId(embedded.FormspreeFormId)) &&
                (!embedded.HasGitHubOAuth || DirectReportingSettings.ValidClientId(embedded.GitHubOAuthClientId)),

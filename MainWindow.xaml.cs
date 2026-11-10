@@ -1371,8 +1371,47 @@ public partial class MainWindow : Window
             AdvancedAutoReapplyCheck.IsEnabled = !busy &&
                 (!task.Installed || task.Trusted);
             AdvancedAutoReapplyStatus.Text = task.Message;
+            AdvancedRepairTaskButton.Visibility = task.Repairable
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedRepairTaskButton.IsEnabled = task.Repairable && !busy &&
+                SystemInfo.IsAdministrator() && !autoTaskChanging;
         }
         finally { autoTaskLoading = false; }
+    }
+
+    private async void RepairAutoReapply_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || autoTaskChanging || !SystemInfo.IsAdministrator()) return;
+        var task = AutoReapplyScheduler.ReadStatus();
+        if (!task.Repairable || MessageBox.Show(this,
+                "The task runs the expected SYSTEM worker, but its permissions " +
+                "do not match the protected profile.\n\n" +
+                "Restrict editing to SYSTEM and Administrators? No DLL, backups " +
+                "or trigger settings will be changed.",
+                "Repair scheduled task security", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        autoTaskChanging = true;
+        AdvancedRepairTaskButton.IsEnabled = false;
+        AdvancedAutoReapplyStatus.Text = "Checking and repairing the task ACL...";
+        try
+        {
+            await Task.Run(AutoReapplyScheduler.RepairTaskPermissions);
+            AdvancedAutoReapplyStatus.Text = "Task permissions successfully verified.";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Task ACL repair", ex);
+            MessageBox.Show(this,
+                "Cannot verify the restricted task permissions (" + ex.GetType().Name +
+                "). The task definition was not overwritten. Check Task Scheduler.",
+                "Task security", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            autoTaskChanging = false;
+            await RefreshAutoReapplyAsync();
+        }
     }
 
     private async void AutoReapplyChanged(object sender, RoutedEventArgs e)

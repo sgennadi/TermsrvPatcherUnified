@@ -20,6 +20,7 @@ public partial class QuickApplyWindow : Window
     private string? activeJobId;
     private bool autoTaskLoading;
     private bool autoTaskChanging;
+    private string? promptedJobId;
 
     public QuickApplyWindow()
     {
@@ -89,9 +90,16 @@ public partial class QuickApplyWindow : Window
                 revertPlan is not null ? "Verified original available for Revert" :
                 plan.State == PatchState.AlreadyPatched ? "Already patched" :
                 "Automatic Apply unavailable";
-            QuickStatusText.Foreground = plan.State == PatchState.AlreadyPatched
-                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            // A verified recovery source is a GOOD result, even when the
+            // installed DLL is already patched. Do not color it like a failure.
+            QuickStatusText.Foreground = revertPlan is not null &&
+                revertPlan.RecoverySource != "ExactCatalog"
+                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+                : plan.State == PatchState.AlreadyPatched &&
+                  revertPlan?.RecoverySource != "ExactCatalog"
+                    ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+                    : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            BackupOptionChanged(this, new RoutedEventArgs());
             var session = InteractiveSessionDetector.Detect();
             QuickHelpText.Text = authorized
                 ? (session == SessionKind.Console
@@ -189,7 +197,10 @@ public partial class QuickApplyWindow : Window
                 plan = null;
                 QuickStatusText.Text = "Apply completed and verified";
                 QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
+                QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
+                QuickShareReportButton.Visibility = Visibility.Visible;
                 QuickCancelButton.Content = "Close";
+                Dispatcher.BeginInvoke(new Action(OfferReportAfterSuccessfulApply));
                 return;
             }
 
@@ -323,10 +334,19 @@ public partial class QuickApplyWindow : Window
 
     private void BackupOptionChanged(object sender, RoutedEventArgs e)
     {
-        if (QuickBackupInfoText is null) return;
-        QuickBackupInfoText.Text = QuickNoBackupCheck.IsChecked == true
-            ? "No full DLL backup. A small DPAPI-protected recovery journal is still required."
-            : "Full backup ON: verified System32 .bak plus protected archived original.";
+        if (QuickBackupInfoText is null || QuickNoBackupCheck is null) return;
+        bool verifiedBackup = revertPlan?.RecoverySource is "System32Backup" or "TrustedBackup";
+        bool verifiedJournal = revertPlan?.RecoverySource == "Journal";
+        QuickBackupInfoText.Text = verifiedBackup
+            ? "Verified original DLL backup available for Revert."
+            : verifiedJournal
+                ? "Verified protected recovery journal available for Revert."
+                : QuickNoBackupCheck.IsChecked == true
+                    ? "Next Apply: no full backup, protected recovery journal still required."
+                    : "Next Apply: full backup selected (not yet verified on disk).";
+        QuickBackupInfoText.Foreground = verifiedBackup || verifiedJournal
+            ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+            : new SolidColorBrush(Color.FromRgb(100, 116, 139));
     }
 
     private void RefreshJobStatus()
@@ -346,6 +366,13 @@ public partial class QuickApplyWindow : Window
             ? "Last " + (isRevert ? "Revert" : "Apply") + " task " + status.Id[..8] +
               ": " + status.State + " (recorded; Check confirms current DLL)."
             : "";
+        QuickLastJobText.Foreground = status.State == "Succeeded"
+            ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+            : status.State == "Failed"
+                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+                : new SolidColorBrush(Color.FromRgb(100, 116, 139));
+        QuickShareReportButton.Visibility = status.State == "Succeeded" && !isRevert
+            ? Visibility.Visible : Visibility.Collapsed;
         if (status.State is "Queued" or "Running")
         {
             queued = true;
@@ -374,8 +401,45 @@ public partial class QuickApplyWindow : Window
         QuickHelpText.Text = status.State == "Failed"
             ? "Local failure type: " + status.Details + ". Check operations.log and RDP health."
             : status.Details;
+        QuickStatusText.Foreground = status.State == "Succeeded"
+            ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+            : status.State == "Failed"
+                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
         QuickCancelButton.Content = "Close";
+        if (status.State == "Succeeded" && !isRevert &&
+            activeJobId is not null &&
+            status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(promptedJobId, status.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            promptedJobId = status.Id;
+            Dispatcher.BeginInvoke(new Action(OfferReportAfterSuccessfulApply));
+        }
     }
+
+    private void OfferReportAfterSuccessfulApply()
+    {
+        if (!IsLoaded) return;
+        if (MessageBox.Show(this,
+                "The operation completed successfully. Would you like to share " +
+                "a short compatibility report to help improve future versions?\n\n" +
+                "You will see the information before sending. No passwords, " +
+                "computer name or DLL file will be shared.",
+                "Share compatibility information?", MessageBoxButton.YesNo,
+                MessageBoxImage.Information, MessageBoxResult.No) == MessageBoxResult.Yes)
+            OpenSuccessfulReport();
+    }
+
+    private void OpenSuccessfulReport()
+    {
+        new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
+            "Protected Apply", "VerifiedSuccess", "SUCCESS",
+            "Protected Apply completed and verified."))
+        { Owner = this }.ShowDialog();
+    }
+
+    private void ShareReport_Click(object sender, RoutedEventArgs e)
+        => OpenSuccessfulReport();
 
     private async void Check_Click(object sender, RoutedEventArgs e) => await CheckAsync();
 
@@ -391,10 +455,49 @@ public partial class QuickApplyWindow : Window
             QuickAutoReapplyCheck.IsEnabled = !checking && !queued &&
                 (!state.Installed || state.Trusted);
             QuickAutoReapplyStatus.Text = state.Message +
-                (state.Installed && !state.Trusted
+                (state.Installed && !state.Trusted && !state.Repairable
                     ? " Open Task Scheduler for manual review." : "");
+            QuickRepairTaskButton.Visibility = state.Repairable
+                ? Visibility.Visible : Visibility.Collapsed;
+            QuickRepairTaskButton.IsEnabled = state.Repairable && !checking && !queued &&
+                SystemInfo.IsAdministrator() && !autoTaskChanging;
         }
         finally { autoTaskLoading = false; }
+    }
+
+    private async void RepairAutoReapply_Click(object sender, RoutedEventArgs e)
+    {
+        if (checking || queued || autoTaskChanging || !SystemInfo.IsAdministrator()) return;
+        var task = AutoReapplyScheduler.ReadStatus();
+        if (!task.Repairable || MessageBox.Show(this,
+                "The existing task matches the program's SYSTEM action and schedule, " +
+                "but Windows returned additional task permissions.\n\n" +
+                "Restrict this task to SYSTEM and Administrators? " +
+                "The DLL, backups and task triggers will not be changed.",
+                "Repair Auto Reapply permissions", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        autoTaskChanging = true;
+        QuickRepairTaskButton.IsEnabled = false;
+        QuickAutoReapplyStatus.Text = "Verifying and repairing task permissions...";
+        try
+        {
+            await Task.Run(AutoReapplyScheduler.RepairTaskPermissions);
+            QuickAutoReapplyStatus.Text = "Scheduled task permissions verified.";
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Task ACL repair", ex);
+            MessageBox.Show(this,
+                "Could not verify protected task permissions (" + ex.GetType().Name +
+                "). No task definition was replaced. Review Task Scheduler.",
+                "Task permissions", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            autoTaskChanging = false;
+            await RefreshAutoReapplyAsync();
+        }
     }
 
     private async void AutoReapplyChanged(object sender, RoutedEventArgs e)

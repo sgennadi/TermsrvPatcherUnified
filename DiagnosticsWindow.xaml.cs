@@ -22,14 +22,16 @@ public partial class DiagnosticsWindow : Window
     private bool formspreeConfirmed;
     private DirectReportingSettings reportingSettings = new("", "");
 
-    public DiagnosticsWindow()
+    public DiagnosticsWindow() : this(null) { }
+
+    internal DiagnosticsWindow(DiagnosticsBridge.DiagnosticDraft? approvedContext)
     {
         InitializeComponent();
-        draft = DiagnosticsBridge.Current();
+        draft = approvedContext ?? DiagnosticsBridge.Current();
         ErrorLabel.Text = $"Component: {draft.Component}  |  {draft.ErrorType} ({draft.Code})";
         DescriptionInput.Text = draft.Summary;
-        ReportPreview.Text = "Reports are stored locally only after explicit confirmation. " +
-            "No raw logs or GitHub credentials are captured.";
+        ReportPreview.Text = "Click Preview details to see the exact metadata, " +
+            "or Send report to review it before submitting. No local file is required.";
         try
         {
             relayEndpoint = UniversalDiagnosticsRelayClient.ReadConfiguredEndpoint();
@@ -48,14 +50,17 @@ public partial class DiagnosticsWindow : Window
             GitHubDeviceStatus.Text = reportingSettings.HasGitHubOAuth
                 ? "Ready: connect through GitHub browser sign-in when you wish to publish."
                 : "GitHub OAuth is not configured in this EXE; optional temporary token remains available.";
+            FormspreeButton.IsEnabled = reportingSettings.HasFormspree;
+            PreviewDirectButton.IsEnabled = reportingSettings.HasFormspree;
             FormspreeStatus.Text = reportingSettings.HasFormspree
-                ? "Step 1: Review and save locally. Step 2: Send report (no login needed)."
-                : "Formspree is not configured in this EXE. Reporting stays local.";
+                ? "Ready to share, if you choose. No sign-in or local save needed."
+                : "Reporting is not configured in this build; no data will be sent.";
         }
         catch (Exception ex) when (ex is InvalidDataException or UnauthorizedAccessException or IOException or JsonException)
         {
             GitHubSignInButton.IsEnabled = false;
             FormspreeButton.IsEnabled = false;
+            PreviewDirectButton.IsEnabled = false;
             GitHubDeviceStatus.Text = "Embedded GitHub reporting configuration is invalid. Disabled.";
             FormspreeStatus.Text = "Embedded Formspree reporting configuration is invalid. Disabled.";
         }
@@ -78,14 +83,18 @@ public partial class DiagnosticsWindow : Window
         if (PublishButton is null || ReportPreview is null) return;
         anonymousPayload = null;
         if (AnonymousButton is not null) AnonymousButton.IsEnabled = false;
-        if (FormspreeButton is not null) FormspreeButton.IsEnabled = false;
+        if (FormspreeButton is not null)
+            FormspreeButton.IsEnabled = reportingSettings.HasFormspree && !publishing;
+        if (PreviewDirectButton is not null)
+            PreviewDirectButton.IsEnabled = reportingSettings.HasFormspree && !publishing;
         savedReport = null;
         savedPath = null;
         savedId = null;
         submittedIssue = null;
         formspreeConfirmed = false;
         PublishButton.IsEnabled = false;
-        ReportPreview.Text = "Report options changed. Review and save the report again before publishing.";
+        ReportPreview.Text = "Report options changed. Preview or send again. " +
+            "Saving locally is optional for Formspree.";
     }
 
     private async void Save_Click(object sender, RoutedEventArgs e)
@@ -143,8 +152,8 @@ public partial class DiagnosticsWindow : Window
             formspreeConfirmed = false;
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
-            FormspreeButton.IsEnabled = anonymousPayload is not null &&
-                reportingSettings.HasFormspree;
+            FormspreeButton.IsEnabled = reportingSettings.HasFormspree &&
+                !formspreeConfirmed;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
@@ -219,9 +228,8 @@ public partial class DiagnosticsWindow : Window
             IncludeWindowsEvidenceCheck.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
-            FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
-                submittedIssue is null && !formspreeConfirmed &&
-                reportingSettings.HasFormspree;
+            FormspreeButton.IsEnabled = reportingSettings.HasFormspree &&
+                submittedIssue is null && !formspreeConfirmed;
         }
     }
 
@@ -278,9 +286,8 @@ public partial class DiagnosticsWindow : Window
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null;
             AnonymousButton.IsEnabled = relayEndpoint is not null &&
                 anonymousPayload is not null && submittedIssue is null;
-            FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
-                submittedIssue is null && !formspreeConfirmed &&
-                reportingSettings.HasFormspree;
+            FormspreeButton.IsEnabled = reportingSettings.HasFormspree &&
+                submittedIssue is null && !formspreeConfirmed;
         }
     }
 

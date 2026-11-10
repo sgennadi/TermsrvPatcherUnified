@@ -113,6 +113,21 @@ Ensure(!AutoReapplyScheduler.IsMissingTaskLookupError(
         new System.Runtime.InteropServices.COMException("service unavailable", unchecked((int)0x80041315))),
     "Task Scheduler service failures cannot be interpreted as a missing task");
 
+// Scheduler security regression: Task Scheduler must never append a principal
+// ACE or treat an untrusted task as safely configured.
+Ensure(AutoReapplyScheduler.CreateOrUpdateProtectedFlags == 0x16,
+    "task creation must request TASK_DONT_ADD_PRINCIPAL_ACE");
+Ensure(AutoReapplyScheduler.HasProtectedTaskDacl("D:P(A;;GA;;;SY)(A;;GA;;;BA)"),
+    "explicit protected SYSTEM and Administrators DACL is trusted");
+Ensure(!AutoReapplyScheduler.HasProtectedTaskDacl(
+        "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;BU)"),
+    "additional Builtin Users task ACE must not be accepted as trusted");
+Ensure(!AutoReapplyScheduler.HasProtectedTaskDacl(
+        "D:(A;;GA;;;SY)(A;;GA;;;BA)"),
+    "unprotected inherited task DACL is not trusted");
+Ensure(!AutoReapplyScheduler.HasProtectedTaskDacl(
+        "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AU)"),
+    "Authenticated Users cannot be permitted to edit protected task");
 // Preview.22: pure policy regression checks, no protected file writes.
 var syntheticOriginalSha = new string('a', 64);
 var syntheticPatchedSha = new string('b', 64);

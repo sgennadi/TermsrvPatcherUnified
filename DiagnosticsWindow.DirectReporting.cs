@@ -90,76 +90,101 @@ public partial class DiagnosticsWindow
         }
     }
 
+    // Typed report is created only in memory. No call to Capture(), no
+    // local file, and no free-text description is required for Formspree.
+    private async Task<(AnonymousDiagnosticPayload Payload, string Json)> CreateDirectReportAsync()
+    {
+        DiagnosticEnvironment? environment = null;
+        if (IncludeWindowsEvidenceCheck.IsChecked == true)
+        {
+            environment = await Task.Run(DiagnosticEnvironment.TryRead);
+            if (environment is null)
+                throw new InvalidOperationException(
+                    "Windows/DLL details could not be verified. Choose Retry or uncheck the option.");
+        }
+        var payload = DiagnosticsBridge.PrepareDirect(draft, environment);
+        return (payload, FormspreeReportClient.BuildSubmission(payload, DiagnosticsBridge.Project));
+    }
+
+    private async void PreviewDirect_Click(object sender, RoutedEventArgs e)
+    {
+        if (publishing || !reportingSettings.HasFormspree) return;
+        try
+        {
+            PreviewDirectButton.IsEnabled = false;
+            var outgoing = await CreateDirectReportAsync();
+            ReportPreview.Text = outgoing.Json;
+            Status.Text = "Preview only. Nothing has been sent or saved.";
+        }
+        catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or
+                                   IOException or JsonException)
+        {
+            Status.Text = "Could not prepare a report (" + ex.GetType().Name +
+                "). Retry or adjust the Windows details option.";
+        }
+        finally { PreviewDirectButton.IsEnabled = true; }
+    }
+
     private async void Formspree_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || formspreeConfirmed || submittedIssue is not null ||
-            savedPath is null || savedId is null || anonymousPayload is null) return;
-        string formId = reportingSettings.FormspreeFormId;
-        if (!DirectReportingSettings.ValidFormId(formId))
-        {
-            FormspreeStatus.Text = "Formspree is not configured in this EXE.";
-            return;
-        }
-        string outgoing;
-        try { outgoing = FormspreeReportClient.BuildSubmission(anonymousPayload, DiagnosticsBridge.Project); }
-        catch (Exception ex) when (ex is InvalidDataException or JsonException)
-        {
-            FormspreeStatus.Text = "The report must be saved and reviewed again: " + ex.GetType().Name;
-            return;
-        }
-        if (MessageBox.Show(this,
-                "Send the following exact JSON to Formspree?\n\n" +
-                "Destination: https://formspree.io/f/" + formId + "\n" +
-                "This third-party service may observe your IP address.\n" +
-                "This DOES NOT create a GitHub Issue or update our compatibility CSV.\n\n" +
-                outgoing + "\n\nSubmit to Formspree?",
-                "Confirm third-party submission", MessageBoxButton.YesNo,
-                MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes) return;
-
+            !reportingSettings.HasFormspree) return;
+        // Lock against double-clicks before the async environment hashing step.
         publishing = true;
         FormspreeButton.IsEnabled = false;
-        PublishButton.IsEnabled = false;
-        AnonymousButton.IsEnabled = false;
+        PreviewDirectButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
-        DescriptionInput.IsEnabled = false;
         IncludeWindowsEvidenceCheck.IsEnabled = false;
         try
         {
-            using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            var (payload, outgoing) = await CreateDirectReportAsync();
+            ReportPreview.Text = outgoing;
+            string details = IncludeWindowsEvidenceCheck.IsChecked == true
+                ? "Includes Windows version, build and the SHA-256 of termsrv.dll."
+                : "Includes app/version/error category only; Windows DLL details are excluded.";
+            if (MessageBox.Show(this,
+                    "Share this compatibility report to help improve the program?\n\n" +
+                    details + "\nIt contains no username, password, computer name or file contents.\n" +
+                    "The reporting provider may receive your network IP address.\n\n" +
+                    "Destination: https://formspree.io/f/" + reportingSettings.FormspreeFormId +
+                    "\n\nExact information to send:\n" + outgoing +
+                    "\n\nSend report?",
+                    "Send compatibility report", MessageBoxButton.YesNo,
+                    MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
+            {
+                Status.Text = "Nothing sent. You can share it later.";
+                return;
+            }
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             using var client = new FormspreeReportClient();
-            await client.SendAsync(formId, outgoing, anonymousPayload, DiagnosticsBridge.Project, deadline.Token);
+            await client.SendAsync(reportingSettings.FormspreeFormId, outgoing, payload,
+                DiagnosticsBridge.Project, timeout.Token);
             formspreeConfirmed = true;
-            try
-            {
-                DiagnosticsBridge.MarkFormspreeSubmitted(savedPath, savedId, formId);
-                FormspreeStatus.Text = "Formspree confirmed receipt; local delivery recorded. GitHub CSV unchanged.";
-            }
-            catch
-            {
-                FormspreeStatus.Text = "Formspree confirmed receipt but local acknowledgement failed. " +
-                    "Check Formspree before retrying.";
-            }
-            Status.Text = "Formspree accepted typed diagnostic metadata. No GitHub Issue was created.";
+            FormspreeStatus.Text = "Thank you — your report was sent successfully.";
+            Status.Text = "Delivery confirmed by Formspree. No local report was required.";
+            AuditLog.Append("Optional typed compatibility report accepted by Formspree.");
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or
                                    InvalidOperationException or OperationCanceledException or
-                                   JsonException or ArgumentException)
+                                   JsonException or ArgumentException or IOException)
         {
-            FormspreeStatus.Text = "Formspree delivery NOT confirmed (" + ex.GetType().Name +
-                "). Local report remains pending. Check its dashboard before retrying.";
+            FormspreeStatus.Text = "Delivery could not be confirmed (" + ex.GetType().Name +
+                "). Check the Formspree inbox before trying again.";
+            Status.Text = "No automatic retry. Local patch or restore was not affected.";
         }
         finally
         {
             publishing = false;
             SaveButton.IsEnabled = true;
-            DescriptionInput.IsEnabled = true;
             IncludeWindowsEvidenceCheck.IsEnabled = true;
-            PublishButton.IsEnabled = savedReport is not null && submittedIssue is null && !formspreeConfirmed;
-            FormspreeButton.IsEnabled = anonymousPayload is not null && savedReport is not null &&
-                submittedIssue is null && !formspreeConfirmed &&
-                reportingSettings.HasFormspree;
+            PreviewDirectButton.IsEnabled = reportingSettings.HasFormspree;
+            FormspreeButton.IsEnabled = reportingSettings.HasFormspree && !formspreeConfirmed &&
+                submittedIssue is null;
+            PublishButton.IsEnabled = savedReport is not null && submittedIssue is null &&
+                !formspreeConfirmed;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null &&
                 submittedIssue is null && !formspreeConfirmed;
         }
     }
+
 }

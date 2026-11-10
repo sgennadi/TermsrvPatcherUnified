@@ -21,6 +21,10 @@ internal static class AutoReapplyScheduler
     private const string ExeName = "TermsrvPatcherUnified.exe";
     private const string StateName = "state.json";
     private const string Schema = "termsrv-auto-reapply/v1";
+    // Windows Task Scheduler may add an extra ACE for the task principal
+    // unless TASK_DONT_ADD_PRINCIPAL_ACE (0x10) is passed explicitly.
+    internal const int CreateOrUpdateProtectedFlags = 0x06 | 0x10;
+    private const string ProtectedTaskSddl = "D:P(A;;GA;;;SY)(A;;GA;;;BA)";
 
     internal static string Root => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
@@ -29,7 +33,7 @@ internal static class AutoReapplyScheduler
     internal static string WorkerPath => Path.Combine(Root, ExeName);
 
     internal sealed record TaskState(bool Installed, bool Trusted, bool Enabled,
-        string Message, bool Running = false);
+        string Message, bool Running = false, bool Repairable = false);
     private sealed record WorkerState(string SchemaId, string LastObservedSha256,
         string Result, string CheckedUtc, string RuntimeVersion);
 
@@ -62,6 +66,77 @@ internal static class AutoReapplyScheduler
         return system && administrators;
     }
 
+    // Inspection and repair use the same exact identity gate. A foreign task
+    // with this name must never be overwritten, deleted or ACL-repaired.
+    private static bool HasExpectedTaskIdentity(dynamic task)
+    {
+        if ((int)task.Actions.Count != 1 ||
+            (int)task.Principal.LogonType != 5 ||
+            (int)task.Principal.RunLevel != 1 ||
+            (int)task.Triggers.Count != 3)
+            return false;
+        string principal = Convert.ToString(task.Principal.UserId) ?? "";
+        if (!principal.Equals("SYSTEM", StringComparison.OrdinalIgnoreCase) &&
+            !principal.Equals("S-1-5-18", StringComparison.OrdinalIgnoreCase) &&
+            !principal.Equals(@"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase))
+            return false;
+        dynamic action = task.Actions.Item(1);
+        string location = Convert.ToString(action.Path) ?? "";
+        string arguments = Convert.ToString(action.Arguments) ?? "";
+        string working = Convert.ToString(action.WorkingDirectory) ?? "";
+        if (location.Length == 0 || working.Length == 0 ||
+            !Path.GetFullPath(location).Equals(Path.GetFullPath(WorkerPath),
+                StringComparison.OrdinalIgnoreCase) ||
+            !Path.GetFullPath(working).Equals(Path.GetFullPath(Root),
+                StringComparison.OrdinalIgnoreCase) ||
+            arguments != WorkerArgument) return false;
+
+        dynamic evt = task.Triggers.Item(1);
+        dynamic boot = task.Triggers.Item(2);
+        dynamic daily = task.Triggers.Item(3);
+        string subscription = Convert.ToString(evt.Subscription) ?? "";
+        return (int)evt.Type == 0 && (int)boot.Type == 8 &&
+            (int)daily.Type == 2 && (int)daily.DaysInterval == 1 &&
+            subscription.Contains("Microsoft-Windows-WindowsUpdateClient/Operational",
+                StringComparison.Ordinal) && subscription.Contains("EventID=19", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// ACL-only repair, never a task replacement. Must be initiated by an
+    /// elevated administrator who explicitly confirmed the proposed change.
+    /// </summary>
+    internal static void RepairTaskPermissions()
+    {
+        RequireAdministrator();
+        var state = ReadStatus();
+        if (!state.Repairable || !state.Installed || state.Trusted || state.Running)
+            throw new UnauthorizedAccessException("Only our recognized, idle task is eligible for ACL repair.");
+        object? service = null, folder = null, registered = null, definition = null;
+        try
+        {
+            service = Connect();
+            folder = ((dynamic)service).GetFolder(@"\");
+            registered = ((dynamic)folder).GetTask(TaskName);
+            definition = ((dynamic)registered).Definition;
+            if ((int)((dynamic)registered).State == 4)
+                throw new InvalidOperationException("Scheduled task is currently running; try repair after it finishes.");
+            if (!HasExpectedTaskIdentity((dynamic)definition) ||
+                !Directory.Exists(Root) || !File.Exists(WorkerPath) ||
+                (File.GetAttributes(WorkerPath) & FileAttributes.ReparsePoint) != 0)
+                throw new UnauthorizedAccessException("Scheduled task changed during ACL inspection.");
+            NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
+            NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+            string currentAcl = Convert.ToString(((dynamic)registered).GetSecurityDescriptor(4)) ?? "";
+            if (HasProtectedTaskDacl(currentAcl)) return; // Already repaired.
+            ((dynamic)registered).SetSecurityDescriptor(ProtectedTaskSddl, 0x10);
+        }
+        finally { ReleaseCom(definition, registered, folder, service); }
+        var verified = ReadStatus();
+        if (!verified.Trusted)
+            throw new IOException("Windows Task Scheduler did not confirm the protected permissions.");
+        AuditLog.Append("Protected Auto Reapply scheduled-task ACL repaired after administrator confirmation.");
+    }
+
     // Some Windows Task Scheduler COM bindings surface a missing task as
     // FileNotFoundException (0x80070002), not COMException. Only the named
     // GetTask lookup may interpret this as 'not configured'. Other missing
@@ -91,28 +166,11 @@ internal static class AutoReapplyScheduler
             }
             definition = ((dynamic)registered).Definition;
             dynamic taskDef = definition;
-            if ((int)taskDef.Actions.Count != 1 ||
-                (int)taskDef.Principal.LogonType != 5 ||
-                (int)taskDef.Principal.RunLevel != 1)
-                return new(true, false, false, "Task definition differs from the protected profile.");
-            action = taskDef.Actions.Item(1);
-            string location = Convert.ToString(((dynamic)action).Path) ?? "";
-            string arguments = Convert.ToString(((dynamic)action).Arguments) ?? "";
-            string workingDirectory = Convert.ToString(((dynamic)action).WorkingDirectory) ?? "";
-            string principal = Convert.ToString(taskDef.Principal.UserId) ?? "";
-            string dacl = Convert.ToString(((dynamic)registered).GetSecurityDescriptor(4)) ?? "";
-            if (!HasProtectedTaskDacl(dacl))
+            // Only a task with OUR expected action, SYSTEM identity, trigger
+            // profile and protected worker is eligible for an ACL-only repair.
+            if (!HasExpectedTaskIdentity(taskDef))
                 return new(true, false, false,
-                    "Task permissions are not restricted to SYSTEM and Administrators.");
-            if (!Path.GetFullPath(location).Equals(Path.GetFullPath(WorkerPath),
-                    StringComparison.OrdinalIgnoreCase) ||
-                arguments != WorkerArgument ||
-                !Path.GetFullPath(workingDirectory).Equals(Path.GetFullPath(Root),
-                    StringComparison.OrdinalIgnoreCase) ||
-                !principal.Equals("SYSTEM", StringComparison.OrdinalIgnoreCase) &&
-                !principal.Equals("S-1-5-18", StringComparison.OrdinalIgnoreCase) &&
-                !principal.Equals(@"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase))
-                return new(true, false, false, "Task action or identity is not trusted. Manual review required.");
+                    "Task action, trigger schedule or identity differs from the protected profile. Manual review required.");
             if (!Directory.Exists(Root) || !File.Exists(WorkerPath) ||
                 (File.GetAttributes(WorkerPath) & FileAttributes.ReparsePoint) != 0)
                 return new(true, false, false, "Protected worker executable is missing or linked.");
@@ -120,6 +178,12 @@ internal static class AutoReapplyScheduler
             NsudoDevilModeScope.EnsurePrivateDirectory(Root);
             bool enabled = (bool)((dynamic)registered).Enabled;
             bool running = (int)((dynamic)registered).State == 4; // TASK_STATE_RUNNING
+            string dacl = Convert.ToString(((dynamic)registered).GetSecurityDescriptor(4)) ?? "";
+            if (!HasProtectedTaskDacl(dacl))
+                return new(true, false, false,
+                    running ? "Auto Reapply task is running with unverified permissions. Wait for completion."
+                            : "Task permissions need repair. Only SYSTEM + Administrators may modify it.",
+                    Running: running, Repairable: !running);
             return new(true, true, enabled,
                 running ? "SYSTEM worker is running now; do not clean up its files." :
                 enabled ? "Enabled. Checks after Windows Update and on startup."
@@ -340,7 +404,10 @@ internal static class AutoReapplyScheduler
             action.Arguments = WorkerArgument;
             action.WorkingDirectory = Root;
             registered = ((dynamic)folder).RegisterTaskDefinition(TaskName, definition,
-                6, "SYSTEM", null, 5, "D:P(A;;GA;;;SY)(A;;GA;;;BA)");
+                CreateOrUpdateProtectedFlags, "SYSTEM", null, 5, ProtectedTaskSddl);
+            // Explicitly enforce the DACL after registration (Windows may
+            // normalize a creation-time SDDL); never trust mere success HRESULT.
+            ((dynamic)registered).SetSecurityDescriptor(ProtectedTaskSddl, 0x10);
         }
         finally { ReleaseCom(registered, definition, folder, service); }
     }

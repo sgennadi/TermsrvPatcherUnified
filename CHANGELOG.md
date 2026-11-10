@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-preview.26 — 2026-11-10
+
+- **Task Scheduler ACL:** register SYSTEM Auto Reapply with TASK_DONT_ADD_PRINCIPAL_ACE, apply a protected task ACL explicitly and re-check the task. Existing tasks with our expected action, SYSTEM identity, schedule and protected worker may be repaired only with a separate administrator confirmation. Unknown tasks remain blocked.
+- **Simple UI:** verified backup, recovery journal, Revert availability and successful Apply have green statuses. AlreadyPatched without authenticated recovery remains red; diagnostic task failures remain warnings.
+- **Direct Formspree:** Windows build, DLL version and SHA-256 option is checked by default but can be unchecked. Send now builds a typed report in memory, previews exact JSON and requests confirmation; no mandatory local save, login or auto-retry. Formspree success does not create a GitHub Issue or update the compatibility CSV.
+- **After Apply:** only after independently confirmed success, the app may offer to share a small compatibility report. Declining sends nothing. Reopened Simple view provides an optional Share button for a recorded successful Apply.
+- **Tests:** synthetic task-ACL, no-disk diagnostic and Windows WPF smoke tests. Actual scheduled task repair on the user's host still requires hands-on verification.
+
 ## 0.1.0-preview.25 — 2026-11-10
 
 - **Task Scheduler:** recognize absent Auto Reapply tasks when Windows COM reports `FileNotFoundException` / known task-not-found HRESULTs during `GetTask`. Show `Scheduled task: Not configured (optional)` instead of a technical error. Do not treat access-denied, service faults or missing worker files as absent tasks.

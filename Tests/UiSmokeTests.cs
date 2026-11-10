@@ -141,15 +141,17 @@ internal static class UiSmokeTests
                     throw new Exception("Update eligibility explanation or manual-release fallback is missing.");
                 var diagnosticsWindow = new DiagnosticsWindow();
                 if (diagnosticsWindow.FindName("IncludeWindowsEvidenceCheck") is not CheckBox metadataConsent ||
-                    metadataConsent.IsChecked != false)
-                    throw new Exception("Sharing DLL SHA-256 and Windows build must be explicitly selected.");
+                    metadataConsent.IsChecked != true)
+                    throw new Exception("Windows/DLL evidence must be checked by default and still removable by the user.");
                 if (diagnosticsWindow.FindName("AnonymousButton") is not Button anonymous ||
                     anonymous.IsEnabled ||
                     diagnosticsWindow.FindName("RelayState") is not TextBlock relayStatus ||
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
                 if (diagnosticsWindow.FindName("FormspreeButton") is not Button formspree ||
-                    formspree.IsEnabled ||
+                    formspree.IsEnabled != DirectReportingSettings.Load().HasFormspree ||
+                    diagnosticsWindow.FindName("PreviewDirectButton") is not Button preview ||
+                    preview.IsEnabled != DirectReportingSettings.Load().HasFormspree ||
                     diagnosticsWindow.FindName("FormspreeFormIdInput") is not null ||
                     diagnosticsWindow.FindName("GitHubClientIdInput") is not null ||
                     diagnosticsWindow.FindName("GitHubSignInButton") is not Button ||
@@ -157,11 +159,18 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("CopyGitHubCodeButton") is not Button ||
                     diagnosticsWindow.FindName("PublishButton") is not Button publish ||
                     publish.IsEnabled)
-                    throw new Exception("Direct reporting controls must be visible and fail closed before local review.");
+                    throw new Exception("Direct reporting must be immediately available when configured, while GitHub publishing requires review.");
+                if (diagnosticsWindow.FindName("SaveButton") is not Button ||
+                    diagnosticsWindow.FindName("ReportPreview") is not TextBox)
+                    throw new Exception("Optional local copy and direct metadata preview controls are missing.");
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
                     quickAuto.IsChecked != false ||
                     quick.FindName("QuickAutoReapplyStatus") is not TextBlock ||
+                    quick.FindName("QuickRepairTaskButton") is not Button repair ||
+                    repair.Visibility != Visibility.Collapsed ||
+                    quick.FindName("QuickShareReportButton") is not Button share ||
+                    share.Visibility != Visibility.Collapsed ||
                     quick.FindName("QuickCleanupButton") is not Button)
                     throw new Exception("Simple Auto Reapply checkbox and Cleanup controls missing.");
                 if (quick.FindName("QuickApplyButton") is not Button quickApply ||
