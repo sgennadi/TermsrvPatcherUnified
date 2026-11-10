@@ -148,11 +148,13 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("RelayState") is not TextBlock relayStatus ||
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
-                if (diagnosticsWindow.FindName("FormspreeButton") is not Button formspree ||
-                    formspree.IsEnabled != DirectReportingSettings.Load().HasFormspree ||
+                if (diagnosticsWindow.FindName("GoogleButton") is not Button google ||
+                    google.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
                     diagnosticsWindow.FindName("PreviewDirectButton") is not Button preview ||
-                    preview.IsEnabled != DirectReportingSettings.Load().HasFormspree ||
-                    diagnosticsWindow.FindName("FormspreeFormIdInput") is not null ||
+                    preview.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
+                    diagnosticsWindow.FindName("GoogleEndpointInput") is not null ||
+                    diagnosticsWindow.FindName("OpenConfirmedIssueButton") is not Button issueLink ||
+                    issueLink.Visibility != Visibility.Collapsed ||
                     diagnosticsWindow.FindName("GitHubClientIdInput") is not null ||
                     diagnosticsWindow.FindName("GitHubSignInButton") is not Button ||
                     diagnosticsWindow.FindName("GitHubCancelButton") is not Button ||

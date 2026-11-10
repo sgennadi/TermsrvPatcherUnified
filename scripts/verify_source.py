@@ -236,7 +236,7 @@ for view_name in ("DiagnosticsWindow", "UpdateCenterWindow", "AboutWindow", "Suc
 print("PASS: secondary WPF window event handler guards.")
 
 # Provider IDs are bound once at build time. The users never supply or store
-# Formspree/OAuth IDs in ProgramData or the Diagnostics dialog.
+# Google/OAuth IDs in ProgramData or the Diagnostics dialog.
 provider_source = (ROOT / "Core/DirectReportProviders.cs").read_text(encoding="utf-8")
 project_xml = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 diagnostics_xaml = (ROOT / "DiagnosticsWindow.xaml").read_text(encoding="utf-8")
@@ -249,18 +249,20 @@ check("TermsrvPatcherUnified.ReportingProviders" in project_xml and
       "config/reporting-defaults.json" in project_xml,
       "single EXE embeds effective provider configuration, even in ordinary local builds")
 default_reporting = json.loads((ROOT / "config/reporting-defaults.json").read_text(encoding="utf-8"))
-check(default_reporting == {"formspree_form_id": "mvkkernb", "github_oauth_client_id": ""},
-      "approved public Formspree ID mvkkernb is the single-file EXE default")
+check(default_reporting == {
+    "google_apps_script_url": "https://script.google.com/macros/s/AKfycbyV-tq5tMa08XaEmgo6-vpHD6ISQGOci32oPjy5ELm2pHUAud_Wn5j5YjVV0kcc6o62/exec",
+    "github_oauth_client_id": ""
+}, "approved Google Apps Script deployment is the embedded single-EXE default")
 check((ROOT / "scripts/Configure-Reporting.ps1").exists() and
       (ROOT / ".gitignore").read_text(encoding="utf-8").find(".build/") >= 0,
       "once-only administrator script and ignored local generated build file")
 check("GitHubClientIdInput" not in diagnostics_xaml and
-      "FormspreeFormIdInput" not in diagnostics_xaml,
+      "GoogleEndpointInput" not in diagnostics_xaml,
       "no provider identifier inputs in the end-user UI")
 for wf_path in (".github/workflows/windows-ci.yml", ".github/workflows/release-preview.yml"):
     wf_contents = (ROOT / wf_path).read_text(encoding="utf-8")
     check("Configure-Reporting.ps1 -FromEnvironment" in wf_contents and
-          "vars.TPU_FORMSPREE_FORM_ID" in wf_contents and
+          "vars.TPU_GOOGLE_APPS_SCRIPT_URL" in wf_contents and
           "vars.TPU_GITHUB_OAUTH_CLIENT_ID" in wf_contents,
           f"{wf_path}: builds inherit administrator configured public IDs")
 print("PASS: one-time provider configuration embedded into EXE; no end-user setup.") 

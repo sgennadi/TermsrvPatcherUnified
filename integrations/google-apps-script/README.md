@@ -1,6 +1,6 @@
 # Free diagnostic reports via Google Apps Script -> GitHub Issues
 
-This is an **optional, not-yet-deployed integration**. It costs no monthly subscription within Google Apps Script's quota and requires no private VPS. It is nevertheless a *public, hosted HTTPS receiver*. The Formspree Free plan does **not** automatically forward messages to GitHub: its webhook integration is paid.
+The owner supplied a Google Apps Script deployment URL, now embedded in the application. The deployment was not independently verified with a live report. It costs no monthly subscription within Google Apps Script's quota and requires no private VPS. It is nevertheless a *public, hosted HTTPS receiver*. The Formspree Free plan does **not** automatically forward messages to GitHub: its webhook integration is paid.
 
 ## What the repository owner configures ONCE
 
@@ -23,7 +23,7 @@ This is an **optional, not-yet-deployed integration**. It costs no monthly subsc
    - Click **Deploy**, grant the required permissions for script execution and outbound HTTP, and copy the \`https://script.google.com/macros/s/.../exec\` URL.
    - Opening this URL with GET should show a small JSON status. **GET does not create an Issue**.
 6. Provide the **\`.../exec\` deployment URL only** to the TermsrvPatcherUnified application maintainer for build-time configuration. The URL itself is public, not a secret. **Never send the GitHub token.**
-7. Once the application has been updated to use this optional endpoint, send **one test report after explicit user confirmation**, then check:
+7. After updating to the new Google-enabled Preview, send **one test report after explicit user confirmation**, then check:
    - https://github.com/sgennadi/TermsrvPatcherUnified/issues (a public diagnostic Issue).
    - https://github.com/sgennadi/TermsrvPatcherUnified/actions/workflows/diagnostic-observations.yml (the \`issues.opened\` collector).
    - https://github.com/sgennadi/TermsrvPatcherUnified/blob/main/data/diagnostic-observations.csv (an **unverified** observation row).
@@ -32,7 +32,7 @@ If GitHub Actions cannot commit CSV, check the workflow's \`contents: write\` pe
 
 ## Important boundaries and safety
 
-- **This does not connect the existing Formspree submissions automatically.** Free Formspree has no included webhook/Google Sheets forwarding. The EXE must be updated to send directly to the new Apps Script endpoint. Until such an EXE is released, reporting continues to Formspree.
+- **This does not connect the existing Formspree submissions automatically.** Free Formspree has no included webhook/Google Sheets forwarding. The EXE must be updated to send directly to the new Apps Script endpoint. Previous Formspree integration is archived in docs/archive/legacy-formspree.md and is not compiled into the new EXE.
 - Apps Script is an HTTPS receiver on Google's infrastructure, **not a server you host**, and can be used within the free quotas. Google can change quotas or limit deployments.
 - **GitHub Issues in this repository are public.** The client must disclose this and show the exact typed payload and destination *before* its Send action. Anonymous to the app developer is not absolute anonymity to the transport providers.
 - No automatic uploads after Apply. User consent, destination preview and explicit send remain mandatory. Opted-out DLL metadata is not forwarded into the compatibility CSV.
