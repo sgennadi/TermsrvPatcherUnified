@@ -93,9 +93,11 @@ internal static class UiSmokeTests
                     main.FindName("RdpSessionsCountText") is not TextBlock ||
                     main.FindName("RdpOverviewText") is not TextBlock ||
                     main.FindName("BlankPasswordStatus") is not TextBlock ||
-                    main.FindName("RdpSecurityAdvanced") is not Expander secExpanded ||
-                    secExpanded.IsExpanded ||
-                    main.FindName("BlankPasswordRestriction") is not CheckBox ||
+                    main.FindName("BlankPasswordInlineEditor") is not Border blankEditor ||
+                    blankEditor.Visibility != Visibility.Collapsed ||
+                    main.FindName("BlankPasswordChoice") is not ComboBox choices ||
+                    choices.Items.Count != 2 ||
+                    main.FindName("OpenBlankPasswordSettingButton") is not Button ||
                     main.FindName("SaveBlankPasswordButton") is not Button ||
                     main.FindName("SimpleModeButton") is not Button)
                     throw new Exception("Unified RDP dashboard, hidden security controls or back navigation missing.");
@@ -114,7 +116,10 @@ internal static class UiSmokeTests
                     main.FindName("CleanupButton") is not Button)
                     throw new Exception("Advanced Auto Reapply and Cleanup controls are missing.");
                 if (main.FindName("RdpPolicyGrid") is not DataGrid policyGrid ||
-                    !policyGrid.IsReadOnly || main.FindName("RdpPolicyDetails") is not TextBox ||
+                    !policyGrid.IsReadOnly || policyGrid.Columns.Count < 7 ||
+                    policyGrid.Columns.OfType<DataGridTemplateColumn>().Count() != 1 ||
+                    policyGrid.Columns.All(c => c.Header?.ToString() != "Details") ||
+                    main.FindName("RdpPolicyDetails") is not TextBox ||
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
                     !historyGrid.IsReadOnly)
                     throw new Exception("Read-only policy and history controls are missing.");
@@ -292,6 +297,32 @@ internal static class UiSmokeTests
                     modernMessage.FindName("CancelButton") is not Button modernCancel ||
                     !modernCancel.IsCancel)
                     throw new Exception("Modern inline help/error/confirmation dialog is incomplete or auto-confirms.");
+                var editable = new RdpPolicyEvidence("RDP TCP port", "3389", "(none)", "Local setting", "Local");
+                var ready = RdpRowEditStatus.Annotate(editable, administrator: true,
+                    console: true, policyManaged: false, validValue: true);
+                if (!ready.CanEdit || ready.PolicyLocked ||
+                    !ready.EditStatus.Contains("Editable", StringComparison.Ordinal))
+                    throw new Exception("Editable local rows must have an enabled action and status.");
+                var blocked = RdpRowEditStatus.Annotate(editable, administrator: true,
+                    console: true, policyManaged: true, validValue: true);
+                var needsConsole = RdpRowEditStatus.Annotate(editable, administrator: true,
+                    console: false, policyManaged: false, validValue: true);
+                if (blocked.CanEdit || !blocked.PolicyLocked ||
+                    needsConsole.CanEdit || !needsConsole.EditStatus.Contains("console", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("GPO and console-only rows must be clearly locked.");
+                var blank = RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false);
+                var blankView = RdpRowEditStatus.Annotate(blank, administrator: true,
+                    console: false, policyManaged: null, validValue: true);
+                if (!blankView.CanEdit || blankView.PolicyLocked ||
+                    !blank.LocalValue.StartsWith("0", StringComparison.Ordinal) ||
+                    !blank.Explanation.Contains("LimitBlankPasswordUse", StringComparison.Ordinal))
+                    throw new Exception("Blank-password policy must explain DWORD 0 and allow guarded local editing.");
+                var blankUnknown = RdpRowEditStatus.Annotate(
+                    RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(null), administrator: true,
+                    console: true, policyManaged: null, validValue: false);
+                if (blankUnknown.CanEdit || !blankUnknown.EditStatus.Contains("invalid", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("Unknown LSA values must never enable editing.");
+
                 var tinyDesktop = new Rect(0, 0, 800, 560);
                 var fitted = WindowLayout.FitBounds(tinyDesktop, 1120, 795);
                 if (fitted.Left < tinyDesktop.Left ||

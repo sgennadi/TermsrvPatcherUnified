@@ -47,6 +47,20 @@ internal static class RdpHealthTests
             Verify(first.AsText().Contains("READ ONLY") &&
                    !first.AsText().Contains(root, StringComparison.OrdinalIgnoreCase),
                 "publicly copyable health text has no local filesystem path");
+            var firstSeenPath = Path.Combine(root, "state", "first-seen.json");
+            var automatic = DllHealthMonitor.CheckWithFirstSeen(
+                dll, "10.0.26100.1000", baseline, firstSeenPath);
+            Verify(automatic.Status == DllDriftStatus.FirstSeenUnverified &&
+                   automatic.FirstSeen is not null &&
+                   File.Exists(firstSeenPath) &&
+                   automatic.AsText().Contains("UNVERIFIED", StringComparison.Ordinal),
+                "first DLL observation is recorded automatically but never authenticated");
+            var savedFirstSeenBytes = File.ReadAllBytes(firstSeenPath);
+            var repeated = DllHealthMonitor.CheckWithFirstSeen(
+                dll, "10.0.26100.1000", baseline, firstSeenPath);
+            Verify(repeated.Status == DllDriftStatus.FirstSeenUnverified &&
+                   File.ReadAllBytes(firstSeenPath).SequenceEqual(savedFirstSeenBytes),
+                "first-seen snapshot is immutable on repeat checks");
             var saved = DllHealthMonitor.RecordBaseline(dll, "10.0.26100.1000", baseline);
             Verify(saved.Status == DllDriftStatus.Unchanged && File.Exists(baseline),
                 "user-approved baseline is written to user-specified metadata file");
@@ -55,12 +69,26 @@ internal static class RdpHealthTests
             var changed = (byte[])original.Clone();
             changed[0x220] = 0x83;
             File.WriteAllBytes(dll, changed);
+            var drift = DllHealthMonitor.CheckWithFirstSeen(
+                dll, "10.0.26100.1000", Path.Combine(root, "other", "baseline.json"),
+                firstSeenPath);
+            Verify(drift.Status == DllDriftStatus.BytesChanged &&
+                   drift.FirstSeen is not null &&
+                   File.ReadAllBytes(firstSeenPath).SequenceEqual(savedFirstSeenBytes),
+                "byte drift is compared with immutable unverified first observation");
             Verify(DllHealthMonitor.CheckFile(dll, "10.0.26100.1000", baseline).Status ==
                    DllDriftStatus.BytesChanged, "same-version changed bytes detected");
             Verify(DllHealthMonitor.CheckFile(dll, "10.0.26100.2000", baseline).Status ==
                    DllDriftStatus.FileVersionChanged, "new version identified separately");
             Verify(File.ReadAllBytes(dll).SequenceEqual(changed),
                 "health checks never write or repair the DLL");
+            File.WriteAllText(firstSeenPath, new string('x', 3000));
+            var corruptFirstSeen = DllHealthMonitor.CheckWithFirstSeen(
+                dll, "10.0.26100.1000", baseline, firstSeenPath);
+            Verify(corruptFirstSeen.FirstSeen is null &&
+                   !string.IsNullOrWhiteSpace(corruptFirstSeen.FirstSeenWarning) &&
+                   File.ReadAllText(firstSeenPath).Length == 3000,
+                "corrupt first-seen metadata is never silently repaired or trusted");
             File.WriteAllBytes(baseline, new byte[] { 0x7B, 0xFF, 0x7D });
             Verify(DllHealthMonitor.CheckFile(dll, "10.0.26100.1000", baseline).Status ==
                    DllDriftStatus.InvalidBaseline, "corrupt baseline is not trusted");

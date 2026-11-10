@@ -1,5 +1,10 @@
 # TermsrvPatcherUnified
 
+**Source version:** 1.0.2 (release candidate; not yet published). The current downloadable Stable build remains 1.0.1 until the Windows release checks finish.
+
+**RDP settings audit:** [local/GPO registry map, inline security editor and future features](docs/RDP_SETTINGS_AUDIT.md).
+
+
 **Latest Stable release:** [`1.0.1`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.1) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
