@@ -102,8 +102,8 @@
         </Grid.ColumnDefinitions>
         <Button x:Name="QuickCleanupButton" Content="Cleanup..." Tag="&#xE74D;"
                 Grid.Column="0" Click="Cleanup_Click" MinWidth="105"/>
-        <Button Content="Updates" Tag="&#xE896;" Grid.Column="2"
-                Click="Updates_Click" MinWidth="90"/>
+        <Button x:Name="QuickUpdatesButton" Content="Updates" Tag="&#xE896;" Grid.Column="2"
+                Click="Updates_Click" MinWidth="125"/>
         <Button x:Name="QuickAdvancedButton" Content="Advanced" Tag="&#xE713;"
                 Grid.Column="3" Click="Advanced_Click" MinWidth="110"/>
         <Button x:Name="QuickCancelButton" Content="Close" Grid.Column="4"
