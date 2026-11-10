@@ -18,7 +18,7 @@
           <TextBlock Text="Protected file access" FontWeight="SemiBold"/>
           <TextBlock x:Name="NSudoStatusText" Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Updates" FontWeight="SemiBold"/>
-          <TextBlock Text="UniversalUpdater — GitHub Releases check; installation requires a trusted installer." Margin="0,3,0,12" TextWrapping="Wrap"/>
+          <TextBlock Text="UniversalUpdater — verified release checks and in-place updates from local folders, including Desktop." Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Diagnostics" FontWeight="SemiBold"/>
           <TextBlock Text="UniversalDiagnostics — local capture and optional reviewed GitHub Issue publication; no background upload." Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Licensing" FontWeight="SemiBold"/>
