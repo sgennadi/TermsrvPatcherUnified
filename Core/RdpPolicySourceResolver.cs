@@ -1,4 +1,5 @@
 using System.Management;
+using Microsoft.Win32;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
@@ -73,6 +74,16 @@ internal static class RdpPolicySourceResolver
             if (p.StartsWith(prefix.TrimStart('\\'), StringComparison.OrdinalIgnoreCase))
                 return p[prefix.TrimStart('\\').Length..].Trim('\\');
         return p;
+    }
+
+    internal static bool IsPolicyPresent(string valueName)
+    {
+        if (!EvidenceValueNames.Values.Contains(valueName, StringComparer.OrdinalIgnoreCase))
+            throw new ArgumentException("Not an approved RDP policy registry value.", nameof(valueName));
+        using var policy = Registry.LocalMachine.OpenSubKey(
+            @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services");
+        return policy is not null &&
+            policy.GetValueNames().Contains(valueName, StringComparer.OrdinalIgnoreCase);
     }
 
     private static string? CanonicalGuid(string? value)
