@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -244,7 +245,12 @@ check("GetManifestResourceStream(ResourceName)" in provider_source and
       "reporting.json" not in provider_source,
       "provider IDs read only from executable embedded resource")
 check("TermsrvPatcherUnified.ReportingProviders" in project_xml and
-      ".build/reporting.json" in project_xml, "single EXE embeds reporting configuration")
+      ".build/reporting.json" in project_xml and
+      "config/reporting-defaults.json" in project_xml,
+      "single EXE embeds effective provider configuration, even in ordinary local builds")
+default_reporting = json.loads((ROOT / "config/reporting-defaults.json").read_text(encoding="utf-8"))
+check(default_reporting == {"formspree_form_id": "mvkkernb", "github_oauth_client_id": ""},
+      "approved public Formspree ID mvkkernb is the single-file EXE default")
 check((ROOT / "scripts/Configure-Reporting.ps1").exists() and
       (ROOT / ".gitignore").read_text(encoding="utf-8").find(".build/") >= 0,
       "once-only administrator script and ignored local generated build file")
