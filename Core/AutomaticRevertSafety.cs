@@ -49,10 +49,14 @@ internal static class AutomaticRevertSafety
         using (var engine = new TermsrvEngine(null))
         {
             var backups = engine.BackupsForCurrentVersion();
-            if (backups.Count > 1) return null;
-            if (backups.Count == 1)
+            // Several valid originals can exist after Windows servicing or a
+            // previous Apply. Do NOT pick the newest by timestamp: compare
+            // every bounded candidate against the entire installed DLL below.
+            // If too many copies are present, require Advanced/manual review.
+            if (backups.Count > 24) return null;
+            foreach (string backup in backups)
                 candidates.Add(("TrustedBackup", DllBackupStore.ReadVerified(
-                    TermsrvEngine.BackupDirectory, backups[0],
+                    TermsrvEngine.BackupDirectory, backup,
                     os.DllVersion, installed.LongLength)));
         }
         var system32 = System32BackupStore.ReadVerified(os.DllVersion, installed.LongLength);
@@ -80,9 +84,10 @@ internal static class AutomaticRevertSafety
                 expected.ProfileId, candidate.Source), original));
         }
         // Duplicate copies of identical originals are fine; two different
-        // originals are never auto-selected.
-        if (matches.Select(x => x.Plan.OriginalSha256).Distinct(
-                StringComparer.OrdinalIgnoreCase).Count() > 1) return null;
+        // originals are never auto-selected. A backup's timestamp and .bak
+        // filename do NOT authorize the choice.
+        if (!HasUniqueOriginal(matches.Select(x => x.Plan.OriginalSha256)))
+            return null;
         if (matches.Count > 0)
             return matches[0];
 
@@ -94,6 +99,11 @@ internal static class AutomaticRevertSafety
         // a second explicit, higher-risk approval before using this fallback.
         return ExactCatalogRevert.Inspect(os, installed);
     }
+
+    // Keep this pure for synthetic Windows Update/ambiguous backup regressions.
+    internal static bool HasUniqueOriginal(IEnumerable<string> matchedHashes) =>
+        matchedHashes.Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() <= 1;
 
     internal static bool SameApproval(AutomaticRevertPlan approved,
         AutomaticRevertPlan? current) =>
