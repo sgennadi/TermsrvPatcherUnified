@@ -120,18 +120,6 @@ internal static class DiagnosticsBridge
         RecordDelivery(path, eventId, "github", issueUrl.AbsoluteUri, null);
     }
 
-    /// <summary>
-    /// Formspree has confirmed receipt, NOT GitHub Issue creation or CSV ingestion.
-    /// The form ID is the only stored destination descriptor; it is not a receipt URL.
-    /// </summary>
-    internal static void MarkFormspreeSubmitted(string path, string eventId, string formId)
-    {
-        if (!Guid.TryParseExact(eventId, "D", out _) ||
-            !DirectReportingSettings.ValidFormId(formId))
-            throw new InvalidDataException("The report ID or Formspree form ID is invalid.");
-        RecordDelivery(path, eventId, "formspree", null, formId);
-    }
-
     private static void RecordDelivery(string path, string eventId, string provider,
         string? confirmedUrl, string? formId)
     {

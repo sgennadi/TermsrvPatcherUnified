@@ -54,7 +54,7 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
         using var document = JsonDocument.Parse(checkedPayload.Json);
         // The GitHub compatibility CSV only accepts complete Windows/DLL
         // observations. When unchecked the metadata must remain excluded;
-        // use the separately configured Formspree provider if desired.
+        // use the local-only review option instead.
         if (!document.RootElement.GetProperty("event").TryGetProperty("dll_sha256", out _))
             throw new InvalidDataException(
                 "GitHub archive requires Windows build and DLL evidence; no report was sent.");
@@ -65,7 +65,7 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
         uri is not null && uri.Scheme == Uri.UriSchemeHttps &&
         uri.IsDefaultPort && uri.UserInfo.Length == 0 &&
         uri.Host.Equals("script.googleusercontent.com", StringComparison.OrdinalIgnoreCase) &&
-        uri.AbsolutePath.StartsWith("/macros/", StringComparison.Ordinal) &&
+        uri.AbsolutePath.Equals("/macros/echo", StringComparison.Ordinal) &&
         uri.Fragment.Length == 0 && uri.AbsoluteUri.Length <= 4096;
 
     internal async Task<Uri> SendAsync(string endpoint, string reviewedJson,

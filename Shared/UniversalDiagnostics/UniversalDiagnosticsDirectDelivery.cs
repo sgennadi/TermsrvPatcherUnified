@@ -1,4 +1,4 @@
-// Portable UniversalDiagnostics .NET 8+ receiver-free transports.
+// Portable UniversalDiagnostics .NET 8+ optional GitHub device-flow transport.
 // Link as source alongside UniversalDiagnosticsRelayClient.cs.
 // Provider OAuth tokens MUST remain in process memory and never enter diagnostics.
 using System;
@@ -18,114 +18,13 @@ namespace UniversalDiagnostics.Transport;
 
 internal static class ReportingProviderIdentifiers
 {
-    private static readonly Regex FormId = new(
-        @"\A[A-Za-z0-9]{6,40}\z", RegexOptions.CultureInvariant);
     private static readonly Regex ClientId = new(
         @"\A[A-Za-z0-9._-]{8,100}\z", RegexOptions.CultureInvariant);
-    internal static bool ValidFormId(string? id) => FormId.IsMatch(id ?? "");
     internal static bool ValidClientId(string? id) => ClientId.IsMatch(id ?? "");
 }
 
 /// <summary>
-/// Formspree receives only the canonical, strictly typed anonymous metadata.
-/// A 2xx alone is insufficient to mark delivery: Formspree must return ok=true.
-/// Form submissions do NOT create GitHub Issues or update GitHub's CSV.
-/// </summary>
-internal sealed class FormspreeReportClient : IDisposable
-{
-    private readonly HttpClient http;
-    private readonly bool ownsHttp;
-
-    internal FormspreeReportClient(HttpClient? injectedClient = null)
-    {
-        http = injectedClient ?? new HttpClient(new HttpClientHandler
-        {
-            AllowAutoRedirect = false, UseCookies = false
-        }) { Timeout = TimeSpan.FromSeconds(25) };
-        ownsHttp = injectedClient is null;
-    }
-
-    internal static Uri Endpoint(string formId)
-    {
-        if (!ReportingProviderIdentifiers.ValidFormId(formId))
-            throw new ArgumentException("Configure a valid Formspree form ID (letters and digits).");
-        return new Uri("https://formspree.io/f/" + formId);
-    }
-
-    internal static string BuildSubmission(AnonymousDiagnosticPayload payload, string expectedProject)
-    {
-        var verified = UniversalDiagnosticsRelayClient.Prepare(payload.Json);
-        if (verified.EventId != payload.EventId || verified.Project != payload.Project ||
-            verified.Json != payload.Json || payload.Project != expectedProject)
-            throw new InvalidDataException("Reviewed diagnostic metadata was changed.");
-        using var doc = JsonDocument.Parse(verified.Json);
-        var eventObject = doc.RootElement.GetProperty("event");
-        var data = new Dictionary<string, object>(StringComparer.Ordinal);
-        foreach (var field in eventObject.EnumerateObject())
-        {
-            if (field.Value.ValueKind == JsonValueKind.String)
-                data.Add(field.Name, field.Value.GetString()!);
-            else if (field.Value.ValueKind == JsonValueKind.Number &&
-                     field.Name is "windows_build" or "windows_ubr")
-                data.Add(field.Name, field.Value.GetInt32());
-            else
-                throw new InvalidDataException("Unsupported Formspree diagnostic field type.");
-        }
-        string result = JsonSerializer.Serialize(data, new JsonSerializerOptions { WriteIndented = true });
-        if (Encoding.UTF8.GetByteCount(result) > 8192)
-            throw new InvalidDataException("Formspree metadata exceeds 8192 bytes.");
-        return result;
-    }
-
-    internal async Task SendAsync(string formId, string reviewedPayload,
-        AnonymousDiagnosticPayload payload, string expectedProject, CancellationToken ct = default)
-    {
-        var endpoint = Endpoint(formId);
-        if (!string.Equals(reviewedPayload, BuildSubmission(payload, expectedProject), StringComparison.Ordinal))
-            throw new InvalidDataException("Formspree payload changed after review.");
-        using var request = new HttpRequestMessage(HttpMethod.Post, endpoint);
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("TermsrvPatcherUnified", "0.1"));
-        request.Content = new StringContent(reviewedPayload, Encoding.UTF8, "application/json");
-        using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-        if (response.RequestMessage?.RequestUri?.AbsoluteUri != endpoint.AbsoluteUri)
-            throw new InvalidDataException("Unexpected Formspree destination.");
-        if (response.StatusCode is not (HttpStatusCode.OK or HttpStatusCode.Created))
-            throw new InvalidOperationException(
-                $"Formspree did not confirm the submission (HTTP {(int)response.StatusCode}).");
-        if (response.Content.Headers.ContentLength is > 8192)
-            throw new InvalidDataException("Formspree confirmation exceeds size limit.");
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var bounded = new MemoryStream();
-        byte[] buffer = new byte[2048];
-        int count;
-        while ((count = await stream.ReadAsync(buffer, ct)) > 0)
-        {
-            if (bounded.Length + count > 8192)
-                throw new InvalidDataException("Formspree confirmation exceeds size limit.");
-            bounded.Write(buffer, 0, count);
-        }
-        bounded.Position = 0;
-        using var doc = JsonDocument.Parse(bounded);
-        if (doc.RootElement.ValueKind != JsonValueKind.Object ||
-            !doc.RootElement.TryGetProperty("ok", out var ok) ||
-            ok.ValueKind != JsonValueKind.True)
-            throw new InvalidDataException(
-                "Formspree did not return ok=true; check your Formspree dashboard before retrying.");
-    }
-
-    public void Dispose()
-    {
-        if (ownsHttp) http.Dispose();
-    }
-}
-
-/// <summary>
-/// OAuth App device flow: a public-client login for a deliberately user-approved
-/// PUBLIC repository Issue. Client ID is public; no GitHub app secret or PAT
-/// is embedded. Access tokens remain in memory for the current dialog only.
-/// Requires the app administrator to enable device flow in GitHub OAuth settings.
-/// Warning: OAuth "public_repo" scope includes public repository code access.
+/// Optional GitHub OAuth App device-flow authorization.
 /// </summary>
 internal sealed record GitHubDeviceChallenge(
     string ClientId, string DeviceCode, string UserCode, Uri VerificationUri,
