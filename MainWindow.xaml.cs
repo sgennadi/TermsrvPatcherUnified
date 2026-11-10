@@ -1002,6 +1002,7 @@ public partial class MainWindow : Window
             RdpSessionSummary.Text =
                 $"{sessions.Count} local Windows sessions. Read-only WTS inventory; " +
                 "account names are displayed here only and never included in reports.";
+            RdpSessionsCountText.Text = $"{sessions.Count} Windows session(s) found.";
             FooterText.Text = "Session inventory refreshed. No RDP sessions were changed.";
         });
     }
@@ -1016,6 +1017,8 @@ public partial class MainWindow : Window
                 report.Warnings.Count + " notice(s). TermService: " + report.TermServiceStatus +
                 ". No changes made.";
             RdpPolicyDetails.Text = report.AsText();
+            RdpServiceText.Text = "TermService: " + report.TermServiceStatus +
+                " | " + report.Warnings.Count + " configuration notice(s).";
             FooterText.Text = "RDP configuration diagnostic completed (read-only).";
         });
     }
@@ -1039,13 +1042,76 @@ public partial class MainWindow : Window
         RdpEnabled.IsChecked = status.Enabled;
         NlaEnabled.IsChecked = status.NetworkLevelAuthentication;
         SingleSession.IsChecked = status.OneSessionPerUser;
-        RdpDetails.Text = "Windows RDP configuration loaded.";
+        RdpOverviewText.Text = (status.Enabled ? "RDP enabled" : "RDP disabled") +
+            "   |   NLA: " + (status.NetworkLevelAuthentication ? "required" : "NOT required") +
+            "   |   One session per user: " + (status.OneSessionPerUser ? "Yes" : "No");
+        RdpDetails.Text = "Current local settings loaded. Group Policy may override these values.";
+        ReadBlankPasswordPolicy();
     }
 
     private void ReadSettings_Click(object sender, RoutedEventArgs e)
     {
         try { ReadRdp(); }
         catch (Exception ex) { MessageBox.Show(this, ex.Message, "Read settings failed"); }
+    }
+
+    private void ReadBlankPasswordPolicy()
+    {
+        bool? restricted = RdpBlankPasswordSecurity.Read();
+        BlankPasswordStatus.Text = restricted switch
+        {
+            true => "Current: remote blank-password logon restricted (recommended).",
+            false => "WARNING: local accounts with empty passwords may log on remotely.",
+            _ => "Current local policy is unavailable; no change permitted."
+        };
+        BlankPasswordStatus.Foreground = restricted == false
+            ? new SolidColorBrush(Color.FromRgb(153, 49, 24))
+            : new SolidColorBrush(Color.FromRgb(30, 84, 104));
+        BlankPasswordRestriction.IsEnabled = restricted.HasValue;
+        SaveBlankPasswordButton.IsEnabled = restricted.HasValue && SystemInfo.IsAdministrator();
+        if (restricted.HasValue) BlankPasswordRestriction.IsChecked = restricted.Value;
+    }
+
+    private async void SaveBlankPassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || !SystemInfo.IsAdministrator()) return;
+        bool restrict = BlankPasswordRestriction.IsChecked == true;
+        if (RdpBlankPasswordSecurity.Read() is null)
+        {
+            ReadBlankPasswordPolicy();
+            MessageBox.Show(this, "The local security policy cannot be inspected. No changes made.",
+                "Security setting unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        if (!restrict)
+        {
+            if (!Confirm(this, "Security risk: permit blank passwords?",
+                    "This will DISABLE a recommended Windows security restriction. " +
+                    "Local accounts with empty passwords may then become accessible remotely. " +
+                    "The change is not limited to RDP, and domain policy may override it. " +
+                    "Never use this on shared, exposed, or production computers. Continue?"))
+                return;
+            if (!Confirm(this, "Final confirmation: weaken logon security",
+                    "Confirm that you accept remote logon with a BLANK local-account password. " +
+                    "Any remote party knowing such an account name could attempt sign-in. " +
+                    "Do not continue without a strong network boundary and console access."))
+                return;
+        }
+        else if (!Confirm(this, "Restrict remote blank-password logon?",
+                     "Re-enable the recommended local security restriction?")) return;
+
+        bool succeeded = false;
+        await RunBusy(async () =>
+        {
+            await Task.Run(() => RdpBlankPasswordSecurity.SetRestricted(restrict));
+            succeeded = true;
+            ReadBlankPasswordPolicy();
+            FooterText.Text = restrict
+                ? "Blank-password console-only restriction enabled and verified."
+                : "Local restriction disabled by explicit confirmation. Review domain policy.";
+        }, "RdpSettings");
+        if (!succeeded)
+            ReadBlankPasswordPolicy(); // Never leave a speculative success state.
     }
 
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
