@@ -26,6 +26,8 @@
   <ItemGroup>
     <EmbeddedResource Include="Patterns/AutomaticPatterns.txt" LogicalName="TermsrvPatcherUnified.Patterns.AutomaticPatterns.txt" />
     <EmbeddedResource Include=".build/reporting.json" LogicalName="TermsrvPatcherUnified.ReportingProviders" Condition="Exists('.build/reporting.json')" />
+    <!-- Local builds also preconfigure the operator-provided public Formspree ID. -->
+    <EmbeddedResource Include="config/reporting-defaults.json" LogicalName="TermsrvPatcherUnified.ReportingProviders" Condition="!Exists('.build/reporting.json')" />
     <None Update="Patterns/LegacyUserPatterns.MANUAL.txt" CopyToOutputDirectory="PreserveNewest" />
     <None Update="Patterns/Examples.NOT_ACTIVE.txt" CopyToOutputDirectory="PreserveNewest" />
     <Compile Remove="Tests/**/*.cs" />
