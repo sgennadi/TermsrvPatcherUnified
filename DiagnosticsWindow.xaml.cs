@@ -49,7 +49,7 @@ public partial class DiagnosticsWindow : Window
                 ? "Ready: connect through GitHub browser sign-in when you wish to publish."
                 : "GitHub OAuth is not configured in this EXE; optional temporary token remains available.";
             FormspreeStatus.Text = reportingSettings.HasFormspree
-                ? "Ready: save and review a report; no login or setup is needed."
+                ? "Step 1: Review and save locally. Step 2: Send report (no login needed)."
                 : "Formspree is not configured in this EXE. Reporting stays local.";
         }
         catch (Exception ex) when (ex is InvalidDataException or UnauthorizedAccessException or IOException or JsonException)
