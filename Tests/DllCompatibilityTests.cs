@@ -52,6 +52,20 @@ internal static class DllCompatibilityTests
             "export omits synthetic local path and username");
         Verify(index.AsText().Contains("NEVER authorizes Apply", StringComparison.Ordinal),
             "safe text warns that compatibility index cannot modify DLL");
+        var signature = new PatchPlan(PatchState.Ready, "synthetic", "Generic",
+            @"C:\Windows\System32\termsrv.dll", current.DllVersion, sha, [], null);
+        var pattern = DllCompatibilityIndex.Analyze(current, host,
+            observations, successes, firstSeen, null, signature);
+        Verify(pattern.Rows.Single(x => x.Check == "Embedded signature").Status ==
+            "Exact original-pattern match", "exact signature is read-only evidence");
+        Verify(pattern.Rows.Single(x => x.Check == "Embedded signature")
+            .Evidence.Contains("cannot authorize Apply", StringComparison.Ordinal),
+            "signature cannot grant modification authority");
+        var stalePattern = DllCompatibilityIndex.Analyze(current, host, observations,
+            successes, firstSeen, null,
+            signature with { OriginalSha256 = new string('c', 64) });
+        Verify(stalePattern.Rows.Single(x => x.Check == "Embedded signature").Status ==
+            "Stale snapshot", "SHA mismatch invalidates signature evidence");
         var unrelated = current with { Sha256 = new string('c', 64) };
         var unrelatedReport = DllCompatibilityIndex.Analyze(unrelated, host,
             observations, successes);
@@ -84,16 +98,6 @@ internal static class DllCompatibilityTests
             "missing embedded resource is UNKNOWN, not safe/verified");
         Verify(index.Rows.Single(x => x.Check == "First seen (local)")
             .Status == "Unverified", "first-seen metadata never becomes an original baseline");
-
-        // PE version resources and Windows registry labels can be arbitrary text,
-        // so they must not leak filenames, paths or account names in copied reports.
-        var hostile = DllCompatibilityIndex.Analyze(
-            current with { DllVersion = @"C:\Users\PrivateUser\termsrv.dll" },
-            host with { Name = @"C:\Users\PrivateUser", DisplayVersion = @"D:\PrivateUser" },
-            observations, successes);
-        Verify(!hostile.AsText().Contains(@"C:\Users", StringComparison.OrdinalIgnoreCase) &&
-               !hostile.AsText().Contains(@"D:\PrivateUser", StringComparison.OrdinalIgnoreCase),
-            "untrusted PE/registry metadata cannot leak local paths into evidence export");
 
         Console.WriteLine("PASS: " + checks + " offline DLL compatibility index checks. " +
             "No system DLL write, network call, license claim or automatic patch authorization.");

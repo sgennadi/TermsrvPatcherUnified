@@ -3,6 +3,7 @@
 ## 1.0.5 — in development (not published)
 
 - **DLL compatibility evidence:** a read-only System Health table differentiates local first-seen/user baselines, exact SHA-256/version matches in bundled anonymous diagnostic observations, and opt-in self-reported successful-fix records.
+- **Embedded signature evidence:** local byte-pattern result displayed separately from user reports; SHA/version drift invalidates stale evidence, never authorizes Apply.
 - **Trust boundaries:** no source in the compatibility index certifies an original Microsoft DLL, independent RDP functionality, licensing, or protected Apply/Revert authorization. Bundled CSVs are fixed at build time; invalid/missing sources show Unavailable.
 - **Copy evidence:** explicitly requested, local-only, privacy-restricted report; no automatic network contact. Synthetic CSV/parser and WPF UI safety checks added.
 - **Release gate:** independent Windows CI required before any version bump or Stable publication. The downloadable Stable remains 1.0.4.

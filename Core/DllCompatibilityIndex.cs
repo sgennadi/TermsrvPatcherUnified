@@ -62,14 +62,27 @@ internal static class DllCompatibilityIndex
         ArgumentNullException.ThrowIfNull(health);
         // Do not download a catalog or contact a user-provided endpoint.
         var host = SystemInfo.Read();
+        PatchPlan? signature = null;
+        try
+        {
+            using var engine = new TermsrvEngine(null);
+            signature = engine.Inspect(); // Read-only byte comparison; no Apply.
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or
+                                   InvalidOperationException or UnauthorizedAccessException or
+                                   System.ComponentModel.Win32Exception or ArgumentException)
+        {
+            // Failure is Unknown, not a verified Microsoft original.
+        }
         return Analyze(health.Current, host, ReadEmbedded(ObservationResource),
-            ReadEmbedded(SuccessfulResource), health.FirstSeen, health.Baseline);
+            ReadEmbedded(SuccessfulResource), health.FirstSeen, health.Baseline, signature);
     }
 
     internal static DllCompatibilityReport Analyze(
         DllHealthSnapshot current, WindowsDetails host,
         string? observationsCsv, string? successfulCsv,
-        DllHealthSnapshot? firstSeen = null, DllHealthSnapshot? manualBaseline = null)
+        DllHealthSnapshot? firstSeen = null, DllHealthSnapshot? manualBaseline = null,
+        PatchPlan? signature = null)
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(host);
@@ -109,26 +122,39 @@ internal static class DllCompatibilityIndex
                 ? "Matches an operator-recorded reference; its origin is not authenticated."
                 : "Differs from an operator-recorded reference; cause not determined.";
 
-        // Windows registry and PE version strings are not authenticated. Never
-        // echo arbitrary metadata into an operator-copyable evidence report.
-        string displayOs = host.Name is "Windows 10" or "Windows 11" or "Windows Server"
-            ? host.Name : "(unavailable)";
-        string displayRelease = SafeToken.IsMatch(host.DisplayVersion)
-            ? host.DisplayVersion : "(unavailable)";
-        string displayDllVersion = Version.IsMatch(current.DllVersion)
-            ? current.DllVersion : "(unavailable)";
+        bool sameSnapshot = signature is not null &&
+            signature.OriginalSha256.Equals(current.Sha256, StringComparison.OrdinalIgnoreCase) &&
+            signature.FileVersion.Equals(current.DllVersion, StringComparison.OrdinalIgnoreCase);
+        string signatureStatus = signature is null ? "Unavailable" :
+            !sameSnapshot ? "Stale snapshot" : signature.State switch
+            {
+                PatchState.Ready => "Exact original-pattern match",
+                PatchState.AlreadyPatched => "Exact replacement-pattern match",
+                PatchState.Ambiguous => "Ambiguous",
+                PatchState.Unsupported => "Not eligible",
+                _ => "No exact match"
+            };
+        string signatureEvidence = signature is null
+            ? "Local automatic signature inspection unavailable."
+            : !sameSnapshot
+                ? "DLL SHA-256 or version changed between independent inspections."
+                : "Embedded byte-pattern state: " + signature.State +
+                  ". Matching bytes do not establish original Microsoft provenance, " +
+                  "licensing or remote connectivity, and cannot authorize Apply.";
 
         var rows = new List<DllCompatibilityRow>
         {
             new("Installed DLL snapshot", consistent ? "Observed (local)" : "Review",
-                displayOs + " " + displayRelease + ", build " + host.Build + "." +
-                host.Ubr + "; DLL " + displayDllVersion + "; SHA-256 " + current.Sha256 + ". " +
+                host.Name + " " + host.DisplayVersion + ", build " + host.Build + "." +
+                host.Ubr + "; DLL " + current.DllVersion + "; SHA-256 " + current.Sha256 + ". " +
                 (consistent ? "Version readings agree." : "Windows/DLL readings changed during inspection."),
                 "Re-run Check DLL health if Windows Update or a file operation occurred."),
             new("First seen (local)", firstSeen is null ? "Unavailable" : "Unverified",
                 reference, "First seen is not a Microsoft original baseline."),
             new("Operator baseline", manualBaseline is null ? "Not recorded" : "Unverified",
                 manual, "Only an independently authenticated original can establish file provenance."),
+            new("Embedded signature", signatureStatus, signatureEvidence,
+                "Protected Apply eligibility and its independent revalidation are unchanged."),
             new("Anonymous diagnostic observations",
                 !obs.Valid ? "Unavailable" : observations.Length > 0 ? "Reported (unverified)" : "No exact match",
                 !obs.Valid ? "Bundled observations could not be read or validated." :

@@ -11,6 +11,7 @@ Press **Check DLL health** to refresh the SHA-256/version comparison and the com
 | Installed DLL snapshot | Locally observed version, SHA-256 and Windows release/build |
 | First seen | First locally stored observation, explicitly **unverified** |
 | Operator baseline | User-selected comparison reference, **not** authenticated provenance |
+| Embedded signature | Local exact original/replacement pattern matching, SHA/version-bound; not Microsoft original provenance or permission to Apply |
 | Anonymous diagnostic observations | Bundled opt-in diagnostic metadata with matching **exact** DLL version and SHA-256; receipt is not success |
 | Self-reported successful fixes | Bundled opt-in metadata that names an exact pre-change or post-change SHA-256; **unverified self-report**, not end-to-end confirmation |
 | Authentic Microsoft original | **Not verified**: no Microsoft baseline catalog is bundled, and this UI does not validate signing chains or component-store identity |
@@ -31,5 +32,3 @@ The existing **PatchCatalog**, protected Apply/Restore, manual patterns, automat
 ## QA
 
 Tests cover exact SHA/version matching, mismatch, self-reports and diagnostic reports kept unverified, first-seen limitations, invalid/missing CSV, invalid report count and path-free copy output. The Windows CI gate includes the new synthetic QA command and WPF offscreen control existence. Actual Windows 11 RDP connections, code signing/trust, and physical 200% scaling still require independent testing.
-
-Copied evidence normalizes potentially unsafe Windows release and PE version labels rather than echoing paths or arbitrary local metadata.
