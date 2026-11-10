@@ -60,7 +60,8 @@ internal static class AutoReapplyScheduler
                     StringComparison.OrdinalIgnoreCase) ||
                 arguments != WorkerArgument ||
                 !principal.Equals("SYSTEM", StringComparison.OrdinalIgnoreCase) &&
-                !principal.Equals("S-1-5-18", StringComparison.OrdinalIgnoreCase))
+                !principal.Equals("S-1-5-18", StringComparison.OrdinalIgnoreCase) &&
+                !principal.Equals(@"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase))
                 return new(true, false, false, "Task action or identity is not trusted. Manual review required.");
             if (!Directory.Exists(Root) || !File.Exists(WorkerPath) ||
                 (File.GetAttributes(WorkerPath) & FileAttributes.ReparsePoint) != 0)
@@ -76,7 +77,9 @@ internal static class AutoReapplyScheduler
                                    InvalidOperationException or ArgumentException or
                                    System.Security.SecurityException)
         {
-            return new(false, false, false, "Could not verify scheduled task (" + ex.GetType().Name + ").");
+            // Unknown state is NOT absence: registration and deletion must
+            // fail closed rather than overwrite a task we could not inspect.
+            return new(true, false, false, "Could not verify scheduled task (" + ex.GetType().Name + ").");
         }
         finally
         {
