@@ -22,15 +22,20 @@ public partial class QuickApplyWindow : Window
     private bool autoTaskLoading;
     private bool autoTaskChanging;
     private string? promptedJobId;
+    private bool autoUpdateLoading;
+    private bool autoUpdateChanging;
     private readonly UpdateIntegration updates = new();
+    private readonly AutoUpdateGuiCoordinator autoUpdateCoordinator;
 
     public QuickApplyWindow()
     {
         InitializeComponent();
+        autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,
+            () => IsActive && !checking && !queued && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         statusTimer.Tick += (_, _) => RefreshJobStatus();
-        Closed += (_, _) => { statusTimer.Stop(); updates.Dispose(); };
+        Closed += (_, _) => { statusTimer.Stop(); autoUpdateCoordinator.Dispose(); updates.Dispose(); };
         foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
             updates.Get(channel).NoticeChanged += (_, _) =>
                 Dispatcher.BeginInvoke(RefreshUpdateIndicator);
@@ -38,9 +43,11 @@ public partial class QuickApplyWindow : Window
         Loaded += async (_, _) =>
         {
             statusTimer.Start();
+            ReadAutoUpdateSetting();
+            autoUpdateCoordinator.Start();
             await RefreshAutoReapplyAsync();
             await CheckAsync();
-            _ = BackgroundUpdateCheckAsync();
+            _ = StartupUpdatesAsync();
         };
     }
 
@@ -582,6 +589,62 @@ public partial class QuickApplyWindow : Window
         new CleanupWindow { Owner = this }.ShowDialog();
         await RefreshAutoReapplyAsync();
         await CheckAsync();
+    }
+
+    private void ReadAutoUpdateSetting()
+    {
+        autoUpdateLoading = true;
+        try
+        {
+            bool enabled = AutoUpdatePreferences.IsEnabled();
+            QuickAutoUpdateCheck.IsChecked = enabled;
+            QuickAutoUpdateCheck.IsEnabled = SystemInfo.IsAdministrator() && !autoUpdateChanging;
+            QuickAutoUpdateStatus.Text = AutoUpdatePreferences.Label(enabled) +
+                Environment.NewLine + AutoUpdatePreferences.ReadScheduledSummary() +
+                (enabled && !AutoReapplyScheduler.ReadStatus().Enabled
+                    ? Environment.NewLine +
+                      "Scheduled checks run only when the protected Auto Reapply task is enabled." : "");
+        }
+        finally { autoUpdateLoading = false; }
+    }
+
+    private async void AutoUpdateChanged(object sender, RoutedEventArgs e)
+    {
+        if (QuickAutoUpdateStatus is null || autoUpdateLoading || autoUpdateChanging) return;
+        bool enable = QuickAutoUpdateCheck.IsChecked == true;
+        if (enable && ModernMessageDialog.Show(this,
+                "Check Stable GitHub Releases at app launch and every four hours; " +
+                "when enabled, the trusted Auto Reapply task checks for updates as well. " +
+                "No automatic unsigned EXE installation occurs in a scheduled task. " +
+                "The interactive Update Center must confirm each installation. Continue?",
+                "Enable automatic update checks", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            ReadAutoUpdateSetting();
+            return;
+        }
+        autoUpdateChanging = true;
+        QuickAutoUpdateCheck.IsEnabled = false;
+        try { await Task.Run(() => AutoUpdatePreferences.SetEnabled(enable)); }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Auto-update", ex);
+            ModernMessageDialog.Show(this, "Automatic check preference was not changed: " + ex.Message,
+                "Auto-update", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            autoUpdateChanging = false;
+            ReadAutoUpdateSetting();
+        }
+        if (enable && AutoUpdatePreferences.IsEnabled())
+            _ = autoUpdateCoordinator.CheckNowAsync();
+    }
+
+    private async Task StartupUpdatesAsync()
+    {
+        await BackgroundUpdateCheckAsync();
+        await autoUpdateCoordinator.CheckNowAsync();
     }
 
     private async Task BackgroundUpdateCheckAsync()

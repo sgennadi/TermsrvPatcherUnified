@@ -115,6 +115,24 @@ internal static class UiSmokeTests
                     main.FindName("AdvancedAutoReapplyStatus") is not TextBlock ||
                     main.FindName("CleanupButton") is not Button)
                     throw new Exception("Advanced Auto Reapply and Cleanup controls are missing.");
+                if (main.FindName("RdpExtendedDiagnostics") is not Expander extended ||
+                    extended.IsExpanded ||
+                    main.FindName("InspectRdpSecurityButton") is not Button ||
+                    main.FindName("RdpInspectionStatus") is not TextBlock ||
+                    main.FindName("RdpFirewallInspection") is not TextBox firewallEvidence ||
+                    !firewallEvidence.IsReadOnly ||
+                    main.FindName("RdpRightsInspection") is not TextBox rightsEvidence ||
+                    !rightsEvidence.IsReadOnly ||
+                    main.FindName("RdpCertificateInspection") is not TextBox certEvidence ||
+                    !certEvidence.IsReadOnly ||
+                    main.FindName("RdpGraphicsInspection") is not TextBox graphicsEvidence ||
+                    !graphicsEvidence.IsReadOnly)
+                    throw new Exception("Four read-only RDP security inspection panels must start collapsed.");
+                if (main.FindName("AdvancedAutoUpdateCheck") is not CheckBox autoCheck ||
+                    autoCheck.IsChecked != false ||
+                    main.FindName("AdvancedAutoUpdateStatus") is not TextBlock)
+                    throw new Exception("Auto-update opt-in must be visible and initially unchecked.");
+
                 if (main.FindName("RdpPolicyGrid") is not DataGrid policyGrid ||
                     !policyGrid.IsReadOnly || policyGrid.Columns.Count < 7 ||
                     policyGrid.Columns.OfType<DataGridTemplateColumn>().Count() != 1 ||
@@ -197,6 +215,12 @@ internal static class UiSmokeTests
                     updaterWindow.FindName("InstallButton") is not Button installButton ||
                     installButton.IsEnabled)
                     throw new Exception("Update eligibility explanation or manual-release fallback is missing.");
+                var autoOffer = new UpdateCenterWindow(updater, offerStableAutomatically: true);
+                if (autoOffer.FindName("StableChannelButton") is not RadioButton autoStable ||
+                    autoStable.IsChecked != true ||
+                    autoOffer.FindName("ChannelHint") is not TextBlock offerHint ||
+                    !offerHint.Text.Contains("Auto-update found", StringComparison.Ordinal))
+                    throw new Exception("Auto-update may offer only the Stable channel and must require review.");
                 var diagnosticsWindow = new DiagnosticsWindow();
                 if (diagnosticsWindow.FindName("IncludeWindowsEvidenceCheck") is not CheckBox metadataConsent ||
                     metadataConsent.IsChecked != true)
@@ -224,6 +248,10 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
                 var quick = new QuickApplyWindow();
+                if (quick.FindName("QuickAutoUpdateCheck") is not CheckBox autoUpdateOption ||
+                    autoUpdateOption.IsChecked != false ||
+                    quick.FindName("QuickAutoUpdateStatus") is not TextBlock)
+                    throw new Exception("Simple mode must expose the same machine-wide Auto-update opt-in.");
                 if (quick.FindName("QuickUpdatesButton") is not Button simpleUpdates ||
                     simpleUpdates.Content is not string simpleCaption ||
                     simpleCaption != "Updates")
@@ -314,7 +342,7 @@ internal static class UiSmokeTests
                 var blankView = RdpRowEditStatus.Annotate(blank, administrator: true,
                     console: false, policyManaged: null, validValue: true);
                 if (!blankView.CanEdit || blankView.PolicyLocked ||
-                    !blank.LocalValue.StartsWith("0", StringComparison.Ordinal) ||
+                    !blank.LocalValue.Equals("Restriction OFF", StringComparison.Ordinal) ||
                     !blank.Explanation.Contains("LimitBlankPasswordUse", StringComparison.Ordinal))
                     throw new Exception("Blank-password policy must explain DWORD 0 and allow guarded local editing.");
                 var blankUnknown = RdpRowEditStatus.Annotate(
@@ -338,6 +366,7 @@ internal static class UiSmokeTests
                     quick,
                     main,
                     updaterWindow,
+                    autoOffer,
                     diagnosticsWindow,
                     cleanup,
                     new AboutWindow(),

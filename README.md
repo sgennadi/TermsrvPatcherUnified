@@ -1,5 +1,10 @@
 # TermsrvPatcherUnified
 
+**Source version:** 1.0.3 (candidate; not yet published). The current downloadable Stable build remains 1.0.2 pending Windows CI and release approval.
+
+**New candidate inspections:** [RDP Firewall, local logon rights, TLS certificate and graphics](docs/RDP_SECURITY_INSPECTION.md). **New opt-in checks:** [Auto-update Stable, recurring check, SYSTEM task restrictions and manual EXE approval](docs/AUTO_UPDATE_POLICY.md).
+
+
 **RDP settings audit:** [local/GPO registry map, inline security editor and future features](docs/RDP_SETTINGS_AUDIT.md).
 
 

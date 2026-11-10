@@ -127,6 +127,9 @@ public sealed class UpdateNotificationController : IDisposable
 
         if (state.LastResultCode == "UPDATE_AVAILABLE" &&
             SemanticVersion.TryParse(state.LastSeenVersion, out var remote) &&
+            // Old cached Preview metadata could contain a Stable release
+            // from before the strict channel filter was introduced.
+            GitHubReleaseClient.MatchesChannel(options.Channel, remote.IsPrerelease, remote) &&
             remote > SemanticVersion.Parse(options.InstalledVersion))
             return Make(UpdateNoticeStatus.Available, remote.ToString());
         if (state.LastResultCode == "NO_NEWER_RELEASE")

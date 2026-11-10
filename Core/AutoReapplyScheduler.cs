@@ -348,6 +348,13 @@ internal static class AutoReapplyScheduler
             AuditLog.Append("Auto reapply failed safely: " + ex.GetType().Name);
             return 11;
         }
+        finally
+        {
+            // Independent best-effort read-only Stable metadata check.
+            // Never install/download an unsigned EXE under SYSTEM. This runs
+            // after DLL maintenance and cannot change its result or rollback.
+            AutoUpdatePreferences.CheckFromProtectedWorker();
+        }
     }
 
     private static bool IsRebootPending()

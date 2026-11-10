@@ -73,11 +73,14 @@ public sealed class GitHubReleaseClient : IDisposable
 
     private static UpdateRelease? ParseRelease(JsonElement item, UpdateOptions options)
     {
-        if (item.ValueKind != JsonValueKind.Object || ReadBool(item, "draft") ||
-            (ReadBool(item, "prerelease") && options.Channel == UpdateChannel.Stable)) return null;
+        if (item.ValueKind != JsonValueKind.Object || ReadBool(item, "draft")) return null;
         var tag = ReadString(item, "tag_name");
         if (!SemanticVersion.TryParse(tag, out var version)) return null;
-        if (version.IsPrerelease && options.Channel == UpdateChannel.Stable) return null;
+        // GitHub's releases array mixes Stable and Preview entries. Both the
+        // release's declared kind AND SemVer must match the selected channel.
+        // Otherwise a newer Stable build could be incorrectly offered as Preview.
+        if (!MatchesChannel(options.Channel, ReadBool(item, "prerelease"), version))
+            return null;
         var releaseUrl = ReadString(item, "html_url");
         if (!IsExactGitHubUrl(releaseUrl, $"/{options.Repository}/releases/tag/{tag}"))
             throw new InvalidDataException("Release page does not match the configured repository/tag.");
@@ -120,6 +123,14 @@ public sealed class GitHubReleaseClient : IDisposable
         return new UpdateRelease(options.Repository, version, tag, releaseUrl, notes, published,
             chosenRule, new Uri(download), size, rawDigest[7..].ToLowerInvariant(), assetId);
     }
+
+    public static bool MatchesChannel(UpdateChannel channel, bool markedPrerelease,
+        SemanticVersion version) => channel switch
+    {
+        UpdateChannel.Stable => !markedPrerelease && !version.IsPrerelease,
+        UpdateChannel.Prerelease => markedPrerelease && version.IsPrerelease,
+        _ => false
+    };
 
     private static bool IsExactGitHubUrl(string text, string expectedPath)
     {

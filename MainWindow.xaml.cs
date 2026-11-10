@@ -29,11 +29,16 @@ public partial class MainWindow : Window
     private bool portRestartNeedsReview;
     private RdpConfigurationReport? lastRdpPolicyReport;
     private bool openBlankAfterPolicyRefresh;
+    private bool autoUpdateLoading;
+    private bool autoUpdateChanging;
     private readonly UpdateIntegration updates = new();
+    private readonly AutoUpdateGuiCoordinator autoUpdateCoordinator;
 
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,
+            () => IsActive && !busy && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         ManualHexColumnHeaders.ItemsSource = Enumerable.Range(0, 16)
             .Select(i => i.ToString("X2")).ToArray();
@@ -45,6 +50,7 @@ public partial class MainWindow : Window
             fragmentLookup?.Cancel();
             fragmentLookup?.Dispose();
             WindowSettings.Save(this);
+            autoUpdateCoordinator.Dispose();
             updates.Dispose();
         };
         foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
@@ -53,6 +59,8 @@ public partial class MainWindow : Window
         RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
+            ReadAutoUpdateSetting();
+            autoUpdateCoordinator.Start();
             if (offlineStartup)
             {
                 FooterText.Text = "Offline DLL mode: select a file without elevated operations.";
@@ -71,8 +79,9 @@ public partial class MainWindow : Window
                 FooterText.Text = "Independent Apply: " + independent.State +
                                   " (job " + independent.Id[..8] + "). " +
                                   independent.Details;
-            // Background metadata-only update check: no download or installation.
-            _ = BackgroundUpdateCheckAsync();
+            // Startup metadata discovery; opted-in auto-update can open a
+            // per-release confirmation, but never replaces an EXE silently.
+            _ = StartupUpdatesAsync();
         };
     }
 
@@ -1102,6 +1111,25 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void InspectRdpSecurity_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        RdpInspectionStatus.Text = "Inspecting local Windows APIs... No registry or policy writes.";
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(RdpSecurityInspector.ReadLocal);
+            RdpFirewallInspection.Text = report.Firewall;
+            RdpRightsInspection.Text = report.LogonRights;
+            RdpCertificateInspection.Text = report.Certificate;
+            RdpGraphicsInspection.Text = report.Graphics;
+            RdpInspectionStatus.Text = "Inspected " +
+                report.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
+                " UTC (read-only). Missing evidence remains Unknown.";
+            FooterText.Text = "RDP firewall / logon rights / certificate / graphics inspected locally. " +
+                "No changes or diagnostic uploads.";
+        });
+    }
+
     private async void RefreshRdpSessions_Click(object sender, RoutedEventArgs e)
     {
         await RunBusy(async () =>
@@ -1476,8 +1504,8 @@ public partial class MainWindow : Window
         bool? restricted = RdpBlankPasswordSecurity.Read();
         BlankPasswordStatus.Text = restricted switch
         {
-            true => "Current: DWORD 1 — console-only restriction ON. Empty-password local accounts are blocked from ordinary remote logon (recommended).",
-            false => "Current: DWORD 0 — restriction OFF. Windows does not block empty-password local accounts under this security option (HIGH RISK).",
+            true => "Current: restriction ON. Empty-password local accounts are blocked from ordinary remote logon (recommended).",
+            false => "Current: restriction OFF. Windows does not block empty-password local accounts under this security option (HIGH RISK).",
             _ => "Current: unknown (missing, invalid or unreadable). Editing disabled."
         };
         BlankPasswordStatus.Text += Environment.NewLine +
@@ -1485,8 +1513,8 @@ public partial class MainWindow : Window
             Environment.NewLine + "Winning security GPO: not identified. RDP sign-in depends on other policies and NLA.";
         RenderRdpTile(RdpEffectiveBlankText, restricted switch
         {
-            true => "Restriction ON (1)",
-            false => "Restriction OFF (0)",
+            true => "Restriction ON",
+            false => "Restriction OFF",
             _ => "Unknown"
         }, restricted.HasValue ? "Local security" : "Unknown", restricted == true);
         BlankPasswordStatus.Foreground = restricted == false
@@ -1686,6 +1714,63 @@ public partial class MainWindow : Window
         var file = Path.Combine(AuditLog.Root, "operations.log");
         if (!File.Exists(file)) File.WriteAllText(file, "No operations logged yet." + Environment.NewLine);
         Process.Start(new ProcessStartInfo(file) { UseShellExecute = true });
+    }
+
+    private void ReadAutoUpdateSetting()
+    {
+        autoUpdateLoading = true;
+        try
+        {
+            bool enabled = AutoUpdatePreferences.IsEnabled();
+            AdvancedAutoUpdateCheck.IsChecked = enabled;
+            AdvancedAutoUpdateCheck.IsEnabled = SystemInfo.IsAdministrator() && !autoUpdateChanging;
+            AdvancedAutoUpdateStatus.Text = AutoUpdatePreferences.Label(enabled) +
+                Environment.NewLine + AutoUpdatePreferences.ReadScheduledSummary() +
+                (enabled && !AutoReapplyScheduler.ReadStatus().Enabled
+                    ? Environment.NewLine +
+                      "Scheduled checks run only if the protected Auto Reapply task is enabled." : "");
+        }
+        finally { autoUpdateLoading = false; }
+    }
+
+    private async void AutoUpdateChanged(object sender, RoutedEventArgs e)
+    {
+        if (AdvancedAutoUpdateStatus is null || autoUpdateLoading || autoUpdateChanging) return;
+        bool enable = AdvancedAutoUpdateCheck.IsChecked == true;
+        if (enable && ModernMessageDialog.Show(this,
+                "Auto-update will check Stable GitHub Releases at startup and every four hours. " +
+                "An enabled, trusted Auto Reapply scheduled task also checks for new versions. " +
+                "This is NOT unattended installation: the application is unsigned, so the " +
+                "Update Center must approve every EXE replacement. Continue?",
+                "Enable automatic update checks", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            ReadAutoUpdateSetting();
+            return;
+        }
+        autoUpdateChanging = true;
+        AdvancedAutoUpdateCheck.IsEnabled = false;
+        try { await Task.Run(() => AutoUpdatePreferences.SetEnabled(enable)); }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Auto-update", ex);
+            ModernMessageDialog.Show(this,
+                "Automatic checks were not changed: " + ex.Message,
+                "Auto-update", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            autoUpdateChanging = false;
+            ReadAutoUpdateSetting();
+        }
+        if (enable && AutoUpdatePreferences.IsEnabled())
+            _ = autoUpdateCoordinator.CheckNowAsync();
+    }
+
+    private async Task StartupUpdatesAsync()
+    {
+        await BackgroundUpdateCheckAsync();
+        await autoUpdateCoordinator.CheckNowAsync();
     }
 
     private async Task BackgroundUpdateCheckAsync()

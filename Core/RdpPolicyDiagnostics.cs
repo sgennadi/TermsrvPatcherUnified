@@ -83,8 +83,8 @@ internal static class RdpPolicyDiagnostics
     {
         string value = restricted switch
         {
-            true => "1 - Restrict remote logon",
-            false => "0 - Restriction disabled",
+            true => "Restriction ON",
+            false => "Restriction OFF",
             _ => "Unknown (unreadable or invalid)"
         };
         string explanation = restricted switch

@@ -12,6 +12,32 @@ internal static class RdpPolicyHistoryTests
 
     internal static int Run()
     {
+        Verify(RdpSecurityInspector.IsRdpRuleGroup("@FirewallAPI.dll,-28752") &&
+               !RdpSecurityInspector.IsRdpRuleGroup("Unrelated rule"),
+               "only known built-in Remote Desktop rule groups are treated as RDP");
+        Verify(RdpSecurityInspector.DescribeProfiles(3) == "Domain, Private" &&
+               RdpSecurityInspector.DescribeProfiles(int.MaxValue) == "All" &&
+               RdpSecurityInspector.DescribeProfiles(0).StartsWith("Unknown", StringComparison.Ordinal),
+               "firewall profile masks preserve unknown state");
+        Verify(RdpSecurityInspector.NormalizeThumbprint(new string('a', 40)) ==
+               new string('A', 40) &&
+               RdpSecurityInspector.NormalizeThumbprint("NOT_A_VALID_THUMBPRINT") == "",
+               "certificate lookup requires an exact valid SHA-1 thumbprint");
+        Verify(RdpSecurityInspector.DescribeGraphicsDword("AVC444ModePreferred", 1)
+                   .Contains("444", StringComparison.Ordinal) &&
+               RdpSecurityInspector.DescribeGraphicsDword("AVCHardwareEncodePreferred", null)
+                   .Contains("Not configured", StringComparison.Ordinal) &&
+               RdpSecurityInspector.DescribeGraphicsDword("AVCHardwareEncodePreferred", "true")
+                   .Contains("Invalid", StringComparison.Ordinal),
+               "graphics ADMX registry inspection distinguishes enabled, unknown and invalid");
+        var now = DateTimeOffset.UtcNow;
+        Verify(AutoUpdatePreferences.IsScheduledCheckDue(null, now) &&
+               !AutoUpdatePreferences.IsScheduledCheckDue(now.AddMinutes(-15), now) &&
+               AutoUpdatePreferences.IsScheduledCheckDue(now.AddHours(-25), now),
+               "scheduled automatic update checks use a daily cooldown");
+        Verify(AutoUpdatePreferences.Label(false).StartsWith("Off", StringComparison.Ordinal) &&
+               AutoUpdatePreferences.Label(true).Contains("require approval", StringComparison.Ordinal),
+               "automatic update check does not imply automatic installation");
         var conflict = RdpPolicyDiagnostics.Evaluate("NLA", 0, 1, 0, 1);
         Verify(conflict.Assessment == "Policy differs", "different local and policy values reported");
         Verify(conflict.Explanation.Contains("override"), "conflicts explain possible precedence");
@@ -72,8 +98,8 @@ internal static class RdpPolicyHistoryTests
                RdpLocalAdvancedSettings.Find("Disable camera redirection") is null &&
                RdpLocalAdvancedSettings.Find("RDP keep-alive interval") is null,
                "verified ADMX value names are diagnostic-only, not additional local writers");
-        Verify(RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(true).LocalValue.StartsWith("1", StringComparison.Ordinal) &&
-               RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false).LocalValue.StartsWith("0", StringComparison.Ordinal) &&
+        Verify(RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(true).LocalValue == "Restriction ON" &&
+               RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(false).LocalValue == "Restriction OFF" &&
                RdpPolicyDiagnostics.DescribeBlankPasswordPolicy(null).Assessment == "Windows LSA security",
                "blank-password explanations distinguish both LSA DWORD values and unknown source");
 
