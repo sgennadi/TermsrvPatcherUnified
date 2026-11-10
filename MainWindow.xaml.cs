@@ -167,6 +167,9 @@ public partial class MainWindow : Window
             SystemText.Text = os.Display + (os.Is64Bit ? " | x64" : " | x86");
             DllText.Text = $"termsrv.dll: {os.DllVersion}  |  {os.DllPath}";
             StatusText.Text = $"Automatic status: {autoPlan.State}  |  {autoPlan.Description}";
+            StatusText.Foreground = autoPlan.State == PatchState.AlreadyPatched
+                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
             AutoSimpleStatus.Text = autoPlan.State switch
             {
                 PatchState.Ready => "Exact pattern verified — ready to apply",
@@ -175,9 +178,12 @@ public partial class MainWindow : Window
                 PatchState.Unsupported => "Automatic Apply unavailable on this file",
                 _ => "No verified automatic pattern found"
             };
-            AutoSimpleStatus.Foreground = autoPlan.State == PatchState.Ready
-                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
-                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            AutoSimpleStatus.Foreground = autoPlan.State switch
+            {
+                PatchState.Ready => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
+                PatchState.AlreadyPatched => new SolidColorBrush(Color.FromRgb(185, 28, 28)),
+                _ => new SolidColorBrush(Color.FromRgb(11, 46, 90))
+            };
             AutoSimpleProfile.Text = string.IsNullOrWhiteSpace(autoPlan.ProfileId)
                 ? "Detected pattern: none"
                 : "Detected pattern: " + autoPlan.ProfileId;
