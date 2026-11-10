@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Threading;
 using System.Windows.Media;
 using TermsrvPatcherUnified.Core;
+using UniversalUpdater;
 
 namespace TermsrvPatcherUnified;
 
@@ -21,6 +22,7 @@ public partial class QuickApplyWindow : Window
     private bool autoTaskLoading;
     private bool autoTaskChanging;
     private string? promptedJobId;
+    private readonly UpdateIntegration updates = new();
 
     public QuickApplyWindow()
     {
@@ -28,12 +30,17 @@ public partial class QuickApplyWindow : Window
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         statusTimer.Tick += (_, _) => RefreshJobStatus();
-        Closed += (_, _) => statusTimer.Stop();
+        Closed += (_, _) => { statusTimer.Stop(); updates.Dispose(); };
+        foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
+            updates.Get(channel).NoticeChanged += (_, _) =>
+                Dispatcher.BeginInvoke(RefreshUpdateIndicator);
+        RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
             statusTimer.Start();
             await RefreshAutoReapplyAsync();
             await CheckAsync();
+            _ = BackgroundUpdateCheckAsync();
         };
     }
 
@@ -577,11 +584,29 @@ public partial class QuickApplyWindow : Window
         await CheckAsync();
     }
 
-    private void Updates_Click(object sender, RoutedEventArgs e)
+    private async Task BackgroundUpdateCheckAsync()
     {
-        using var updates = new UpdateIntegration();
-        new UpdateCenterWindow(updates) { Owner = this }.ShowDialog();
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
+                await updates.Get(channel).CheckAsync(
+                    forced: false, cancellationToken: timeout.Token);
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Updates", ex);
+        }
     }
+
+    private void RefreshUpdateIndicator() =>
+        UpdateButtonIndicator.Apply(
+            QuickUpdatesButton,
+            updates.Get(UpdateChannel.Stable).Notice,
+            updates.Get(UpdateChannel.Prerelease).Notice);
+
+    private void Updates_Click(object sender, RoutedEventArgs e) =>
+        new UpdateCenterWindow(updates) { Owner = this }.ShowDialog();
 
     private void Advanced_Click(object sender, RoutedEventArgs e)
     {
