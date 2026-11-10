@@ -1,12 +1,12 @@
 # Changelog
 
-## Unreleased — Diagnostics direct delivery (draft PR #27)
+## 0.1.0-preview.24 — 2026-11-10
 
 - **One-time embedded configuration:** administrator sets the nonsecret public provider IDs once using `scripts/Configure-Reporting.ps1` and GitHub Actions Variables; each subsequent CI/release build embeds them in the EXE. No per-user ProgramData reporting.json, extra file, input box or installation script. Missing IDs disable providers; browser login and reviewed send remain mandatory.
 - **No self-hosted receiver required:** add Formspree submission of canonical typed diagnostics (explicitly consented Windows build / DLL SHA-256 optional) and direct GitHub Issues with OAuth App Device Flow, no manual PAT required for OAuth. GitHub token only held in dialog memory. OAuth `public_repo` access is broader than Issues; the permission warning appears before login.
 - **Separate acknowledgements:** Formspree's `ok=true` acknowledgement records a Formspree-only local delivery with no invented GitHub Issue URL, while GitHub still requires a validated, repository-pinned Issue receipt. Neither provider silently retries or auto-sends, and Formspree does not update GitHub CSV.
 - **UX and testing:** provider configuration IDs (nonsecret), browser code/cancel/copy, exact outgoing Formspree JSON preview, safe disabled defaults and synthetic network tests. Relay and advanced PAT methods remain optional.
-- **Not released:** external provider credentials/forms, real OAuth sign-in, operational delivery and production Windows 11 acceptance remain unverified. The existing Preview.23 release is unchanged.
+- **Preview boundary:** the supplied Formspree endpoint `https://formspree.io/f/mvkkernb` is embedded; the form was not submitted to in live tests. GitHub OAuth remains disabled without an OAuth App client ID; no Windows 11 protected patching has been certified.
 
 ## 0.1.0-preview.23 — 2026-11-10
 
