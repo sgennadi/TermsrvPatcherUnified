@@ -10,27 +10,6 @@ namespace TermsrvPatcherUnified;
 /// <summary>UI actions for independent, opt-in reporting without a relay.</summary>
 public partial class DiagnosticsWindow
 {
-    private void GitHubClientIdChanged(object sender, TextChangedEventArgs e)
-    {
-        if (GitHubDeviceStatus is null || GitHubCodeInput is null) return;
-        githubLoginCancel?.Cancel();
-        githubSessionToken = null;
-        GitHubCodeInput.Text = "";
-        if (CopyGitHubCodeButton is not null) CopyGitHubCodeButton.IsEnabled = false;
-        GitHubDeviceStatus.Text = "OAuth App client ID changed. Connect again to authorize.";
-    }
-
-    private void FormspreeIdChanged(object sender, TextChangedEventArgs e)
-    {
-        if (FormspreeButton is null || FormspreeStatus is null) return;
-        bool valid = DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
-        FormspreeButton.IsEnabled = valid && savedReport is not null &&
-            anonymousPayload is not null && submittedIssue is null && !formspreeConfirmed && !publishing;
-        FormspreeStatus.Text = valid
-            ? "Form configured. Save and review the exact report before sending."
-            : "Enter a valid Formspree form ID. Nothing is sent automatically.";
-    }
-
     private void CopyDeviceCode_Click(object sender, RoutedEventArgs e)
     {
         if (GitHubCodeInput.Text.Length == 9)
@@ -49,10 +28,10 @@ public partial class DiagnosticsWindow
     private async void GitHubConnect_Click(object sender, RoutedEventArgs e)
     {
         if (publishing || githubLoginCancel is not null) return;
-        string clientId = GitHubClientIdInput.Text.Trim();
+        string clientId = reportingSettings.GitHubOAuthClientId;
         if (!DirectReportingSettings.ValidClientId(clientId))
         {
-            GitHubDeviceStatus.Text = "Provide a GitHub OAuth App client ID with Device Flow enabled.";
+            GitHubDeviceStatus.Text = "GitHub OAuth is not configured in this EXE.";
             return;
         }
         if (MessageBox.Show(this,
@@ -69,7 +48,6 @@ public partial class DiagnosticsWindow
         CopyGitHubCodeButton.IsEnabled = false;
         GitHubSignInButton.IsEnabled = false;
         GitHubCancelButton.IsEnabled = true;
-        GitHubClientIdInput.IsEnabled = false;
         try
         {
             using var auth = new GitHubDeviceAuthorization();
@@ -107,9 +85,8 @@ public partial class DiagnosticsWindow
         {
             githubLoginCancel = null;
             cancellation.Dispose();
-            GitHubSignInButton.IsEnabled = true;
+            GitHubSignInButton.IsEnabled = reportingSettings.HasGitHubOAuth;
             GitHubCancelButton.IsEnabled = false;
-            GitHubClientIdInput.IsEnabled = true;
         }
     }
 
@@ -117,10 +94,10 @@ public partial class DiagnosticsWindow
     {
         if (publishing || formspreeConfirmed || submittedIssue is not null ||
             savedPath is null || savedId is null || anonymousPayload is null) return;
-        string formId = FormspreeFormIdInput.Text.Trim();
+        string formId = reportingSettings.FormspreeFormId;
         if (!DirectReportingSettings.ValidFormId(formId))
         {
-            FormspreeStatus.Text = "Invalid Formspree form ID.";
+            FormspreeStatus.Text = "Formspree is not configured in this EXE.";
             return;
         }
         string outgoing;
@@ -146,7 +123,6 @@ public partial class DiagnosticsWindow
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         IncludeWindowsEvidenceCheck.IsEnabled = false;
-        FormspreeFormIdInput.IsEnabled = false;
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -178,11 +154,10 @@ public partial class DiagnosticsWindow
             SaveButton.IsEnabled = true;
             DescriptionInput.IsEnabled = true;
             IncludeWindowsEvidenceCheck.IsEnabled = true;
-            FormspreeFormIdInput.IsEnabled = true;
             PublishButton.IsEnabled = savedReport is not null && submittedIssue is null && !formspreeConfirmed;
             FormspreeButton.IsEnabled = anonymousPayload is not null && savedReport is not null &&
                 submittedIssue is null && !formspreeConfirmed &&
-                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
+                reportingSettings.HasFormspree;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null &&
                 submittedIssue is null && !formspreeConfirmed;
         }
