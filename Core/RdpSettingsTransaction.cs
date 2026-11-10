@@ -94,4 +94,35 @@ internal static class RdpSettingsTransaction
             () => EqualsCurrent(newValue),
             () => existed ? EqualsCurrent(captured) : Missing());
     }
+    /// <summary>
+    /// Existing allowlisted DWORD only. Retains precise value and read-back
+    /// rollback for advanced settings whose values are not limited to 0/1.
+    /// Caller validates name, exact registry key, GPO and expected value.
+    /// </summary>
+    internal static RdpReversibleChange StageBoundedDword(
+        RegistryKey key, string valueName, int newValue, int minimum, int maximum)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        if (minimum < 0 || maximum < minimum ||
+            newValue < minimum || newValue > maximum)
+            throw new ArgumentOutOfRangeException(nameof(newValue));
+        if (!key.GetValueNames().Contains(valueName, StringComparer.OrdinalIgnoreCase) ||
+            key.GetValueKind(valueName) != RegistryValueKind.DWord ||
+            key.GetValue(valueName, null) is not int original ||
+            original < minimum || original > maximum)
+            throw new InvalidDataException(
+                "Cannot stage an unknown, missing or invalid RDP DWORD: " + valueName);
+
+        bool EqualsCurrent(int value)
+            => key.GetValueNames().Contains(valueName, StringComparer.OrdinalIgnoreCase) &&
+               key.GetValueKind(valueName) == RegistryValueKind.DWord &&
+               key.GetValue(valueName, null) is int actual && actual == value;
+        return new RdpReversibleChange(
+            valueName,
+            () => key.SetValue(valueName, newValue, RegistryValueKind.DWord),
+            () => key.SetValue(valueName, original, RegistryValueKind.DWord),
+            () => EqualsCurrent(newValue),
+            () => EqualsCurrent(original));
+    }
+
 }
