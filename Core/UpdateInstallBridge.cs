@@ -298,6 +298,21 @@ internal static class UpdateInstallBridge
             installDir, ExecutableName, explicitlyApproved: true,
             async (exe, ct) => await ProbeInstalledAsync(exe, job.CandidateVersion, ct));
         AuditLog.Append("EXE replacement result: " + result.Summary);
+        if (result.Success)
+        {
+            try
+            {
+                // Keep the explicitly enabled SYSTEM worker in sync with the
+                // newly installed, verified EXE rather than launching the
+                // original Desktop/Downloads executable as SYSTEM.
+                AutoReapplyScheduler.RefreshWorkerAfterSuccessfulUpdate(job.TargetPath);
+            }
+            catch (Exception error)
+            {
+                AuditLog.Append("Verified EXE updated; auto-reapply worker refresh needs review: " +
+                    error.GetType().Name);
+            }
+        }
         try { File.Delete(inProgress); } catch (IOException) { }
 
         if (result.Success || result.RolledBack)
