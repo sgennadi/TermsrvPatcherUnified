@@ -1,17 +1,23 @@
 # TermsrvPatcherUnified
 
-**Source version:** 1.0.2 (release candidate; not yet published). The current downloadable Stable build remains 1.0.1 until the Windows release checks finish.
-
 **RDP settings audit:** [local/GPO registry map, inline security editor and future features](docs/RDP_SETTINGS_AUDIT.md).
 
 
-**Latest Stable release:** [`1.0.1`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.1) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
+**Latest Stable release:** [`1.0.2`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.2) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 **Google reporting verified:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replaced Formspree in Preview.28. A real user-authorized submission from Preview.28 was accepted as [GitHub Issue #32](https://github.com/sgennadi/TermsrvPatcherUnified/issues/32), and its reviewed Windows/DLL metadata appears in [the observations CSV](data/diagnostic-observations.csv) with `verification=unverified`. This proves receipt of that report, **not** that a patch worked or that all deployments will succeed. Sending is opt-in, requires a preview of the exact typed metadata, creates a **public** GitHub Issue only after explicit approval, and requires no end-user token, login, or local file. The former public Formspree ID remains solely in source archive documentation.
+
+## Stable 1.0.2
+
+[Stable 1.0.2](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.2) was published as a non-prerelease on 2026-11-10 after [Windows safety CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882045385) and the [Stable release safety gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882425777) completed successfully. The published x64 portable archive includes exactly `TermsrvPatcherUnified.exe` and `Example.txt`; a one-EXE updater ZIP and SHA-256 file are also available.
+
+This update provides a larger, readable RDP policy table with color-coded and text-labelled edit permissions, per-row Edit buttons and double-clicks; a single inline blank-password security editor; extended read-only GPO diagnostics and a persistent **First Seen (Unverified)** DLL reference. It does not alter automatic patch signatures, authorization to write protected files or Microsoft licensing requirements.
+
+A first-seen DLL observation is **not** verified original DLL provenance. Domain security GPO ownership of LSA settings is not inferred from the RDP policy key. Full-screen visual DPI testing and real Windows 11 RDP reconnection still need user-side verification.
 
 ## Stable 1.0.1
 

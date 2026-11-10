@@ -1,13 +1,13 @@
 # Changelog
 
-## 1.0.2 — RDP policy editor and first-seen DLL reference (candidate)
+## 1.0.2 — 2026-11-10 (Stable released)
 
 - **Readable grid:** responsive multi-line columns with a Details column, local/policy source, per-row editing status and an inline Edit button. Green rows are editable, amber are policy-locked, gray rows are not editable; double-click opens an available editor.
 - **Blank passwords:** remove the separate one-setting security expander. The existing verified LSA local policy writer is now reachable through the Blank-password row and the dashboard shortcut, with explicit DWORD 1 (console-only restriction) and DWORD 0 (restriction disabled/high risk), readback and confirmations. Domain security GPO origin remains unknown unless independently verified.
 - **RDP policy audit:** read-only computer policy evidence for LPT, PnP, camera, microphone, audio/video, time zone, Easy Print, automatic reconnect, session end on time limit, keep-alive and transport. Absence is not treated as evidence of permission or effective connectivity.
 - **System Health:** after the first explicit health inspection, create an immutable First Seen (Unverified) snapshot in the user profile; future checks compare SHA-256 and version against it. An operator-saved baseline is separate and may be reset explicitly; neither grants authorization for protected DLL patching or proves a Microsoft original.
 - **Safety:** all supported writers repeat admin, policy, session and registry checks. No automatic logoff, service restart, GPO edit or protected DLL modification is triggered by inspection.
-- **Validation:** Windows CI read-only, synthetic, WPF and published-EXE tests are required before any Stable release. Live Windows 11 RDP sign-in and physical 200% DPI screenshots are still manual validation items.
+- **Validation:** [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882045385) and the [Stable release gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882425777) passed read-only DLL, synthetic, WPF, published EXE, non-destructive SYSTEM worker and ZIP packaging tests. Live Windows 11 RDP sign-in and physical 200% DPI screenshots remain manual validation items.
 
 
 ## 1.0.1 — 2026-11-10 (Stable released)
