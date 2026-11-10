@@ -251,12 +251,12 @@ check((ROOT / "scripts/Configure-Reporting.ps1").exists() and
 check("GitHubClientIdInput" not in diagnostics_xaml and
       "FormspreeFormIdInput" not in diagnostics_xaml,
       "no provider identifier inputs in the end-user UI")
-for workflow in (".github/workflows/windows-ci.yml", ".github/workflows/release-preview.yml"):
-    text = (ROOT / workflow).read_text(encoding="utf-8")
-    check("Configure-Reporting.ps1 -FromEnvironment" in text and
-          "vars.TPU_FORMSPREE_FORM_ID" in text and
-          "vars.TPU_GITHUB_OAUTH_CLIENT_ID" in text,
-          f"{workflow}: builds inherit administrator configured public IDs")
+for wf_path in (".github/workflows/windows-ci.yml", ".github/workflows/release-preview.yml"):
+    wf_contents = (ROOT / wf_path).read_text(encoding="utf-8")
+    check("Configure-Reporting.ps1 -FromEnvironment" in wf_contents and
+          "vars.TPU_FORMSPREE_FORM_ID" in wf_contents and
+          "vars.TPU_GITHUB_OAUTH_CLIENT_ID" in wf_contents,
+          f"{wf_path}: builds inherit administrator configured public IDs")
 print("PASS: one-time provider configuration embedded into EXE; no end-user setup.") 
 
 
