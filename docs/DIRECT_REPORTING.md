@@ -1,10 +1,10 @@
 # Reporting without a self-hosted HTTPS receiver
 
-Included in 0.1.0-preview.24. Windows CI uses mocked provider requests; live Formspree submissions and OAuth authorization have not been independently verified.
+Preview.26 adds direct, memory-only Formspree reporting without a mandatory local save. Windows CI uses mocked provider requests; live OAuth authorization and Windows scheduled-task permissions still require independent acceptance tests.
 
 ## Operating modes
 
-**Formspree (no GitHub sign-in).** An administrator registers the form once; the form ID is compiled into the EXE and never typed by end users. After saving and reviewing a diagnostic, the app offers the *exact JSON* to be submitted to `https://formspree.io/f/FORM_ID`. It POSTs only canonical typed v1 metadata (including optional Windows build / DLL version / SHA-256 if explicitly selected), never free-text descriptions, raw logs, credentials, private paths, or native DLL bytes. The form submission may process the user's IP address. Successful receipt is stored locally with provider `formspree`; no GitHub Issue URL is fabricated. **Formspree does not automatically populate `data/diagnostic-observations.csv`**. Configure retention and filtering in the Formspree dashboard. An active Formspree form is required; this build embeds the operator-provided public form ID `mvkkernb`. Formspree may reject submissions or impose plan limits.
+**Formspree (no GitHub sign-in).** An administrator registers the form once; the form ID is compiled into the EXE and never typed by end users. Click Send report to prepare the metadata entirely in memory and review the *exact JSON* to be submitted to `https://formspree.io/f/FORM_ID`. It POSTs only canonical typed v1 metadata (including optional Windows build / DLL version / SHA-256 if explicitly selected), never free-text descriptions, raw logs, credentials, private paths, or native DLL bytes. The form submission may process the user's IP address. Successful Formspree receipt is shown in the UI; a local report/receipt is not required or fabricated. No GitHub Issue URL is created. **Formspree does not automatically populate `data/diagnostic-observations.csv`**. Configure retention and filtering in the Formspree dashboard. An active Formspree form is required; this build embeds the operator-provided public form ID `mvkkernb`. Formspree may reject submissions or impose plan limits.
 
 **GitHub browser Device Flow (no PAT entry).** Register a GitHub OAuth App under an administrator-controlled account and enable Device Flow in its settings. The administrator embeds the OAuth App **Client ID** at build time; the end user clicks Connect GitHub, and enter the displayed code at `https://github.com/login/device`. Once authorization completes, the app retains the OAuth access token in memory for the dialog session only; no client secret, GitHub token or refresh token is stored. After saving/reviewing, select Publish via GitHub: the existing pinned Issue publisher sends the reviewed Markdown directly to `sgennadi/TermsrvPatcherUnified`. The public Issue becomes visible to everyone. A valid issue receipt is required before local delivery is acknowledged. A user must possess GitHub Issue creation rights for the repository. Device Flow is **not anonymous**, and OAuth scope `public_repo` is broader than issue-only permissions: the OAuth App can access public repository code. GitHub recommends code+PKCE for some native apps and GitHub Apps for finer-grained rights; this option is a conscious compatibility tradeoff. See [GitHub OAuth device flow](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps) and [OAuth scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps).
 
@@ -14,7 +14,7 @@ Included in 0.1.0-preview.24. Windows CI uses mocked provider requests; live For
 
 The end user **does not install a script, create a config file, enter a Formspree form ID or enter a GitHub OAuth Client ID**. Neither `%PROGRAMDATA%\TermsrvPatcherUnified\reporting.json` nor environment variables are read by the application.
 
-**Formspree is preconfigured in the source:** `config/reporting-defaults.json` contains the public form ID `mvkkernb`, corresponding to `https://formspree.io/f/mvkkernb`. GitHub Actions automatically embeds this into the EXE even if no repository variable is configured. The ID is not a secret. **The endpoint was supplied by the operator; no live test report has been sent.**
+**Formspree is preconfigured in the source:** `config/reporting-defaults.json` contains the public form ID `mvkkernb`, corresponding to `https://formspree.io/f/mvkkernb`. GitHub Actions automatically embeds this into the EXE even if no repository variable is configured. The ID is not a secret. **The endpoint was supplied by the operator; the operator has reported receiving a message in Formspree. Automated CI still uses simulated HTTP.**
 
 **Administrator setup, once (before new builds):**
 
@@ -37,10 +37,10 @@ For **local-only builds**, pass `-LocalOnly`; for CI use `-FromEnvironment`, whi
 ## Safe delivery protocol
 
 
-1. Write a **local** sanitized universal diagnostic event. Windows build / DLL SHA-256 is opted in separately (default OFF).
+1. Prepare a sanitized universal diagnostic event **in memory** for Formspree. Windows build / DLL SHA-256 is selected by default, with an opt-out checkbox; a local copy is optional.
 2. Select a provider. Review the **exact outgoing report** and pinned destination in a second confirmation.
 3. Send once, with bounded HTTPS responses and no HTTP redirects or cookies. Formspree requires explicit successful JSON acknowledgement. GitHub requires HTTP 201 and an Issue URL for this repository.
-4. Store a provider-specific acknowledgement. No automatic retry after uncertain delivery; the operator must verify the provider dashboard/Issues first.
+4. Show a provider-specific acknowledgement. Only optional local/GitHub workflows write queue receipts; direct Formspree does not need a local record. No automatic retry after uncertain delivery.
 5. All community diagnostic observations remain **unverified**. Neither this module nor an Issue/CSV event ever authorizes binary patching or modifies the active patch catalog.
 
 ## Tests and limits
