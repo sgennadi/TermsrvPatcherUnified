@@ -29,20 +29,33 @@ internal static class DiagnosticsBridge
                 "Describe the issue without personal information or credentials.");
     }
 
-    public static UniversalDiagnosticsEmbedded.Receipt Capture(DiagnosticDraft draft, string summary)
+    public static UniversalDiagnosticsEmbedded.Receipt Capture(
+        DiagnosticDraft draft, string summary, DiagnosticEnvironment? environment = null)
     {
-        // Do not include raw exception messages, logs, IPs, machine/user names or paths.
-        var safeRequest = JsonSerializer.Serialize(new
+        // This optional diagnostic is chosen after a separate preview. No
+        // paths, accounts, IP addresses, DLL bytes or raw exception messages
+        // are inserted into the canonical local/anonymous report.
+        if (environment is not null && !environment.Valid)
+            throw new InvalidDataException("Diagnostic Windows/DLL metadata is invalid.");
+        var fields = new Dictionary<string, object>
         {
-            project = Project,
-            component = draft.Component,
-            error_type = draft.ErrorType,
-            code = draft.Code,
-            version = UpdateIntegration.Version,
-            summary,
-            level = "error"
-        });
-        return UniversalDiagnosticsEmbedded.Capture(safeRequest);
+            ["project"] = Project,
+            ["component"] = draft.Component,
+            ["error_type"] = draft.ErrorType,
+            ["code"] = draft.Code,
+            ["version"] = UpdateIntegration.Version,
+            ["summary"] = summary,
+            ["level"] = "error"
+        };
+        if (environment is not null)
+        {
+            fields["windows_release"] = environment.WindowsRelease;
+            fields["windows_build"] = environment.WindowsBuild;
+            fields["windows_ubr"] = environment.WindowsUbr;
+            fields["dll_version"] = environment.DllVersion;
+            fields["dll_sha256"] = environment.DllSha256;
+        }
+        return UniversalDiagnosticsEmbedded.Capture(JsonSerializer.Serialize(fields));
     }
 
     /// <summary>Records a confirmed issue URL locally; never performs a network request.</summary>
@@ -96,6 +109,20 @@ internal static class DiagnosticsBridge
         var ev = document.RootElement.GetProperty("event");
         string Get(string property) => ev.GetProperty(property).GetString() ?? "";
         static string Text(string value) => value.Replace('`', '\'').Replace('|', '/');
+        string EnvironmentLine()
+        {
+            if (!ev.TryGetProperty("windows_release", out var release) ||
+                !ev.TryGetProperty("windows_build", out var build) ||
+                !ev.TryGetProperty("windows_ubr", out var ubr) ||
+                !ev.TryGetProperty("dll_version", out var dll) ||
+                !ev.TryGetProperty("dll_sha256", out var hash))
+                return "";
+            return $"- Windows release: {Text(release.GetString() ?? "")}\n" +
+                $"- Windows build: {build.GetInt32()}\n" +
+                $"- Windows UBR: {ubr.GetInt32()}\n" +
+                $"- DLL version: {Text(dll.GetString() ?? "")}\n" +
+                $"- DLL SHA-256: `{hash.GetString()}`\n";
+        }
         return $"<!-- udx-report-id:{Get("id")} -->\n" +
             "## Universal Diagnostics (operator-reviewed)\n\n" +
             $"- Schema: `universal-diagnostics/v1`\n" +
@@ -108,7 +135,8 @@ internal static class DiagnosticsBridge
             $"- Observed UTC: {Text(Get("timestamp_utc"))}\n" +
             $"- OS: {Text(Get("platform"))}\n" +
             $"- Architecture: {Text(Get("architecture"))}\n" +
-            $"- Fingerprint: `{Get("fingerprint")}`\n\n" +
+            $"- Fingerprint: `{Get("fingerprint")}`\n" +
+            EnvironmentLine() + "\n" +
             "### Description (redacted)\n" + Text(Get("summary")) +
             "\n\nReview every line before publishing. No raw logs are attached.";
     }
