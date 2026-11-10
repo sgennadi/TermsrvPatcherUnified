@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Win32;
 
 namespace TermsrvPatcherUnified.Core;
@@ -36,6 +37,30 @@ internal static class AutoReapplyScheduler
         => !currentSha.Equals(lastSha, StringComparison.OrdinalIgnoreCase) ||
            !currentVersion.Equals(lastRuntimeVersion, StringComparison.Ordinal);
 
+    internal static bool HasProtectedTaskDacl(string? sddl)
+    {
+        if (string.IsNullOrWhiteSpace(sddl)) return false;
+        int index = sddl.IndexOf("D:P", StringComparison.OrdinalIgnoreCase);
+        if (index < 0) return false;
+        int audit = sddl.IndexOf("S:", index, StringComparison.OrdinalIgnoreCase);
+        string dacl = audit < 0 ? sddl[index..] : sddl[index..audit];
+        var entries = Regex.Matches(dacl, @"\([^)]*\)");
+        if (entries.Count < 2) return false;
+        bool system = false;
+        bool administrators = false;
+        foreach (Match entry in entries)
+        {
+            var fields = entry.Value.Trim('(', ')').Split(';');
+            if (fields.Length != 6 || !fields[0].Equals("A", StringComparison.Ordinal))
+                return false; // Unexpected ACE or unsupported ACL format.
+            var trustee = fields[5];
+            if (trustee is "SY" or "S-1-5-18") system = true;
+            else if (trustee is "BA" or "S-1-5-32-544") administrators = true;
+            else return false; // Non-admin ACE can alter the scheduled action.
+        }
+        return system && administrators;
+    }
+
     internal static TaskState ReadStatus()
     {
         if (!OperatingSystem.IsWindows())
@@ -60,10 +85,17 @@ internal static class AutoReapplyScheduler
             action = taskDef.Actions.Item(1);
             string location = Convert.ToString(((dynamic)action).Path) ?? "";
             string arguments = Convert.ToString(((dynamic)action).Arguments) ?? "";
+            string workingDirectory = Convert.ToString(((dynamic)action).WorkingDirectory) ?? "";
             string principal = Convert.ToString(taskDef.Principal.UserId) ?? "";
+            string dacl = Convert.ToString(((dynamic)registered).GetSecurityDescriptor(4)) ?? "";
+            if (!HasProtectedTaskDacl(dacl))
+                return new(true, false, false,
+                    "Task permissions are not restricted to SYSTEM and Administrators.");
             if (!Path.GetFullPath(location).Equals(Path.GetFullPath(WorkerPath),
                     StringComparison.OrdinalIgnoreCase) ||
                 arguments != WorkerArgument ||
+                !Path.GetFullPath(workingDirectory).Equals(Path.GetFullPath(Root),
+                    StringComparison.OrdinalIgnoreCase) ||
                 !principal.Equals("SYSTEM", StringComparison.OrdinalIgnoreCase) &&
                 !principal.Equals("S-1-5-18", StringComparison.OrdinalIgnoreCase) &&
                 !principal.Equals(@"NT AUTHORITY\SYSTEM", StringComparison.OrdinalIgnoreCase))
