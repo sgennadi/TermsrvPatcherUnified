@@ -104,9 +104,16 @@ internal static class DirectReportingTests
             "embedded configuration refuses secrets or unknown fields");
         if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true",
                 StringComparison.OrdinalIgnoreCase))
+        {
             Verify(typeof(DirectReportingSettings).Assembly.GetManifestResourceNames()
                     .Contains(DirectReportingSettings.ResourceName, StringComparer.Ordinal),
                 "GitHub Actions EXE must actually embed provider configuration as a .NET resource");
+            Verify(embedded.HasFormspree,
+                "Windows CI must preconfigure a real Formspree form ID before packaging the EXE");
+            Verify(FormspreeReportClient.Endpoint(embedded.FormspreeFormId).AbsoluteUri ==
+                   "https://formspree.io/f/" + embedded.FormspreeFormId,
+                "Embedded Formspree endpoint must be pinned to the Formspree service");
+        }
         Verify(DirectReportingSettings.ValidFormId("mabc1234") &&
                !DirectReportingSettings.ValidFormId("x/../../secret") &&
                !DirectReportingSettings.ValidFormId("https://evil.example"),
