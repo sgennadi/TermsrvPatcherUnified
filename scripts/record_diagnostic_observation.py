@@ -58,6 +58,10 @@ def parse(event: dict) -> dict[str, str] | None:
     if isinstance(repository, dict) and repository.get("full_name") != PROJECT:
         return None
     lines = body.rstrip("\n").split("\n")
+    # New relay versions mark this report explicitly; accept both old and
+    # new relay formatting, but never copy unknown fields into the database.
+    if len(lines) > 1 and lines[1] == "<!-- udx-compatibility-observation:v1 -->":
+        lines.pop(1)
     if (len(lines) != len(NAMES) + 5 or
             lines[1:3] != [HEADER, ""] or
             lines[-2:] != ["", FOOTER] or
@@ -159,6 +163,12 @@ def self_test() -> None:
     original = ",".join(COLUMNS)+"\n"
     updated, changed = apply_event(event, original)
     assert changed and len(list(csv.DictReader(io.StringIO(updated)))) == 1
+    marked_body = body.replace("\n" + HEADER + "\n",
+        "\n<!-- udx-compatibility-observation:v1 -->\n" + HEADER + "\n", 1)
+    event["issue"]["body"] = marked_body
+    marked, valid = apply_event(event, original)
+    assert valid and marked == updated, "new relay observation marker must preserve data"
+    event["issue"]["body"] = body
     assert "a"*64 in updated and updated.endswith(",unverified\n")
     assert not apply_event(event, updated)[1]  # Duplicate event safe.
     for malicious in (
