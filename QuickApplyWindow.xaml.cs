@@ -31,6 +31,9 @@ public partial class QuickApplyWindow : Window
         };
     }
 
+    internal void SetBackupPreference(bool createFullBackup)
+        => QuickNoBackupCheck.IsChecked = !createFullBackup;
+
     internal void SetInitialPlan(PatchPlan checkedPlan)
     {
         // This is a display hint. Both console Apply and the isolated
@@ -374,6 +377,7 @@ public partial class QuickApplyWindow : Window
         // Change the application owner before closing the quick window:
         // OnMainWindowClose must not terminate the new Advanced window.
         var advanced = new MainWindow();
+        advanced.SetBackupPreference(QuickNoBackupCheck.IsChecked != true);
         Application.Current.MainWindow = advanced;
         advanced.Show();
         Close();
