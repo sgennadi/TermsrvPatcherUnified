@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.AboutWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="About / Components — 0.1.0-preview.28" Height="435" Width="590" MinWidth="520" MinHeight="380"
+        Title="About / Components — 1.0.0" Height="435" Width="590" MinWidth="520" MinHeight="380"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI" FontSize="13" Background="{StaticResource BackgroundBrush}" Icon="Assets/app.ico">
   <Grid Margin="20">

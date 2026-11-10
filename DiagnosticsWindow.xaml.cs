@@ -27,6 +27,7 @@ public partial class DiagnosticsWindow : Window
     internal DiagnosticsWindow(DiagnosticsBridge.DiagnosticDraft? approvedContext)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         draft = approvedContext ?? DiagnosticsBridge.Current();
         ErrorLabel.Text = $"Component: {draft.Component}  |  {draft.ErrorType} ({draft.Code})";
         DescriptionInput.Text = draft.Summary;

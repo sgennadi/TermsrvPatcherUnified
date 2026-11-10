@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         ManualHexColumnHeaders.ItemsSource = Enumerable.Range(0, 16)
             .Select(i => i.ToString("X2")).ToArray();
         if (offlineStartup) MainTabs.SelectedIndex = 3;
@@ -44,8 +45,9 @@ public partial class MainWindow : Window
             WindowSettings.Save(this);
             updates.Dispose();
         };
-        updates.Get(UpdateChannel.Prerelease).NoticeChanged += (_, _) =>
-            Dispatcher.BeginInvoke(RefreshUpdateIndicator);
+        foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
+            updates.Get(channel).NoticeChanged += (_, _) =>
+                Dispatcher.BeginInvoke(RefreshUpdateIndicator);
         RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
@@ -1080,6 +1082,88 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void RdpPolicySelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (RdpPolicySelectedOwner is null || EditSelectedRdpPolicyButton is null) return;
+        EditSelectedRdpPolicyButton.IsEnabled = false;
+        if (RdpPolicyGrid.SelectedItem is not RdpPolicyEvidence selected)
+        {
+            RdpPolicySelectedOwner.Text = "Select a setting to inspect its controlling policy.";
+            return;
+        }
+        string? registryName = RdpPolicySourceResolver.ValueForSetting(selected.Setting);
+        RdpLocalSettingSpec? editable = RdpLocalAdvancedSettings.Find(selected.Setting);
+        if (registryName is null)
+        {
+            RdpPolicySelectedOwner.Text =
+                "Read-only security setting. Source: Windows Security Policy / Group Policy Results. " +
+                "If a domain GPO manages it, use gpresult /scope computer /h report.html to inspect the winning policy.";
+            return;
+        }
+        RdpPolicySelectedOwner.Text = "Checking which computer policy controls " +
+            selected.Setting + "...";
+        try
+        {
+            var info = await Task.Run(() =>
+            {
+                bool managed = RdpPolicySourceResolver.IsPolicyPresent(registryName);
+                var source = managed ? RdpPolicySourceResolver.ReadWinning(registryName) : null;
+                return (managed, source);
+            });
+            if (!ReferenceEquals(RdpPolicyGrid.SelectedItem, selected)) return;
+            if (info.managed)
+            {
+                RdpPolicySelectedOwner.Text = "Local editing is BLOCKED. " +
+                    (info.source?.Details ?? "Policy source unavailable.");
+                return;
+            }
+            RdpPolicySelectedOwner.Text = "No matching computer GPO registry value is present. " +
+                RdpPolicySourceResolver.TerminalPolicyPath + "\\" + registryName +
+                Environment.NewLine +
+                (editable is null
+                    ? "This setting is diagnostic-only in this version."
+                    : "Editable local value; domain policy can change later.");
+            EditSelectedRdpPolicyButton.IsEnabled = editable is not null && !busy &&
+                SystemInfo.IsAdministrator() &&
+                (!editable.ConsoleOnly || InteractiveSessionDetector.Detect() == SessionKind.Console);
+        }
+        catch (Exception ex)
+        {
+            if (!ReferenceEquals(RdpPolicyGrid.SelectedItem, selected)) return;
+            RdpPolicySelectedOwner.Text =
+                "Cannot determine the effective computer policy (" +
+                ex.GetType().Name + "). Local editing is disabled for safety. " +
+                RdpPolicySourceResolver.TerminalPolicyPath + "\\" + registryName;
+        }
+    }
+
+    private void EditSelectedRdpPolicy_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || RdpPolicyGrid.SelectedItem is not RdpPolicyEvidence selected)
+            return;
+        var spec = RdpLocalAdvancedSettings.Find(selected.Setting);
+        if (spec is null)
+        {
+            MessageBox.Show(this,
+                "This setting is read-only in this version. Check the source above " +
+                "and edit the controlling GPO in Group Policy Management if required.",
+                "RDP setting is not locally editable", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+        new RdpLocalSettingEditWindow(spec) { Owner = this }.ShowDialog();
+        CheckRdpPolicy_Click(sender, new RoutedEventArgs());
+    }
+
+    private void CopySelectedPolicy_Click(object sender, RoutedEventArgs e)
+    {
+        try { Clipboard.SetText(RdpPolicySelectedOwner.Text); }
+        catch (System.Runtime.InteropServices.ExternalException)
+        {
+            FooterText.Text = "Clipboard unavailable; the policy information remains on screen.";
+        }
+    }
+
     private async void CheckRdpPolicy_Click(object sender, RoutedEventArgs e)
     {
         await RunBusy(async () =>
@@ -1338,8 +1422,9 @@ public partial class MainWindow : Window
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            await updates.Get(UpdateChannel.Prerelease).CheckAsync(
-                forced: false, cancellationToken: timeout.Token);
+            foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
+                await updates.Get(channel).CheckAsync(
+                    forced: false, cancellationToken: timeout.Token);
         }
         catch (Exception ex)
         {
@@ -1348,25 +1433,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshUpdateIndicator()
-    {
-        var notice = updates.Get(UpdateChannel.Prerelease).Notice;
-        if (notice.ShowUpdateBadge)
-        {
-            UpdatesButton.Content = $"● Update {notice.AvailableVersion}";
-            UpdatesButton.Background = new SolidColorBrush(Color.FromRgb(255, 228, 181));
-            UpdatesButton.Foreground = Brushes.Black;
-        }
-        else
-        {
-            UpdatesButton.Content = "Updates";
-            UpdatesButton.ClearValue(System.Windows.Controls.Control.BackgroundProperty);
-            UpdatesButton.ClearValue(System.Windows.Controls.Control.ForegroundProperty);
-        }
-        UpdatesButton.ToolTip = notice.IsCached
-            ? "Cached status. Open Updates and press Check for a live result."
-            : notice.Status.ToString();
-    }
+    private void RefreshUpdateIndicator() =>
+        UpdateButtonIndicator.Apply(
+            UpdatesButton,
+            updates.Get(UpdateChannel.Stable).Notice,
+            updates.Get(UpdateChannel.Prerelease).Notice);
 
     internal void SetBackupPreference(bool createFullBackup)
         => CreateBackupCheck.IsChecked = createFullBackup;

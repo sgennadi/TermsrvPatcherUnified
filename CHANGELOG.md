@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0 — 2026-11-10 (Stable release candidate)
+
+- **UI:** wider Simple and Advanced windows, fixed Simple action footer, work-area sizing for high-DPI displays and scrollable modern confirmation dialogs.
+- **Updates:** Stable/Preview selection plus visible **Updates • NEW** badge in both Simple and Advanced. Channel/version tooltips distinguish cached from live results. Installing requires a fresh, operator-approved, verified release and rollback safety.
+- **RDP policy diagnostics:** read-only winning GPO source, registry value, GUID and precedence when Windows RSoP is available. Unknown GPO identity never authorizes overriding a policy. Local edits use an approved registry-value allowlist, verification and rollback.
+- **Reports:** opt-in typed metadata via Google Apps Script to public GitHub Issues; production delivery to Issue #32 was observed, recorded as **unverified compatibility evidence** only, not proof of patch success.
+- **Safety:** exact-signature restrictions, protected recovery, full backup by default, no unattended scheduled task by default and session-independent protected worker for approved RDP operations.
+- **Tests:** Windows Server 2025 CI includes synthetic and read-only tests, UI smoke, backup integrity, offline DLL inspection, portable updater verification and a non-destructive SYSTEM/Session 0 worker test. Live Windows 11 System32 writes, RDP reconnection and physical high-DPI rendering require separate manual validation.
+- **Distribution:** unsigned Windows x64 single EXE; portable ZIP containing only EXE and Example.txt, updater ZIP containing only EXE, plus SHA-256 sums. Respect Microsoft licensing.
+
 ## 0.1.0-preview.28 — 2026-11-10
 
 - **Google reporting instead of Formspree:** the operator-supplied Google Apps Script deployment URL is embedded in the EXE and produces a public GitHub Issue only after the user reviews the exact typed report and confirms sending.

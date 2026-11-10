@@ -29,13 +29,19 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $version = (Get-Content VERSION -Raw).Trim()
-          if ($version -notmatch '^0\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*$') { throw 'Only explicit preview versions can be published.' }
+          if ($version -notmatch '^0\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*$') {
+            Write-Host 'Not a Preview version; Preview publisher safely skipped.'
+            "PUBLISH_PREVIEW=false" >> $env:GITHUB_ENV
+            exit 0
+          }
+          "PUBLISH_PREVIEW=true" >> $env:GITHUB_ENV
           $project = [xml](Get-Content TermsrvPatcher.Unified.csproj -Raw)
           if ($project.Project.PropertyGroup.Version -ne $version) { throw 'The project version does not match VERSION.' }
           if (-not (Get-Content Core/UpdateIntegration.cs -Raw).Contains('Version = "' + $version + '"')) { throw 'The updater version does not match VERSION.' }
           "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
           "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
       - name: Embed preconfigured public diagnostics provider IDs (no per-user setup)
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         env:
           TPU_GOOGLE_APPS_SCRIPT_URL: ${{ vars.TPU_GOOGLE_APPS_SCRIPT_URL }}
@@ -43,11 +49,13 @@ jobs:
         run: |
           ./scripts/Configure-Reporting.ps1 -FromEnvironment
       - name: Stage pinned official NSudo 8.2 x64
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: ./scripts/prepare-nsudo.ps1
       - name: Check source and updater ZIP validator
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         run: |
           python scripts/verify_source.py
@@ -55,6 +63,7 @@ jobs:
           python scripts/verify_update_package.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile and execute synthetic tests
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         run: |
           dotnet restore TermsrvPatcher.Unified.csproj
@@ -78,11 +87,13 @@ jobs:
           python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Publish self-contained x64 EXE
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         run: |
           dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Read-only EXE and offline update probe smoke tests
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         run: |
           $sample = Join-Path $PWD 'sample.dll'
@@ -96,9 +107,11 @@ jobs:
           $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }
       - name: Package exact two-file portable ZIP and one-EXE updater ZIP
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         run: ./scripts/package_preview.ps1
       - name: Publish explicit unsigned prerelease only
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -112,9 +125,9 @@ jobs:
             'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
             'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
             'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
-            'Preview.27 improves successful Revert/backup colors and offers friendly opt-in compatibility sharing after confirmed local Apply in Simple and Advanced.'
+            'Preview.28 includes Google-to-GitHub opt-in reporting; this UI candidate adds clearer dialogs, a wider startup window, and a Stable/Preview updater choice.'
             'The approved Google Apps Script endpoint is embedded in the EXE. Reports create public GitHub Issues only after user confirmation.'
-            'Google reporting requires an explicit review and a verified GitHub Issue URL; no local save or account required. Live Google delivery, Scheduler ACL repair and OAuth sign-in remain unverified; CI uses simulated HTTP.'
+            'Google reporting requires an explicit review and a verified GitHub Issue URL; no local save or account required. Live Google delivery was confirmed by public Issue #32; CI still uses simulated HTTP and does not validate OAuth sign-in or every Scheduler configuration.'
             'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
             ''
             'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'
@@ -123,6 +136,7 @@ jobs:
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify published updater release assets
+        if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}

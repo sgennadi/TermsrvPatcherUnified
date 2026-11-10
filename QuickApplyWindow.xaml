@@ -1,18 +1,22 @@
 <Window x:Class="TermsrvPatcherUnified.QuickApplyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 0.1.0-preview.28"
-        Width="750" Height="635" MinWidth="650" MinHeight="530"
+        Title="TermsrvPatcherUnified 1.0.0"
+        Width="940" Height="675" MinWidth="690" MinHeight="510"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
-  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel Margin="24,19,24,19">
+  <Grid Margin="24,19,24,19">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Margin="0,0,0,8">
       <DockPanel Margin="0,0,0,17">
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="0.1.0-preview.28   •   Remote Desktop maintenance"
+          <TextBlock Text="1.0.0   •   Remote Desktop maintenance"
                      FontSize="12" Margin="0,4,0,0"
                      Foreground="{StaticResource MutedBrush}"/>
         </StackPanel>
@@ -86,7 +90,9 @@
                   HorizontalAlignment="Left" Click="RepairAutoReapply_Click"/>
         </StackPanel>
       </Border>
-      <Grid Margin="0,2,0,0">
+      </StackPanel>
+    </ScrollViewer>
+    <Grid Grid.Row="1" Margin="0,12,0,0">
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto"/>
           <ColumnDefinition Width="*"/>
@@ -96,13 +102,12 @@
         </Grid.ColumnDefinitions>
         <Button x:Name="QuickCleanupButton" Content="Cleanup..." Tag="&#xE74D;"
                 Grid.Column="0" Click="Cleanup_Click" MinWidth="105"/>
-        <Button Content="Updates" Tag="&#xE896;" Grid.Column="2"
-                Click="Updates_Click" MinWidth="90"/>
+        <Button x:Name="QuickUpdatesButton" Content="Updates" Tag="&#xE896;" Grid.Column="2"
+                Click="Updates_Click" MinWidth="125"/>
         <Button x:Name="QuickAdvancedButton" Content="Advanced" Tag="&#xE713;"
                 Grid.Column="3" Click="Advanced_Click" MinWidth="110"/>
         <Button x:Name="QuickCancelButton" Content="Close" Grid.Column="4"
                 Click="Cancel_Click" MinWidth="90" Margin="0,0,0,10"/>
       </Grid>
-    </StackPanel>
-  </ScrollViewer>
+  </Grid>
 </Window>

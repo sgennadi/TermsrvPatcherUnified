@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using TermsrvPatcherUnified;
 using TermsrvPatcherUnified.Core;
+using UniversalUpdater;
 
 internal static class UiSmokeTests
 {
@@ -28,6 +29,31 @@ internal static class UiSmokeTests
                     new string('a', 64), new string('b', 64),
                     [new ChangedBytes(40, "11223344", "AABBCCDD")]);
                 var main = new MainWindow();
+                if (main.FindName("UpdatesButton") is not Button advancedUpdates ||
+                    advancedUpdates.Content is not string advancedCaption ||
+                    advancedCaption != "Updates")
+                    throw new Exception("Advanced Updates button must start neutral.");
+                var noUpdate = new UpdateNotice(UpdateNoticeStatus.UpToDate,
+                    UpdateIntegration.Version, null, false, "NO_NEWER_RELEASE", null);
+                var newStable = new UpdateNotice(UpdateNoticeStatus.Available,
+                    UpdateIntegration.Version, "1.1.0", false, "UPDATE_AVAILABLE", null);
+                var newPreview = new UpdateNotice(UpdateNoticeStatus.Available,
+                    UpdateIntegration.Version, "1.2.0-preview.1", true, "UPDATE_AVAILABLE", null);
+                var description = UpdateButtonIndicator.Describe(newStable, newPreview);
+                if (!description.HasUpdate || description.Channel != UpdateChannel.Stable ||
+                    !description.Caption.Contains("NEW", StringComparison.Ordinal) ||
+                    !description.Tooltip.Contains("1.1.0", StringComparison.Ordinal))
+                    throw new Exception("Available Stable update must highlight button and show version.");
+                var cached = UpdateButtonIndicator.Describe(noUpdate, newPreview);
+                if (!cached.HasUpdate || cached.Channel != UpdateChannel.Prerelease ||
+                    !cached.Tooltip.Contains("previously checked", StringComparison.Ordinal))
+                    throw new Exception("Cached Preview updates must be labelled and require live verification.");
+                if (UpdateButtonIndicator.Describe(noUpdate, noUpdate).HasUpdate ||
+                    UpdateButtonIndicator.Describe(
+                        new UpdateNotice(UpdateNoticeStatus.CheckFailed,
+                            UpdateIntegration.Version, null, false, "CHECK_FAILED", null),
+                        noUpdate).HasUpdate)
+                    throw new Exception("No-update and failed checks must not show a false badge.");
                 if (main.FindName("CreateBackupCheck") is not CheckBox backup ||
                     backup.IsChecked != true)
                     throw new Exception("Create backup must be checked by default.");
@@ -133,6 +159,13 @@ internal static class UiSmokeTests
                 }
                 finally { Directory.Delete(tempRoot, recursive: true); }
                 var updaterWindow = new UpdateCenterWindow(updater);
+                if (updaterWindow.FindName("StableChannelButton") is not RadioButton stableChannel ||
+                    updaterWindow.FindName("PreviewChannelButton") is not RadioButton previewChannel ||
+                    previewChannel.IsChecked != UpdateIntegration.Version.Contains('-', StringComparison.Ordinal) ||
+                    stableChannel.IsChecked == UpdateIntegration.Version.Contains('-', StringComparison.Ordinal) ||
+                    updaterWindow.FindName("ChannelSelector") is not null ||
+                    updaterWindow.FindName("ChannelHint") is not TextBlock)
+                    throw new Exception("Stable/Preview must be a visible segmented selector with Preview selected for preview builds.");
                 if (updaterWindow.FindName("InstallHelp") is not TextBlock eligibilityHelp ||
                     eligibilityHelp.Text.Contains("signed update installer", StringComparison.OrdinalIgnoreCase) ||
                     updaterWindow.FindName("ReleasePageButton") is not Button ||
@@ -166,6 +199,17 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
                 var quick = new QuickApplyWindow();
+                if (quick.FindName("QuickUpdatesButton") is not Button simpleUpdates ||
+                    simpleUpdates.Content is not string simpleCaption ||
+                    simpleCaption != "Updates")
+                    throw new Exception("Simple Updates button must be named and start neutral.");
+                if (quick.Content is not Grid quickRoot ||
+                    quickRoot.RowDefinitions.Count != 2 ||
+                    quickRoot.Children.OfType<ScrollViewer>()
+                        .Any(scroll => Grid.GetRow(scroll) != 0) ||
+                    !quickRoot.Children.OfType<Grid>()
+                        .Any(panel => Grid.GetRow(panel) == 1))
+                    throw new Exception("Simple view footer must stay outside the scrolling region.");
                 if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
                     quickAuto.IsChecked != false ||
                     quick.FindName("QuickAutoReapplyStatus") is not TextBlock ||
@@ -211,8 +255,26 @@ internal static class UiSmokeTests
                     successReport.FindName("TokenInput") is not PasswordBox ||
                     successReport.FindName("SkipButton") is not Button)
                     throw new Exception("Successful Apply must offer friendly optional sharing without removing advanced GitHub reporting.");
+                var confirm = new ModernConfirmDialog();
+                if (confirm.FindName("DetailsText") is not TextBox reportDetails ||
+                    !reportDetails.IsReadOnly ||
+                    confirm.FindName("ConfirmButton") is not Button confirmButton ||
+                    confirmButton.IsDefault ||
+                    confirm.FindName("CancelButton") is not Button cancelButton ||
+                    !cancelButton.IsCancel ||
+                    confirm.FindName("CopyButton") is not Button)
+                    throw new Exception("Modern report/update review must show exact details, require manual consent, and allow cancellation.");
+                var tinyDesktop = new Rect(0, 0, 800, 560);
+                var fitted = WindowLayout.FitBounds(tinyDesktop, 1120, 795);
+                if (fitted.Left < tinyDesktop.Left ||
+                    fitted.Top < tinyDesktop.Top ||
+                    fitted.Right > tinyDesktop.Right ||
+                    fitted.Bottom > tinyDesktop.Bottom ||
+                    fitted.Width < 400 || fitted.Height < 350)
+                    throw new Exception("Window sizing fails to keep the startup window on screen.");
                 var windows = new Window[]
                 {
+                    confirm,
                     quick,
                     main,
                     updaterWindow,

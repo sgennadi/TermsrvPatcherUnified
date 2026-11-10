@@ -141,17 +141,17 @@ public partial class DiagnosticsWindow
         {
             var (payload, outgoing) = await CreateDirectReportAsync();
             ReportPreview.Text = outgoing;
-            if (MessageBox.Show(this,
-                    "Share a short compatibility report to help improve this program?\n\n" +
-                    "It includes Windows build, DLL version and SHA-256, but no user name, " +
-                    "computer name, passwords, file contents or free-form notes.\n" +
-                    "Google may observe your IP address; the submitted information " +
-                    "will become a PUBLIC GitHub Issue.\n\n" +
-                    "Destination: " + reportingSettings.GoogleAppsScriptUrl +
-                    "\n\nExact report to share:\n" + outgoing +
-                    "\n\nSend to GitHub now?",
-                    "Review compatibility report", MessageBoxButton.YesNo,
-                    MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
+            if (!ModernConfirmDialog.Ask(this,
+                    "Share compatibility report?",
+                    "Thanks for helping improve Windows compatibility. " +
+                    "Review the exact fields below. Nothing is sent unless you confirm.",
+                    "Google Apps Script -> public GitHub Issue\n" +
+                    reportingSettings.GoogleAppsScriptUrl,
+                    outgoing,
+                    "Send report",
+                    "Public GitHub Issues can be seen by anyone. Google may see your " +
+                    "IP address. No account names, passwords, file contents or free-text notes.",
+                    diagnosticReport: true))
             {
                 Status.Text = "Nothing sent. You can choose to share later.";
                 return;
