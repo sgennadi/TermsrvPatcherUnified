@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using TermsrvPatcherUnified;
 using TermsrvPatcherUnified.Core;
+using UniversalUpdater;
 
 internal static class UiSmokeTests
 {
@@ -28,6 +29,31 @@ internal static class UiSmokeTests
                     new string('a', 64), new string('b', 64),
                     [new ChangedBytes(40, "11223344", "AABBCCDD")]);
                 var main = new MainWindow();
+                if (main.FindName("UpdatesButton") is not Button advancedUpdates ||
+                    advancedUpdates.Content is not string advancedCaption ||
+                    advancedCaption != "Updates")
+                    throw new Exception("Advanced Updates button must start neutral.");
+                var noUpdate = new UpdateNotice(UpdateNoticeStatus.UpToDate,
+                    UpdateIntegration.Version, null, false, "NO_NEWER_RELEASE", null);
+                var newStable = new UpdateNotice(UpdateNoticeStatus.Available,
+                    UpdateIntegration.Version, "1.1.0", false, "UPDATE_AVAILABLE", null);
+                var newPreview = new UpdateNotice(UpdateNoticeStatus.Available,
+                    UpdateIntegration.Version, "1.2.0-preview.1", true, "UPDATE_AVAILABLE", null);
+                var description = UpdateButtonIndicator.Describe(newStable, newPreview);
+                if (!description.HasUpdate || description.Channel != UpdateChannel.Stable ||
+                    !description.Caption.Contains("NEW", StringComparison.Ordinal) ||
+                    !description.Tooltip.Contains("1.1.0", StringComparison.Ordinal))
+                    throw new Exception("Available Stable update must highlight button and show version.");
+                var cached = UpdateButtonIndicator.Describe(noUpdate, newPreview);
+                if (!cached.HasUpdate || cached.Channel != UpdateChannel.Prerelease ||
+                    !cached.Tooltip.Contains("previously checked", StringComparison.Ordinal))
+                    throw new Exception("Cached Preview updates must be labelled and require live verification.");
+                if (UpdateButtonIndicator.Describe(noUpdate, noUpdate).HasUpdate ||
+                    UpdateButtonIndicator.Describe(
+                        new UpdateNotice(UpdateNoticeStatus.CheckFailed,
+                            UpdateIntegration.Version, null, false, "CHECK_FAILED", null),
+                        noUpdate).HasUpdate)
+                    throw new Exception("No-update and failed checks must not show a false badge.");
                 if (main.FindName("CreateBackupCheck") is not CheckBox backup ||
                     backup.IsChecked != true)
                     throw new Exception("Create backup must be checked by default.");
@@ -135,7 +161,8 @@ internal static class UiSmokeTests
                 var updaterWindow = new UpdateCenterWindow(updater);
                 if (updaterWindow.FindName("StableChannelButton") is not RadioButton stableChannel ||
                     updaterWindow.FindName("PreviewChannelButton") is not RadioButton previewChannel ||
-                    previewChannel.IsChecked != true || stableChannel.IsChecked == true ||
+                    previewChannel.IsChecked != UpdateIntegration.Version.Contains('-', StringComparison.Ordinal) ||
+                    stableChannel.IsChecked == UpdateIntegration.Version.Contains('-', StringComparison.Ordinal) ||
                     updaterWindow.FindName("ChannelSelector") is not null ||
                     updaterWindow.FindName("ChannelHint") is not TextBlock)
                     throw new Exception("Stable/Preview must be a visible segmented selector with Preview selected for preview builds.");
@@ -172,6 +199,10 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
                 var quick = new QuickApplyWindow();
+                if (quick.FindName("QuickUpdatesButton") is not Button simpleUpdates ||
+                    simpleUpdates.Content is not string simpleCaption ||
+                    simpleCaption != "Updates")
+                    throw new Exception("Simple Updates button must be named and start neutral.");
                 if (quick.Content is not Grid quickRoot ||
                     quickRoot.RowDefinitions.Count != 2 ||
                     quickRoot.Children.OfType<ScrollViewer>()
