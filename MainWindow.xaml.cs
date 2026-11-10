@@ -1180,9 +1180,9 @@ public partial class MainWindow : Window
         bool syncFirewall = FirewallEnabled.IsChecked == true;
         RdpStatus previous;
         try { previous = RdpConfiguration.Read(); }
-        catch (Exception e)
+        catch (Exception readError)
         {
-            MessageBox.Show(this, "Could not read original RDP settings: " + e.Message,
+            MessageBox.Show(this, "Could not read original RDP settings: " + readError.Message,
                 "Save blocked", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
