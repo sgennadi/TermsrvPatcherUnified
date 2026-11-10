@@ -5,6 +5,7 @@ using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using TermsrvPatcherUnified.Core;
 
 if (args is ["--pattern-inspection-qa"])
@@ -352,6 +353,35 @@ var anonymousPayload = UniversalDiagnosticsRelayClient.Prepare(JsonSerializer.Se
 Ensure(!anonymousPayload.Json.Contains("PRIVATE SUMMARY", StringComparison.Ordinal) &&
     !anonymousPayload.Json.Contains("delivery", StringComparison.Ordinal),
     "anonymous payload excludes summary and local queue delivery state");
+var typedRecord = JsonNode.Parse(JsonSerializer.Serialize(anonymousEvent))
+    ?? throw new InvalidOperationException("Synthetic anonymous payload missing.");
+var typedEvent = (JsonObject)typedRecord["event"]!;
+typedEvent["windows_release"] = "25H2";
+typedEvent["windows_build"] = 26200;
+typedEvent["windows_ubr"] = 1234;
+typedEvent["dll_version"] = "10.0.26200.1234";
+typedEvent["dll_sha256"] = new string('a', 64);
+var typedPayload = UniversalDiagnosticsRelayClient.Prepare(typedRecord.ToJsonString());
+Ensure(typedPayload.Json.Contains("\"dll_sha256\"", StringComparison.Ordinal) &&
+       typedPayload.Json.Contains(new string('a', 64), StringComparison.Ordinal) &&
+       typedPayload.Json.Contains("\"windows_build\": 26200", StringComparison.Ordinal) &&
+       !typedPayload.Json.Contains("PRIVATE SUMMARY", StringComparison.Ordinal),
+       "reviewed DLL SHA256, build and UBR survive typed anonymous preparation without summary");
+typedEvent.Remove("dll_sha256");
+Expect<InvalidDataException>(() => UniversalDiagnosticsRelayClient.Prepare(typedRecord.ToJsonString()),
+    "incomplete Windows DLL evidence must not become an anonymous report");
+typedEvent["dll_sha256"] = "not-a-hash";
+Expect<InvalidDataException>(() => UniversalDiagnosticsRelayClient.Prepare(typedRecord.ToJsonString()),
+    "untrusted DLL SHA256 never reaches HTTPS transport");
+typedEvent["dll_sha256"] = new string('a', 64);
+typedEvent["windows_build"] = "26200";
+Expect<InvalidDataException>(() => UniversalDiagnosticsRelayClient.Prepare(typedRecord.ToJsonString()),
+    "Windows build must be a number, not arbitrary text");
+Ensure(new DiagnosticEnvironment("25H2", 26200, 1234, "10.0.26200.1234",
+       new string('a', 64)).Valid &&
+       !new DiagnosticEnvironment("25H2", 26200, 1234, "10.0.26200.1234",
+       "invalidhash").Valid,
+       "local diagnostic snapshot verifies release, DLL version and exact SHA256 shape");
 Ensure(UniversalDiagnosticsRelayClient.IsApprovedEndpoint(
     new Uri("https://diagnostics.example.org/v1/diagnostics")),
     "HTTPS relay endpoint accepted");
@@ -424,6 +454,26 @@ try
         "local collector writes canonical v1 diagnostics");
     var markdown = DiagnosticsBridge.ReportMarkdown(record);
     Ensure(markdown.Contains(receipt.Id, StringComparison.Ordinal), "readable markdown reflects local report");
+    var environment = new DiagnosticEnvironment("25H2", 26200, 1234,
+        "10.0.26200.1234", new string('a', 64));
+    var evidenceReceipt = DiagnosticsBridge.Capture(
+        new DiagnosticsBridge.DiagnosticDraft("RdpSettings", "USER_REPORT", "TEST", "Review"),
+        "Sanitized synthetic environment", environment);
+    var evidenceRecord = File.ReadAllText(evidenceReceipt.Path);
+    using var evidenceJson = JsonDocument.Parse(evidenceRecord);
+    var evidenceEvent = evidenceJson.RootElement.GetProperty("event");
+    Ensure(evidenceEvent.GetProperty("windows_build").GetInt32() == 26200 &&
+           evidenceEvent.GetProperty("windows_ubr").GetInt32() == 1234 &&
+           evidenceEvent.GetProperty("dll_sha256").GetString() == new string('a', 64),
+           "canonical collector persists typed Windows build and SHA256 evidence");
+    var evidencePreview = DiagnosticsBridge.ReportMarkdown(evidenceRecord);
+    Ensure(evidencePreview.Contains("26200", StringComparison.Ordinal) &&
+           evidencePreview.Contains(new string('a', 64), StringComparison.Ordinal),
+           "the operator preview contains the exact typed metadata that can be shared");
+    var preparedEvidence = UniversalDiagnosticsRelayClient.Prepare(evidenceRecord);
+    Ensure(preparedEvidence.Json.Contains("\"dll_sha256\"", StringComparison.Ordinal) &&
+           !preparedEvidence.Json.Contains("Sanitized synthetic environment", StringComparison.Ordinal),
+           "anonymous payload copies valid typed evidence but excludes description");
     var issue = new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/42");
     DiagnosticsBridge.MarkSubmitted(receipt.Path, receipt.Id, issue);
     using var json = JsonDocument.Parse(File.ReadAllText(receipt.Path));
