@@ -1,6 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using UniversalDiagnostics;
+using UniversalDiagnostics.Transport;
+using System.Security.Cryptography;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace TermsrvPatcherUnified.Core;
 
@@ -56,6 +60,55 @@ internal static class DiagnosticsBridge
             fields["dll_sha256"] = environment.DllSha256;
         }
         return UniversalDiagnosticsEmbedded.Capture(JsonSerializer.Serialize(fields));
+    }
+
+    /// <summary>
+    /// Prepare the same strict typed v1 metadata in memory for Formspree.
+    /// Unlike Capture(), this method never writes a local queue record.
+    /// Descriptions, raw errors, usernames, paths, passwords and DLL bytes
+    /// are not included in the outbound payload.
+    /// </summary>
+    internal static AnonymousDiagnosticPayload PrepareDirect(
+        DiagnosticDraft draft, DiagnosticEnvironment? environment = null)
+    {
+        if (environment is not null && !environment.Valid)
+            throw new InvalidDataException("Unverified Windows/DLL evidence.");
+        string architecture = RuntimeInformation.OSArchitecture switch
+        {
+            Architecture.X64 => "AMD64",
+            Architecture.X86 => "x86",
+            Architecture.Arm64 => "ARM64",
+            _ => "Other"
+        };
+        string[] identity = { Project, draft.Component, draft.ErrorType, draft.Code };
+        string digestInput = string.Join("|", identity.Select(x => x.ToLowerInvariant()));
+        string fingerprint = Convert.ToHexStringLower(
+            SHA256.HashData(Encoding.UTF8.GetBytes(digestInput)));
+        var fields = new Dictionary<string, object>
+        {
+            ["schema"] = "universal-diagnostics/v1",
+            ["id"] = Guid.NewGuid().ToString("D"),
+            ["timestamp_utc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+            ["project"] = Project,
+            ["component"] = draft.Component,
+            ["error_type"] = draft.ErrorType,
+            ["code"] = draft.Code,
+            ["level"] = draft.ErrorType == "VerifiedSuccess" ? "info" : "error",
+            ["version"] = UpdateIntegration.Version,
+            ["platform"] = "Windows",
+            ["architecture"] = architecture,
+            ["fingerprint"] = fingerprint
+        };
+        if (environment is not null)
+        {
+            fields["windows_release"] = environment.WindowsRelease;
+            fields["windows_build"] = environment.WindowsBuild;
+            fields["windows_ubr"] = environment.WindowsUbr;
+            fields["dll_version"] = environment.DllVersion;
+            fields["dll_sha256"] = environment.DllSha256;
+        }
+        return UniversalDiagnosticsRelayClient.Prepare(
+            JsonSerializer.Serialize(new { @event = fields }));
     }
 
     /// <summary>Records a confirmed GitHub Issue URL locally; no network request.</summary>
