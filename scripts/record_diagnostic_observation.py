@@ -24,7 +24,7 @@ FOOTER = "Only reviewed typed metadata. No descriptions, logs, secrets, hostname
 NAMES = ("Schema", "Project", "Component", "Version", "Severity", "Error class",
          "Error code", "Observed UTC", "OS", "Architecture", "Fingerprint",
          "Windows release", "Windows build", "Windows UBR", "DLL version", "DLL SHA-256")
-COLUMNS = ("issue_number", "observed_utc", "received_utc", "windows_release",
+COLUMNS = ("issue_number", "event_id", "observed_utc", "received_utc", "windows_release",
            "windows_build", "windows_ubr", "dll_version", "dll_sha256",
            "app_version", "component", "error_type", "error_code",
            "severity", "architecture", "verification")
@@ -112,7 +112,7 @@ def parse(event: dict) -> dict[str, str] | None:
     except (KeyError, TypeError, ValueError):
         return None
     return dict(zip(COLUMNS, (
-        str(number), seen.strftime("%Y-%m-%dT%H:%M:%SZ"),
+        str(number), event_id, seen.strftime("%Y-%m-%dT%H:%M:%SZ"),
         received.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         values["Windows release"], values["Windows build"], values["Windows UBR"],
         values["DLL version"], values["DLL SHA-256"], values["Version"],
@@ -134,7 +134,8 @@ def apply_event(event: dict, existing: str) -> tuple[str, bool]:
             raise ValueError("Diagnostic observations CSV is malformed or oversized.")
     else:
         records = []
-    if any(row["issue_number"] == record["issue_number"] for row in records):
+    if any(row["issue_number"] == record["issue_number"] or
+           row["event_id"] == record["event_id"] for row in records):
         return existing, False
     records.append(record)
     records.sort(key=lambda r: int(r["issue_number"]))
@@ -170,7 +171,13 @@ def self_test() -> None:
     assert valid and marked == updated, "new relay observation marker must preserve data"
     event["issue"]["body"] = body
     assert "a"*64 in updated and updated.endswith(",unverified\n")
-    assert not apply_event(event, updated)[1]  # Duplicate event safe.
+    assert not apply_event(event, updated)[1]  # Replayed Issue is idempotent.
+    # Reposting one UUID to another Issue cannot inflate the database.
+    event["issue"]["number"] = 43
+    event["issue"]["html_url"] = f"https://github.com/{PROJECT}/issues/43"
+    assert not apply_event(event, updated)[1]
+    event["issue"]["number"] = 42
+    event["issue"]["html_url"] = f"https://github.com/{PROJECT}/issues/42"
     for malicious in (
         body + "\nHOSTNAME=PRIVATE", body.replace("a"*64, "G"*64),
         body.replace("- DLL SHA-256:", "- Password:"),
