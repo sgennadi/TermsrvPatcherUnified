@@ -25,6 +25,7 @@ public partial class QuickApplyWindow : Window
     public QuickApplyWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         statusTimer.Tick += (_, _) => RefreshJobStatus();
         Closed += (_, _) => statusTimer.Stop();

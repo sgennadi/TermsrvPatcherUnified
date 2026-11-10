@@ -17,23 +17,32 @@ public partial class UpdateCenterWindow : Window
         InitializeComponent();
         this.updates = updates;
         InstalledText.Text = $"Installed: {UpdateIntegration.Version} | Windows x64";
-        ChannelSelector.SelectedIndex = 1; // The installed app is currently a preview.
+        if (UpdateIntegration.Version.Contains('-', StringComparison.Ordinal))
+            PreviewChannelButton.IsChecked = true;
+        else
+            StableChannelButton.IsChecked = true;
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         RenderNotice();
     }
 
-    private UpdateChannel Channel => ChannelSelector.SelectedIndex == 0 ?
+    private UpdateChannel Channel => StableChannelButton.IsChecked == true ?
         UpdateChannel.Stable : UpdateChannel.Prerelease;
 
     private void RenderNotice()
     {
-        if (ChannelSelector is null || StatusText is null) return;
+        if (updates is null || StableChannelButton is null ||
+            PreviewChannelButton is null || StatusText is null) return;
+        ChannelHint.Text = Channel == UpdateChannel.Stable
+            ? "Stable — recommended for routine use when a stable release exists"
+            : "Preview — early access features that may change";
         var controller = updates.Get(Channel);
         var notice = controller.Notice;
         string cache = notice.IsCached ? " (cached, not install authorization)" : "";
         StatusText.Text = notice.Status switch
         {
             UpdateNoticeStatus.Available => $"New version available: {notice.AvailableVersion}{cache}",
-            UpdateNoticeStatus.UpToDate => "No newer compatible release found.",
+            UpdateNoticeStatus.UpToDate => Channel == UpdateChannel.Stable
+                ? "No newer Stable release is available." : "No newer Preview release is available.",
             UpdateNoticeStatus.CheckFailed => $"Update check failed ({notice.ResultCode}).",
             UpdateNoticeStatus.Checking => "Checking GitHub Releases...",
             UpdateNoticeStatus.InstallationHeld => "Installation is held after a prior failure.",
@@ -64,18 +73,20 @@ public partial class UpdateCenterWindow : Window
                 ? "Install blocked: no verified LIVE release details. Press Check."
             : freshRelease && !canInstall
                 ? "Install blocked: " + reason + " For network or linked folders, use a regular local folder or the official release ZIP."
-            : "Install is unavailable: no newer LIVE release is selected. Choose Preview and press Check.";
+            : "No newer verified release is selected. Choose Stable or Preview, then press Check.";
         InstallButton.ToolTip = available ? "Install the verified update" : InstallHelp.Text;
 
     }
 
-    private void ChannelChanged(object sender, SelectionChangedEventArgs e) => RenderNotice();
+    private void ChannelChanged(object sender, RoutedEventArgs e) => RenderNotice();
 
     private async void Check_Click(object sender, RoutedEventArgs e)
     {
         if (checking) return;
         checking = true;
         CheckButton.IsEnabled = false;
+        StableChannelButton.IsEnabled = false;
+        PreviewChannelButton.IsEnabled = false;
         StatusText.Text = "Checking GitHub Releases...";
         try
         {
@@ -97,6 +108,8 @@ public partial class UpdateCenterWindow : Window
         {
             checking = false;
             CheckButton.IsEnabled = true;
+            StableChannelButton.IsEnabled = true;
+            PreviewChannelButton.IsEnabled = true;
         }
         RenderNotice();
     }
@@ -128,7 +141,8 @@ public partial class UpdateCenterWindow : Window
         installing = true;
         CheckButton.IsEnabled = false;
         InstallButton.IsEnabled = false;
-        ChannelSelector.IsEnabled = false;
+        StableChannelButton.IsEnabled = false;
+        PreviewChannelButton.IsEnabled = false;
         var progress = new Progress<UpdateProgress>(value =>
         {
             if (value.TotalBytes is > 0)
@@ -154,7 +168,8 @@ public partial class UpdateCenterWindow : Window
         {
             installing = false;
             CheckButton.IsEnabled = true;
-            ChannelSelector.IsEnabled = true;
+            StableChannelButton.IsEnabled = true;
+            PreviewChannelButton.IsEnabled = true;
             RenderNotice();
         }
     }

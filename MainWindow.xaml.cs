@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         ManualHexColumnHeaders.ItemsSource = Enumerable.Range(0, 16)
             .Select(i => i.ToString("X2")).ToArray();
         if (offlineStartup) MainTabs.SelectedIndex = 3;
