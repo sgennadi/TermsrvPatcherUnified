@@ -99,6 +99,14 @@ internal static class DllCompatibilityTests
         Verify(index.Rows.Single(x => x.Check == "First seen (local)")
             .Status == "Unverified", "first-seen metadata never becomes an original baseline");
 
+        var hostile = DllCompatibilityIndex.Analyze(
+            current with { DllVersion = @"C:\Users\PrivateUser\termsrv.dll" },
+            host with { Name = @"C:\Users\PrivateUser", DisplayVersion = @"D:\PrivateUser" },
+            observations, successes);
+        Verify(!hostile.AsText().Contains(@"C:\Users", StringComparison.OrdinalIgnoreCase) &&
+               !hostile.AsText().Contains(@"D:\PrivateUser", StringComparison.OrdinalIgnoreCase),
+            "untrusted Windows/PE labels cannot leak filesystem paths in copied evidence");
+
         Console.WriteLine("PASS: " + checks + " offline DLL compatibility index checks. " +
             "No system DLL write, network call, license claim or automatic patch authorization.");
         return checks;

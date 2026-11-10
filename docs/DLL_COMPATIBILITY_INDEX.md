@@ -32,3 +32,5 @@ The existing **PatchCatalog**, protected Apply/Restore, manual patterns, automat
 ## QA
 
 Tests cover exact SHA/version matching, mismatch, self-reports and diagnostic reports kept unverified, first-seen limitations, invalid/missing CSV, invalid report count and path-free copy output. The Windows CI gate includes the new synthetic QA command and WPF offscreen control existence. Actual Windows 11 RDP connections, code signing/trust, and physical 200% scaling still require independent testing.
+
+Copied evidence normalizes unsafe registry and PE version labels to prevent local paths and identities from leaking into exported reports.

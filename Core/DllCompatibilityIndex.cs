@@ -122,6 +122,15 @@ internal static class DllCompatibilityIndex
                 ? "Matches an operator-recorded reference; its origin is not authenticated."
                 : "Differs from an operator-recorded reference; cause not determined.";
 
+        // Registry and PE-version labels are not authenticated. Avoid copying
+        // arbitrary local paths, user labels or machine names into evidence.
+        string displayOs = host.Name is "Windows 10" or "Windows 11" or "Windows Server"
+            ? host.Name : "(unavailable)";
+        string displayRelease = SafeToken.IsMatch(host.DisplayVersion)
+            ? host.DisplayVersion : "(unavailable)";
+        string displayDllVersion = Version.IsMatch(current.DllVersion)
+            ? current.DllVersion : "(unavailable)";
+
         bool sameSnapshot = signature is not null &&
             signature.OriginalSha256.Equals(current.Sha256, StringComparison.OrdinalIgnoreCase) &&
             signature.FileVersion.Equals(current.DllVersion, StringComparison.OrdinalIgnoreCase);
@@ -145,8 +154,8 @@ internal static class DllCompatibilityIndex
         var rows = new List<DllCompatibilityRow>
         {
             new("Installed DLL snapshot", consistent ? "Observed (local)" : "Review",
-                host.Name + " " + host.DisplayVersion + ", build " + host.Build + "." +
-                host.Ubr + "; DLL " + current.DllVersion + "; SHA-256 " + current.Sha256 + ". " +
+                displayOs + " " + displayRelease + ", build " + host.Build + "." +
+                host.Ubr + "; DLL " + displayDllVersion + "; SHA-256 " + current.Sha256 + ". " +
                 (consistent ? "Version readings agree." : "Windows/DLL readings changed during inspection."),
                 "Re-run Check DLL health if Windows Update or a file operation occurred."),
             new("First seen (local)", firstSeen is null ? "Unavailable" : "Unverified",
