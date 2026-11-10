@@ -88,6 +88,9 @@ public partial class QuickApplyWindow : Window
                 revertPlan is not null ? "Verified original available for Revert" :
                 plan.State == PatchState.AlreadyPatched ? "Already patched" :
                 "Automatic Apply unavailable";
+            QuickStatusText.Foreground = plan.State == PatchState.AlreadyPatched
+                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
             var session = InteractiveSessionDetector.Detect();
             QuickHelpText.Text = authorized
                 ? (session == SessionKind.Console
