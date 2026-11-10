@@ -1,6 +1,6 @@
 # Reporting without a self-hosted HTTPS receiver
 
-Draft feature in PR #27; release and live provider acceptance have not yet been completed.
+Included in 0.1.0-preview.24. Windows CI uses mocked provider requests; live Formspree submissions and OAuth authorization have not been independently verified.
 
 ## Operating modes
 
