@@ -20,6 +20,7 @@ public partial class QuickApplyWindow : Window
     private string? activeJobId;
     private bool autoTaskLoading;
     private bool autoTaskChanging;
+    private string? promptedJobId;
 
     public QuickApplyWindow()
     {
@@ -196,7 +197,10 @@ public partial class QuickApplyWindow : Window
                 plan = null;
                 QuickStatusText.Text = "Apply completed and verified";
                 QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
+                QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
+                QuickShareReportButton.Visibility = Visibility.Visible;
                 QuickCancelButton.Content = "Close";
+                Dispatcher.BeginInvoke(new Action(OfferReportAfterSuccessfulApply));
                 return;
             }
 
@@ -364,6 +368,8 @@ public partial class QuickApplyWindow : Window
             : status.State == "Failed"
                 ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
                 : new SolidColorBrush(Color.FromRgb(100, 116, 139));
+        QuickShareReportButton.Visibility = status.State == "Succeeded" && !isRevert
+            ? Visibility.Visible : Visibility.Collapsed;
         if (status.State is "Queued" or "Running")
         {
             queued = true;
@@ -398,7 +404,39 @@ public partial class QuickApplyWindow : Window
                 ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
                 : new SolidColorBrush(Color.FromRgb(11, 46, 90));
         QuickCancelButton.Content = "Close";
+        if (status.State == "Succeeded" && !isRevert &&
+            activeJobId is not null &&
+            status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(promptedJobId, status.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            promptedJobId = status.Id;
+            Dispatcher.BeginInvoke(new Action(OfferReportAfterSuccessfulApply));
+        }
     }
+
+    private void OfferReportAfterSuccessfulApply()
+    {
+        if (!IsLoaded) return;
+        if (MessageBox.Show(this,
+                "The operation completed successfully. Would you like to share " +
+                "a short compatibility report to help improve future versions?\n\n" +
+                "You will see the information before sending. No passwords, " +
+                "computer name or DLL file will be shared.",
+                "Share compatibility information?", MessageBoxButton.YesNo,
+                MessageBoxImage.Information, MessageBoxResult.No) == MessageBoxResult.Yes)
+            OpenSuccessfulReport();
+    }
+
+    private void OpenSuccessfulReport()
+    {
+        new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
+            "Protected Apply", "VerifiedSuccess", "SUCCESS",
+            "Protected Apply completed and verified."))
+        { Owner = this }.ShowDialog();
+    }
+
+    private void ShareReport_Click(object sender, RoutedEventArgs e)
+        => OpenSuccessfulReport();
 
     private async void Check_Click(object sender, RoutedEventArgs e) => await CheckAsync();
 
