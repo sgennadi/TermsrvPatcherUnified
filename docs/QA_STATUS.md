@@ -1,3 +1,7 @@
+# DLL compatibility-index QA (1.0.5 feature branch; NOT RELEASED)
+
+The offline, non-destructive compatibility-index test command `--dll-compatibility-qa` validates exact version/SHA matching, missing/malformed data, self-report trust boundaries and path-free exports. Windows CI is required before publishing. The approved Stable release is 1.0.4. Real RDP sessions, Windows servicing and 200% physical DPI are not validated by the offline test.
+
 # QA status — 2026-11-10
 
 ## Stable 1.0.0 — published

@@ -964,6 +964,42 @@
                            Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
               </StackPanel>
             </GroupBox>
+            <GroupBox Header="DLL compatibility evidence — read only">
+              <StackPanel>
+                <TextBlock Text="Exact DLL version/SHA-256 matches from bundled metadata. Anonymous diagnostic reports and self-reported fixes are NOT independent verification."
+                           TextWrapping="Wrap" Margin="0,0,0,9"
+                           Foreground="{StaticResource MutedBrush}"/>
+                <WrapPanel Margin="0,0,0,8">
+                  <Button x:Name="RefreshCompatibilityButton" Content="Check compatibility evidence"
+                          Click="CheckDllCompatibility_Click" MinWidth="210"
+                          Tag="&#xE721;"/>
+                  <Button x:Name="CopyCompatibilityButton" Content="Copy evidence"
+                          Click="CopyDllCompatibility_Click" MinWidth="135"
+                          IsEnabled="False" Tag="&#xE8C8;"/>
+                </WrapPanel>
+                <TextBlock x:Name="DllCompatibilitySummary"
+                           Text="Not inspected. This evidence never authorizes DLL changes."
+                           TextWrapping="Wrap" FontWeight="SemiBold"
+                           Foreground="#91400B" Margin="0,0,0,8"/>
+                <DataGrid x:Name="DllCompatibilityGrid" IsReadOnly="True"
+                          AutoGenerateColumns="False" CanUserAddRows="False"
+                          CanUserDeleteRows="False" SelectionMode="Single"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                          Height="300" MinHeight="190"
+                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                  <DataGrid.Columns>
+                    <DataGridTextColumn Header="Check" Binding="{Binding Check}" Width="1.2*" MinWidth="145"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="1.1*" MinWidth="135"/>
+                    <DataGridTextColumn Header="Evidence" Binding="{Binding Evidence}" Width="2.8*" MinWidth="250"/>
+                    <DataGridTextColumn Header="Next step" Binding="{Binding NextStep}" Width="2.6*" MinWidth="240"/>
+                  </DataGrid.Columns>
+                </DataGrid>
+                <TextBlock Text="First Seen is not an original Microsoft file. Public reports are unverified, and neither SHA matches nor user reports affect Apply, Revert, licensing or network reachability."
+                           TextWrapping="Wrap" FontSize="11" Margin="0,8,0,0"
+                           Foreground="{StaticResource MutedBrush}"/>
+              </StackPanel>
+            </GroupBox>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

@@ -26,6 +26,12 @@ if (args is ["--rdp-policy-history-qa"])
     return;
 }
 
+if (args is ["--dll-compatibility-qa"])
+{
+    Environment.ExitCode = DllCompatibilityTests.Run() >= 16 ? 0 : 2;
+    return;
+}
+
 if (args is ["--rdp-health-qa"])
 {
     Environment.ExitCode = RdpHealthTests.Run() >= 12 ? 0 : 2;

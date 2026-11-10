@@ -1,6 +1,13 @@
 # Changelog
 
-## 1.0.4 — RDP Doctor (candidate; not yet published)
+## 1.0.5 — in development (not published)
+
+- **DLL compatibility evidence:** a read-only System Health table differentiates local first-seen/user baselines, exact SHA-256/version matches in bundled anonymous diagnostic observations, and opt-in self-reported successful-fix records.
+- **Trust boundaries:** no source in the compatibility index certifies an original Microsoft DLL, independent RDP functionality, licensing, or protected Apply/Revert authorization. Bundled CSVs are fixed at build time; invalid/missing sources show Unavailable.
+- **Copy evidence:** explicitly requested, local-only, privacy-restricted report; no automatic network contact. Synthetic CSV/parser and WPF UI safety checks added.
+- **Release gate:** independent Windows CI required before any version bump or Stable publication. The downloadable Stable remains 1.0.4.
+
+## 1.0.4 — 2026-11-10 (Stable released)
 
 - **RDP Doctor:** new dedicated Advanced tab with one-click read-only local diagnostic, a priority-sorted evidence grid, clear blocker/attention/unknown counts and recommended operator next steps. Separate RDP settings shortcut and local-only copy of a privacy-reviewed diagnostic report.
 - **Connectivity evidence:** inspect TermService status, local RDP enable/NLA settings and GPO conflicts, configured TCP port, local TCP listening/loopback bindings, blank-password restriction, existing Firewall rule metadata, LSA logon-rights metadata and RDP certificate status.
