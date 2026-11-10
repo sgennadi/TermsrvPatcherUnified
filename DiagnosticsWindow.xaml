@@ -19,6 +19,11 @@
       <TextBox x:Name="DescriptionInput" TextWrapping="Wrap" AcceptsReturn="True"
                MinHeight="85" MaxHeight="130" VerticalScrollBarVisibility="Auto"
                TextChanged="DescriptionChanged"/>
+      <CheckBox x:Name="IncludeWindowsEvidenceCheck"
+                Content="Include Windows build, termsrv.dll version and SHA-256 (review before sending)"
+                IsChecked="True" Margin="0,9,0,0" TextWrapping="Wrap"
+                Checked="EvidenceSelectionChanged" Unchecked="EvidenceSelectionChanged"
+                ToolTip="Read-only evidence for compatibility observations. The exact DLL hash may uniquely identify a custom build; uncheck to omit."/>
     </StackPanel>
     <WrapPanel Grid.Row="2" Margin="0,0,0,10">
       <Button x:Name="SaveButton" Tag="&#xE74E;" Content="Review and save locally" Style="{StaticResource PrimaryButton}"
