@@ -1,14 +1,18 @@
 # TermsrvPatcherUnified
 
-**Source version:** 1.0.1 (pending Windows CI and publication; not yet a published binary).
-
-**Latest Stable release:** [`1.0.0`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.0) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
+**Latest Stable release:** [`1.0.1`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.1) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 **Google reporting verified:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replaced Formspree in Preview.28. A real user-authorized submission from Preview.28 was accepted as [GitHub Issue #32](https://github.com/sgennadi/TermsrvPatcherUnified/issues/32), and its reviewed Windows/DLL metadata appears in [the observations CSV](data/diagnostic-observations.csv) with `verification=unverified`. This proves receipt of that report, **not** that a patch worked or that all deployments will succeed. Sending is opt-in, requires a preview of the exact typed metadata, creates a **public** GitHub Issue only after explicit approval, and requires no end-user token, login, or local file. The former public Formspree ID remains solely in source archive documentation.
+
+## Stable 1.0.1
+
+[Stable 1.0.1](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.1) was published on 2026-11-10 after [Windows safety CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42874775040) and the [Stable release gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42875269490) passed. The release includes a compact source-aware RDP dashboard, a separate System Health tab for DLL integrity and uniform modern confirmation/status dialogs. RDP service, firewall, GPO and connection status are never conflated: unknown and unverified values are labelled explicitly. The unsigned portable ZIP contains only the EXE and Example.txt; the updater ZIP contains one EXE, with a separate SHA-256 file.
+
+This is a UI and usability update. No new automatic signature families or relaxed protected-DLL authorization were added. Physical 200% DPI layout and live Windows 11 RDP reconnection still need hands-on verification.
 
 ## Stable 1.0.0
 

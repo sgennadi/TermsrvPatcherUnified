@@ -1,13 +1,13 @@
 # Changelog
 
-## 1.0.1 — UI update (candidate; not yet published)
+## 1.0.1 — 2026-11-10 (Stable released)
 
 - **RDP dashboard:** status tiles show local or Group Policy configuration without claiming verified network reachability. Explicitly distinguish NLA, single-session configuration, blank-password restriction, configured listener port, TermService and unverified firewall effectiveness.
 - **Advanced:** group local RDP controls and policy source information in one compact tab. Retain guarded local edits and read-only RSoP inspection under collapsed advanced details.
 - **System Health:** relocate DLL integrity, version, SHA-256 drift detection and local baseline from the RDP configuration page to a dedicated health tab.
 - **Messages:** replace ordinary WPF GUI confirmation/error message boxes with a shared compact, scrollable dialog that never defaults to approving risky changes. Preserve explicit consent and cancellation.
 - **Safety:** no changes to automatic signature patterns, protected DLL write logic, licensing guardrails or existing backups; manual System32 operations still require independent recovery.
-- **Validation:** Windows Server 2025 CI must pass read-only and UI tests before publication. No live RDP connectivity or protected Windows 11 System32 write is implied.
+- **Validation:** [Windows Server 2025 CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42874775040) and [Stable publishing gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42875269490) passed, including read-only DLL checks, offscreen UI geometry and non-destructive SYSTEM worker. No live RDP connectivity or protected Windows 11 System32 write is implied.
 
 
 ## 1.0.0 — 2026-11-10 (Stable released)
