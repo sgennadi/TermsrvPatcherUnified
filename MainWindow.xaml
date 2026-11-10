@@ -517,6 +517,8 @@
                   <Button Tag="&#xE72C;" Content="Refresh sessions" Click="RefreshRdpSessions_Click"
                           Style="{StaticResource PrimaryButton}"/>
                 </WrapPanel>
+                <TextBlock x:Name="RdpSessionsCountText" Text="Sessions: not checked."
+                           FontSize="15" FontWeight="SemiBold" Margin="0,5,0,3"/>
                 <TextBlock x:Name="RdpSessionSummary" Text="Session inventory has not been read."
                            Foreground="{StaticResource MutedBrush}" Margin="0,8,0,8"
                            TextWrapping="Wrap"/>
