@@ -1,0 +1,276 @@
+name: Publish Stable Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-stable-main
+  cancel-in-progress: false
+
+jobs:
+  publish-stable:
+    if: github.repository == 'sgennadi/TermsrvPatcherUnified' && github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate explicit stable tag
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content VERSION -Raw).Trim()
+          if ($version -notmatch '^1\.[0-9]+\.[0-9]+
+          $project = [xml](Get-Content TermsrvPatcher.Unified.csproj -Raw)
+          if ($project.Project.PropertyGroup.Version -ne $version) { throw 'The project version does not match VERSION.' }
+          if (-not (Get-Content Core/UpdateIntegration.cs -Raw).Contains('Version = "' + $version + '"')) { throw 'The updater version does not match VERSION.' }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+      - name: Embed preconfigured public diagnostics provider IDs (no per-user setup)
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          TPU_GOOGLE_APPS_SCRIPT_URL: ${{ vars.TPU_GOOGLE_APPS_SCRIPT_URL }}
+          TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
+        run: |
+          ./scripts/Configure-Reporting.ps1 -FromEnvironment
+      - name: Stage pinned official NSudo 8.2 x64
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/prepare-nsudo.ps1
+      - name: Check source and updater ZIP validator
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          python scripts/verify_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/verify_update_package.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile and execute synthetic tests
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          dotnet restore TermsrvPatcher.Unified.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore Tests/TermsrvPatcher.Tests.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --ui-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-health-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-policy-history-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-transaction-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --pattern-inspection-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --direct-report-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_diagnostic_observation.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish self-contained x64 EXE
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Read-only EXE and offline update probe smoke tests
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          $sample = Join-Path $PWD 'sample.dll'
+          $report = Join-Path $PWD 'report.txt'
+          [System.IO.File]::WriteAllBytes($sample, [byte[]](0x39,0x81,0x3C,0x06,0,0,0x0F,0x84,0x6F,0x66,0x01,0))
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
+          if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
+          $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
+          $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
+          if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }
+      - name: Non-destructive SYSTEM worker final Stable gate
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $probe = Start-Process -FilePath $exe -ArgumentList '--isolated-executor-qa' -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw "Protected SYSTEM worker probe failed with code $($probe.ExitCode). No system DLL was modified." }
+          Write-Host 'PASS: SYSTEM/Session 0 protected worker ran without writing a real DLL.'
+      - name: Package exact two-file portable ZIP and one-EXE updater ZIP
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: ./scripts/package_preview.ps1
+      - name: Publish unsigned Stable release after safety gates
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:RELEASE_TAG
+          $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
+          $notes = @(
+            "TermsrvPatcherUnified $env:RELEASE_VERSION - Stable channel, UNSIGNED Windows x64."
+            'Manually approved exact-signature inspection, verified backups and Restore, RDP health, and transactional EXE updates.'
+            'Google-to-GitHub diagnostics was validated on a real operator submission: Issue #32 and unverified observations CSV.'
+            'Modern Stable/Preview selector, wider startup UI, fixed Simple footer and scrollable confirmation dialogs.'
+            ''
+            'CAUTION: unsigned release; GitHub SHA-256 checks do not prove publisher authenticity.'
+            'CAUTION: Windows RDP system-file changes can interrupt active sessions. Follow Microsoft licensing and maintain independent local recovery and verified backups.'
+            'EXPERIMENTAL: unattended Auto Reapply and SYSTEM task ACL repair remain OFF by default; intermittent runner probe tracked in issue #25.'
+            'QA: Windows Server 2025 CI synthetic and non-destructive SYSTEM tests; real Windows 11 protected DLL writes, RDP reconnection and physical 200% DPI are not independently certified.'
+            'Reporting is opt-in: exact typed metadata is reviewed before a public GitHub Issue is created.'
+            ''
+            'Portable ZIP: TermsrvPatcherUnified.exe + Example.txt; updater ZIP: exactly one x64 EXE.'
+          )
+          Set-Content release-notes.txt -Value $notes -Encoding utf8
+          gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Stable)" --notes-file release-notes.txt --latest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify published updater release assets
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to read back the published GitHub release.' }
+          $expected = @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip', 'SHA256SUMS.txt')
+          $unexpected = @(Compare-Object -ReferenceObject $expected -DifferenceObject $assets)
+          if ($unexpected.Count -ne 0) {
+            throw ('Published release asset set does not match exactly the three required files: ' + ($unexpected | Out-String))
+          }
+          Write-Host ('PASS: exactly three release assets verified for ' + $env:RELEASE_TAG)
+) {
+            Write-Host 'VERSION is not Stable 1.x. Skipping Stable publisher.'
+            "PUBLISH_STABLE=false" >> $env:GITHUB_ENV
+            exit 0
+          }
+          "PUBLISH_STABLE=true" >> $env:GITHUB_ENV
+          $project = [xml](Get-Content TermsrvPatcher.Unified.csproj -Raw)
+          if ($project.Project.PropertyGroup.Version -ne $version) { throw 'The project version does not match VERSION.' }
+          if (-not (Get-Content Core/UpdateIntegration.cs -Raw).Contains('Version = "' + $version + '"')) { throw 'The updater version does not match VERSION.' }
+          "RELEASE_VERSION=$version" >> $env:GITHUB_ENV
+          "RELEASE_TAG=v$version" >> $env:GITHUB_ENV
+      - name: Embed preconfigured public diagnostics provider IDs (no per-user setup)
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          TPU_GOOGLE_APPS_SCRIPT_URL: ${{ vars.TPU_GOOGLE_APPS_SCRIPT_URL }}
+          TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
+        run: |
+          ./scripts/Configure-Reporting.ps1 -FromEnvironment
+      - name: Stage pinned official NSudo 8.2 x64
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/prepare-nsudo.ps1
+      - name: Check source and updater ZIP validator
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          python scripts/verify_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/verify_update_package.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile and execute synthetic tests
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          dotnet restore TermsrvPatcher.Unified.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet restore Tests/TermsrvPatcher.Tests.csproj
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --ui-smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-health-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-policy-history-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-transaction-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --pattern-inspection-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --direct-report-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_diagnostic_observation.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Publish self-contained x64 EXE
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Read-only EXE and offline update probe smoke tests
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: |
+          $sample = Join-Path $PWD 'sample.dll'
+          $report = Join-Path $PWD 'report.txt'
+          [System.IO.File]::WriteAllBytes($sample, [byte[]](0x39,0x81,0x3C,0x06,0,0,0x0F,0x84,0x6F,0x66,0x01,0))
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
+          if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
+          $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
+          if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
+          $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
+          if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }
+      - name: Package exact two-file portable ZIP and one-EXE updater ZIP
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: ./scripts/package_preview.ps1
+      - name: Publish explicit unsigned prerelease only
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:RELEASE_TAG
+          $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
+          $notes = @(
+            "TermsrvPatcherUnified $env:RELEASE_VERSION - UNSIGNED PREVIEW (not Stable)."
+            'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
+            'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
+            'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
+            'Preview.27 improves successful Revert/backup colors and offers friendly opt-in compatibility sharing after confirmed local Apply in Simple and Advanced.'
+            'The approved Google Apps Script endpoint is embedded in the EXE. Reports create public GitHub Issues only after user confirmation.'
+            'Google reporting requires an explicit review and a verified GitHub Issue URL; no local save or account required. Live Google delivery, Scheduler ACL repair and OAuth sign-in remain unverified; CI uses simulated HTTP.'
+            'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
+            ''
+            'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'
+          )
+          Set-Content release-notes.txt -Value $notes -Encoding utf8
+          gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify published updater release assets
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to read back the published GitHub release.' }
+          $expected = @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip', 'SHA256SUMS.txt')
+          $unexpected = @(Compare-Object -ReferenceObject $expected -DifferenceObject $assets)
+          if ($unexpected.Count -ne 0) {
+            throw ('Published release asset set does not match exactly the three required files: ' + ($unexpected | Out-String))
+          }
+          Write-Host ('PASS: exactly three release assets verified for ' + $env:RELEASE_TAG)
