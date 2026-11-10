@@ -1,1 +1,2 @@
 issue_number,event_id,observed_utc,received_utc,windows_release,windows_build,windows_ubr,dll_version,dll_sha256,app_version,component,error_type,error_code,severity,architecture,verification
+32,f3227eec-485b-4304-aa56-97f44dfdad69,2026-11-10T14:56:49Z,2026-11-10T14:59:09Z,26H2,26300,9711,10.0.26100.9549,e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456,0.1.0-preview.28,Application,USER_REPORT,MANUAL,error,AMD64,unverified
