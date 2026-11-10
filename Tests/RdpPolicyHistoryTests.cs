@@ -57,6 +57,61 @@ internal static class RdpPolicyHistoryTests
                RdpBlankPasswordSecurity.Interpret("1") is null &&
                RdpBlankPasswordSecurity.Interpret(null) is null,
                "blank-password policy treats malformed/missing values as unknown");
+        var allowedPort = RdpLocalAdvancedSettings.Find("RDP TCP port");
+        Verify(allowedPort is not null && allowedPort.RegistryValue == "PortNumber" &&
+               RdpLocalAdvancedSettings.Find("Disable clipboard redirection") is null &&
+               RdpPolicySourceResolver.ValueForSetting("Disable clipboard redirection") == "fDisableClip",
+               "editable registry names remain allowlisted separately from read-only RSoP source lookup");
+        Verify(RdpLocalAdvancedSettings.ParseValue(allowedPort!, "3389") == 3389 &&
+               RdpLocalAdvancedSettings.ParseValue(allowedPort, "65535") == 65535,
+               "numeric port editor accepts exact valid values");
+        bool refusedPort = false;
+        try { RdpLocalAdvancedSettings.ParseValue(allowedPort!, "65536"); }
+        catch (ArgumentOutOfRangeException) { refusedPort = true; }
+        Verify(refusedPort, "out-of-range RDP editor values are blocked");
+
+        const string gpoGuid = "{11111111-2222-3333-4444-555555555555}";
+        string gpoId = "CN=" + gpoGuid +
+            ",CN=Policies,CN=System,DC=yosh,DC=ac,DC=il";
+        var registryRule = new RdpRsopRegistryEntry(
+            @"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services",
+            "PortNumber", gpoId, 1);
+        var winning = RdpPolicySourceResolver.Resolve("PortNumber",
+            new[] { registryRule },
+            new[] { new RdpRsopGpoEntry(gpoId, gpoGuid, "Domain RDP Security Settings") });
+        Verify(winning.Resolved && winning.Label == "Domain RDP Security Settings" &&
+               winning.Details.Contains("PortNumber", StringComparison.Ordinal) &&
+               winning.Details.Contains(gpoGuid, StringComparison.OrdinalIgnoreCase),
+               "blocked RDP option displays exact winning domain GPO plus registry value");
+        var lost = RdpPolicySourceResolver.Resolve("PortNumber",
+            new[] { registryRule with { Precedence = 2 } },
+            new[] { new RdpRsopGpoEntry(gpoId, gpoGuid, "Losing policy") });
+        Verify(!lost.Resolved && lost.Label == "GPO not identified",
+               "non-winning precedence must never be shown as blocking GPO");
+        var mismatchedPath = RdpPolicySourceResolver.Resolve("PortNumber",
+            new[] { registryRule with {
+                RegistryKey = @"HKLM\SOFTWARE\Policies\Other\Terminal Services" } },
+            new[] { new RdpRsopGpoEntry(gpoId, gpoGuid, "Unrelated policy") });
+        Verify(!mismatchedPath.Resolved, "policy key must match exactly, not a suffix or name");
+        var mismatchedGpo = RdpPolicySourceResolver.Resolve("PortNumber",
+            new[] { registryRule },
+            new[] { new RdpRsopGpoEntry("CN={AAAAAAA1-2222-3333-4444-555555555555}",
+                "{AAAAAAA1-2222-3333-4444-555555555555}", "Other GPO") });
+        Verify(!mismatchedGpo.Resolved && mismatchedGpo.Details.Contains(gpoGuid,
+                    StringComparison.OrdinalIgnoreCase),
+               "unmatched RSoP GPO GUID is shown only as an unresolved identifier");
+        Verify(RdpPolicySourceResolver.NormalizeRegistryKey(
+               @"\Registry\Machine\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services")
+                .Equals(RdpPolicySourceResolver.NormalizeRegistryKey(
+               @"HKLM\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services"),
+               StringComparison.OrdinalIgnoreCase),
+               "RSoP key aliases map to the same exact computer policy key");
+        bool refusedUnknownPolicy = false;
+        try { RdpPolicySourceResolver.Resolve("UntrustedValue", Array.Empty<RdpRsopRegistryEntry>(),
+            Array.Empty<RdpRsopGpoEntry>()); }
+        catch (ArgumentException) { refusedUnknownPolicy = true; }
+        Verify(refusedUnknownPolicy, "arbitrary registry values cannot be treated as editable RDP policies");
+
         Verify(RdpPolicyDiagnostics.Evaluate("Idle limit", null, 300000, 0, int.MaxValue)
                    .Assessment == "Policy configured",
                "session time-limit policy is inspected without assuming local defaults");
