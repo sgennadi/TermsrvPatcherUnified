@@ -6,6 +6,7 @@ param(
     [AllowEmptyString()][string] $FormspreeFormId,
     [AllowEmptyString()][string] $GitHubOAuthClientId,
     [switch] $FromEnvironment,
+    [switch] $ImportProgramData,
     [switch] $LocalOnly,
     [string] $Repository = 'sgennadi/TermsrvPatcherUnified'
 )
@@ -29,11 +30,40 @@ if ($publishVariables) {
         throw "GitHub CLI is not signed in. Run 'gh auth login' on the administrator's PC (only once)."
     }
 }
+if ($FromEnvironment -and $ImportProgramData) {
+    throw 'Choose either -FromEnvironment or -ImportProgramData, not both.'
+}
 if ($FromEnvironment) {
     # No prompts, network requests or gh authentication in CI.
     # Unset variables produce disabled, never fake, reporting providers.
     $FormspreeFormId = [string] $env:TPU_FORMSPREE_FORM_ID
     $GitHubOAuthClientId = [string] $env:TPU_GITHUB_OAUTH_CLIENT_ID
+} elseif ($ImportProgramData) {
+    if ($PSBoundParameters.ContainsKey('FormspreeFormId') -or
+        $PSBoundParameters.ContainsKey('GitHubOAuthClientId')) {
+        throw 'Do not combine -ImportProgramData with explicit provider IDs.'
+    }
+    $source = Join-Path (Join-Path $env:ProgramData 'TermsrvPatcherUnified') 'reporting.json'
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw 'No existing administrator reporting.json was found under ProgramData.'
+    }
+    if ((Get-Item -LiteralPath $source).Length -gt 4096) {
+        throw 'ProgramData reporting.json is too large.'
+    }
+    $parsed = ConvertFrom-Json -InputObject ([System.IO.File]::ReadAllText($source)) -AsHashtable
+    if ($null -eq $parsed -or $parsed -isnot [System.Collections.IDictionary]) {
+        throw 'ProgramData reporting.json must be a JSON object.'
+    }
+    foreach ($name in @($parsed.Keys)) {
+        if ($name -cnotin @('formspree_form_id', 'github_oauth_client_id')) {
+            throw 'Unrecognized field in the ProgramData reporting configuration.'
+        }
+        if ($null -ne $parsed[$name] -and $parsed[$name] -isnot [string]) {
+            throw 'Provider identifiers must be text strings.'
+        }
+    }
+    $FormspreeFormId = [string] $parsed['formspree_form_id']
+    $GitHubOAuthClientId = [string] $parsed['github_oauth_client_id']
 } else {
     if (-not $PSBoundParameters.ContainsKey('FormspreeFormId')) {
         $FormspreeFormId = Read-Host 'Formspree Form ID (blank disables this provider)'
