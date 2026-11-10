@@ -117,6 +117,9 @@ public partial class MainWindow : Window
         AutoProfileGrid.ItemsSource = null;
         AutoPriorityGrid.ItemsSource = null;
         AutoPriorityGrid.SelectedItem = null;
+        AutoSimpleStatus.Text = "Checking exact signatures...";
+        AutoSimpleProfile.Text = "Detected pattern: checking...";
+        AutoSimpleReason.Text = "No automatic Apply is available until the check finishes.";
         AutoPrioritySummary.Text = "Checking all priority candidates against the current DLL...";
         AutoSignatureGrid.SelectedItem = null;
         AutoSignatureSummary.Text = "Checking actual DLL bytes and verifying SHA-256 consistency...";
@@ -161,6 +164,27 @@ public partial class MainWindow : Window
             SystemText.Text = os.Display + (os.Is64Bit ? " | x64" : " | x86");
             DllText.Text = $"termsrv.dll: {os.DllVersion}  |  {os.DllPath}";
             StatusText.Text = $"Automatic status: {autoPlan.State}  |  {autoPlan.Description}";
+            AutoSimpleStatus.Text = autoPlan.State switch
+            {
+                PatchState.Ready => "Exact pattern verified — ready to apply",
+                PatchState.AlreadyPatched => "Already patched",
+                PatchState.Ambiguous => "Multiple conflicting signatures — Apply blocked",
+                PatchState.Unsupported => "Automatic Apply unavailable on this file",
+                _ => "No verified automatic pattern found"
+            };
+            AutoSimpleStatus.Foreground = autoPlan.State == PatchState.Ready
+                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            AutoSimpleProfile.Text = string.IsNullOrWhiteSpace(autoPlan.ProfileId)
+                ? "Detected pattern: none"
+                : "Detected pattern: " + autoPlan.ProfileId;
+            AutoSimpleReason.Text = autoPlan.State == PatchState.Ready
+                ? "One verified profile selected. Review and confirm Apply; only the current DLL will be modified."
+                : autoPlan.State == PatchState.AlreadyPatched
+                    ? "No patch is needed. Revert is available only with independently verified recovery evidence."
+                    : autoPlan.State == PatchState.Ambiguous
+                        ? "Conflicting or overlapping matches must be reviewed in Technical details."
+                        : "No compatible single automatic target is authorized. Open Technical details for diagnostics.";
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
@@ -208,6 +232,12 @@ public partial class MainWindow : Window
             }
             FooterText.Text = $"Check completed: {autoPlan.State}. Evidence SHA-256 verified.";
         });
+        if (autoPlan is null)
+        {
+            AutoSimpleStatus.Text = "Automatic check could not complete";
+            AutoSimpleProfile.Text = "Detected pattern: unknown";
+            AutoSimpleReason.Text = "No verified Apply is available. Review the error and run Check DLL again.";
+        }
     }
 
     private void AutoPrioritySelectionChanged(object sender,
