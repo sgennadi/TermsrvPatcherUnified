@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-preview.27 — 2026-11-10
+
+- **Revert status:** successful authenticated Restore/Revert explicitly uses green, failures use red, and catalog-only reconstruction without verified original uses amber. Checking resets stale status colors.
+- **Success sharing:** after confirmed local console Apply in Advanced, offer an optional short Formspree report. Successful manual Apply now opens a friendlier dialog with primary optional Formspree review and the former detailed public GitHub metadata submission retained under Advanced.
+- **Privacy:** neither a completed Apply nor an optional reporting dialog triggers an upload. The operator must still review the exact fields and explicitly approve Formspree sending. No local report file or account is required for Formspree.
+- **Verification:** WPF smoke tests confirm that the new success dialog has optional Formspree sharing and retains the existing advanced GitHub controls. Tests do not modify system DLLs or Task Scheduler entries.
+
 ## 0.1.0-preview.26 — 2026-11-10
 
 - **Task Scheduler ACL:** register SYSTEM Auto Reapply with TASK_DONT_ADD_PRINCIPAL_ACE, apply a protected task ACL explicitly and re-check the task. Existing tasks with our expected action, SYSTEM identity, schedule and protected worker may be repaired only with a separate administrator confirmation. Unknown tasks remain blocked.

@@ -200,6 +200,15 @@ internal static class UiSmokeTests
                     !overview.Contains("Windows Event Logs", StringComparison.OrdinalIgnoreCase))
                     throw new Exception("Cleanup preview must warn about recovery loss and excluded system logs.");
 
+                var successReport = new SuccessfulFixWindow(record);
+                if (successReport.FindName("SimpleReportButton") is not Button simpleShare ||
+                    !simpleShare.IsEnabled ||
+                    successReport.FindName("SimpleReportBox") is not Border easyReportBox ||
+                    easyReportBox.Visibility != Visibility.Visible ||
+                    successReport.FindName("SendButton") is not Button ||
+                    successReport.FindName("TokenInput") is not PasswordBox ||
+                    successReport.FindName("SkipButton") is not Button)
+                    throw new Exception("Successful Apply must offer friendly optional sharing without removing advanced GitHub reporting.");
                 var windows = new Window[]
                 {
                     quick,
@@ -208,7 +217,7 @@ internal static class UiSmokeTests
                     diagnosticsWindow,
                     cleanup,
                     new AboutWindow(),
-                    new SuccessfulFixWindow(record)
+                    successReport
                 };
                 foreach (var window in windows)
                 {

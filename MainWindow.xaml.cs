@@ -470,7 +470,10 @@ public partial class MainWindow : Window
             }, "Apply");
             await CheckAsync();
             if (consoleSuccess)
+            {
                 FooterText.Text = "Local console Apply completed and verified.";
+                OfferSimpleCompatibilityReport("Verified automatic Apply");
+            }
             return;
         }
         // Manual Apply still runs in the interactive context: do not imply
@@ -500,6 +503,34 @@ public partial class MainWindow : Window
                 AuditLog.Append("Optional compatibility dialog was unavailable: " +
                     ex.GetType().Name);
             }
+        }
+    }
+
+    private void OfferSimpleCompatibilityReport(string context)
+    {
+        // Report offer is UI-only and cannot affect the completed protected
+        // operation. No report is generated or sent when declined.
+        if (!IsLoaded) return;
+        if (MessageBox.Show(this,
+                "The operation completed successfully.\n\n" +
+                "Would you like to share a short compatibility report? " +
+                "It can help improve support for this Windows build.\n\n" +
+                "You will review the details before sending. " +
+                "No account, local save or automatic upload is needed.",
+                "Share compatibility information?", MessageBoxButton.YesNo,
+                MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
+                context, "VerifiedSuccess", "SUCCESS",
+                "Protected Apply completed and verified."))
+            { Owner = this }.ShowDialog();
+        }
+        catch (Exception ex)
+        {
+            DiagnosticsBridge.Remember("Optional compatibility report", ex);
+            AuditLog.Append("Optional reporting dialog unavailable: " + ex.GetType().Name);
         }
     }
 
