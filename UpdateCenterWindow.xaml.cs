@@ -135,8 +135,17 @@ public partial class UpdateCenterWindow : Window
             "The existing EXE will be backed up; the app will close, replace the EXE and " +
             "run a health probe. If the probe fails, a rollback is attempted. " +
             "Install only on a computer you administer. Local Desktop and Downloads paths are supported; network and linked paths are blocked.\n\nProceed?";
-        if (MessageBox.Show(this, warning, "Confirm manual EXE replacement",
-            MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        if (!ModernConfirmDialog.Ask(this,
+            "Install update " + release.Version + "?",
+            "The updater will verify the download, preserve your current EXE, " +
+            "then restart the application. A failed startup probe attempts rollback.",
+            "GitHub Releases: " + UpdateIntegration.Repository +
+                " | " + channel + " | Windows x64",
+            warning,
+            "Install update",
+            "This executable is unsigned. SHA-256 and ZIP verification do not " +
+            "replace a trusted publisher signature. Installation is always manual.",
+            diagnosticReport: false))
             return;
         installing = true;
         CheckButton.IsEnabled = false;
