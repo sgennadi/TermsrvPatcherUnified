@@ -29,7 +29,12 @@ internal static class AutoReapplyScheduler
 
     internal sealed record TaskState(bool Installed, bool Trusted, bool Enabled, string Message);
     private sealed record WorkerState(string SchemaId, string LastObservedSha256,
-        string Result, string CheckedUtc);
+        string Result, string CheckedUtc, string RuntimeVersion);
+
+    internal static bool NeedsInspection(string currentSha, string currentVersion,
+        string lastSha, string? lastRuntimeVersion)
+        => !currentSha.Equals(lastSha, StringComparison.OrdinalIgnoreCase) ||
+           !currentVersion.Equals(lastRuntimeVersion, StringComparison.Ordinal);
 
     internal static TaskState ReadStatus()
     {
@@ -112,7 +117,7 @@ internal static class AutoReapplyScheduler
         var existing = ReadWorkerState();
         if (existing is null)
             SaveWorkerState(new WorkerState(Schema, HashFile(dll), "Armed",
-                DateTimeOffset.UtcNow.ToString("O")));
+                DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
 
         RegisterTask();
         var confirmed = ReadStatus();
@@ -188,10 +193,11 @@ internal static class AutoReapplyScheduler
             {
                 // Missing/corrupted state must not authorize an unattended patch.
                 SaveWorkerState(new WorkerState(Schema, beforeSha, "State recreated; no Apply",
-                    DateTimeOffset.UtcNow.ToString("O")));
+                    DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
                 return 9;
             }
-            if (beforeSha.Equals(saved.LastObservedSha256, StringComparison.OrdinalIgnoreCase))
+            if (!NeedsInspection(beforeSha, UpdateIntegration.Version, saved.LastObservedSha256,
+                    saved.RuntimeVersion))
                 return 0;
 
             var plan = engine.Inspect();
@@ -209,7 +215,7 @@ internal static class AutoReapplyScheduler
                         StringComparison.OrdinalIgnoreCase))
                     throw new IOException("Scheduled Apply did not produce the verified DLL hash.");
                 SaveWorkerState(new WorkerState(Schema, verified, "Applied verified automatic profile",
-                    DateTimeOffset.UtcNow.ToString("O")));
+                    DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
                 AuditLog.Append("Auto reapply after DLL change succeeded. Profile=" + plan.ProfileId);
                 return 0;
             }
@@ -217,7 +223,8 @@ internal static class AutoReapplyScheduler
             // Record the observed hash to avoid repeatedly retrying the same
             // DLL with the same binary/pattern database on each scheduled run.
             SaveWorkerState(new WorkerState(Schema, beforeSha,
-                "Skipped: " + plan.State, DateTimeOffset.UtcNow.ToString("O")));
+                "Skipped: " + plan.State, DateTimeOffset.UtcNow.ToString("O"),
+                UpdateIntegration.Version));
             AuditLog.Append("Auto reapply skipped after DLL change: " + plan.State);
             return plan.State == PatchState.AlreadyPatched ? 0 : 10;
         }
