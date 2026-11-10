@@ -1,4 +1,13 @@
-# Preview QA status — 2026-11-10
+# QA status — 2026-11-10
+
+## Stable 1.0.0 release candidate
+
+- [Pre-version alignment Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42849738314) passed source validation, .NET 10 compilation, signed-off synthetic signature/PE and RDP checks, backup/rollback, WPF creation/layout smoke tests and a non-destructive SYSTEM/Session 0 executor probe. **This is not evidence that real RDP sessions were exercised.**
+- A separate version-aligned final Windows CI build must pass before publishing Stable 1.0.0. A clean main-branch build and release checksums must also be validated.
+- [Diagnostic Issue #32](https://github.com/sgennadi/TermsrvPatcherUnified/issues/32) confirms delivery of an operator-approved Google Apps Script → GitHub report. The Windows/DLL evidence remains unverified and never changes active patch patterns.
+- The Updates button badge on both Simple and Advanced is informational; cached results cannot authorize Install. Users must review a verified live package and explicitly approve replacement.
+- CI **does not** validate protected System32 writes, RDP disconnection and reconnection, a real Windows Update with Auto Reapply enabled, or physical 200% DPI screenshots. These require isolated authorized VM tests with independent console recovery.
+- Auto Reapply remains off by default. Unknown, ambiguous or mismatching signatures are not automatically patched.
 
 ## 0.1.0-preview.23 — isolated Windows CI only
 
