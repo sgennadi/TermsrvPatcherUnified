@@ -48,10 +48,18 @@ internal sealed record DiagnosticEnvironment(
             if (!infoAfter.Exists || infoBefore.Length != infoAfter.Length ||
                 infoBefore.LastWriteTimeUtc != infoAfter.LastWriteTimeUtc)
                 return null;
-            string finalVersion = FileVersionInfo.GetVersionInfo(os.DllPath).FileVersion ?? "";
-            if (finalVersion != os.DllVersion) return null;
+            var stamp = FileVersionInfo.GetVersionInfo(os.DllPath);
+            if (!string.Equals(stamp.FileVersion, os.DllVersion,
+                    StringComparison.Ordinal)) return null;
+            // FileVersionInfo.FileVersion can contain a Windows build label,
+            // e.g. '(WinBuild.160101.0800)'. Use numeric PE version parts.
+            if (stamp.FileMajorPart < 0 || stamp.FileMinorPart < 0 ||
+                stamp.FileBuildPart < 0 || stamp.FilePrivatePart < 0)
+                return null;
+            string numericVersion = string.Join(".", stamp.FileMajorPart, stamp.FileMinorPart,
+                stamp.FileBuildPart, stamp.FilePrivatePart);
             var data = new DiagnosticEnvironment(os.DisplayVersion, os.Build, os.Ubr,
-                os.DllVersion, hash);
+                numericVersion, hash);
             return data.Valid ? data : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
