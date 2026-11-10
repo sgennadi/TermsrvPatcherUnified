@@ -34,7 +34,7 @@ public partial class DiagnosticsWindow
             GitHubDeviceStatus.Text = "GitHub OAuth is not configured in this EXE.";
             return;
         }
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "A GitHub account is required. This OAuth App requests public_repo scope, " +
                 "which permits public repository code access in addition to Issues. " +
                 "Authorize only an OAuth App you trust. No report is submitted during sign-in.\n\nContinue?",

@@ -27,6 +27,7 @@ public partial class MainWindow : Window
     private int? observedRdpListenerPort;
     private int? previousRdpListenerPort;
     private bool portRestartNeedsReview;
+    private RdpConfigurationReport? lastRdpPolicyReport;
     private readonly UpdateIntegration updates = new();
 
     public MainWindow(bool offlineStartup = false)
@@ -94,7 +95,7 @@ public partial class MainWindow : Window
                 OperationHistory.TryRecord(historyOperation, "Failure", failureType: e.GetType().Name);
             FooterText.Text = "Error: " + e.Message;
             AuditLog.Append($"Operation failed: {e.GetType().Name}: {e.Message}");
-            MessageBox.Show(this, e.Message, "TermsrvPatcher Unified", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ModernMessageDialog.Show(this, e.Message, "TermsrvPatcher Unified", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
@@ -360,7 +361,7 @@ public partial class MainWindow : Window
                                    InvalidDataException)
         {
             FooterText.Text = "Evidence export refused: " + ex.GetType().Name;
-            MessageBox.Show(this, "The DLL changed, report was invalid, or the file could " +
+            ModernMessageDialog.Show(this, "The DLL changed, report was invalid, or the file could " +
                 "not be saved. Run Check DLL again and choose a new .txt path.",
                 "Signature evidence not exported", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
@@ -387,8 +388,11 @@ public partial class MainWindow : Window
     private async void Refresh_Click(object sender, RoutedEventArgs e) => await CheckAsync();
 
     private static bool Confirm(Window owner, string title, string message)
-        => MessageBox.Show(owner, message, title, MessageBoxButton.YesNo,
-            MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+        => ModernMessageDialog.Confirm(owner, title, message,
+            title.Contains("Group Policy", StringComparison.OrdinalIgnoreCase)
+                ? "Refresh policy" : title.Contains("Restore", StringComparison.OrdinalIgnoreCase)
+                ? "Restore" : title.Contains("Apply", StringComparison.OrdinalIgnoreCase)
+                ? "Apply" : "Continue");
 
     private void About_Click(object sender, RoutedEventArgs e)
     {
@@ -400,7 +404,7 @@ public partial class MainWindow : Window
         if (plan?.State != PatchState.Ready || !NsudoDevilModeScope.IsBundled || !SystemInfo.IsAdministrator()) return;
         if (manual && InteractiveSessionDetector.RequiresIndependentExecutor())
         {
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "Manual Apply is not yet supported by the isolated SYSTEM executor. " +
                 "Use the local or VM console. Automatic Apply uses Task Scheduler over RDP.",
                 "Manual Apply requires local console", MessageBoxButton.OK,
@@ -448,7 +452,7 @@ public partial class MainWindow : Window
             bool isolatedNow = InteractiveSessionDetector.RequiresIndependentExecutor();
             if (isolatedNow != isolatedAtConfirmation)
             {
-                MessageBox.Show(this,
+                ModernMessageDialog.Show(this,
                     "The Windows session type changed after confirmation. No task or patch was started. " +
                     "Check DLL and approve Apply again.",
                     "Session type changed", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -513,7 +517,7 @@ public partial class MainWindow : Window
         // Report offer is UI-only and cannot affect the completed protected
         // operation. No report is generated or sent when declined.
         if (!IsLoaded) return;
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "The operation completed successfully.\n\n" +
                 "Would you like to share a short compatibility report? " +
                 "It can help improve support for this Windows build.\n\n" +
@@ -543,7 +547,7 @@ public partial class MainWindow : Window
     {
         if (InteractiveSessionDetector.RequiresIndependentExecutor())
         {
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "Restore may stop Remote Desktop services. Use the local or VM console " +
                 "until a separately verified SYSTEM Restore worker is available.",
                 "Restore requires local console", MessageBoxButton.OK,
@@ -553,7 +557,7 @@ public partial class MainWindow : Window
         var verified = engine.BackupsForCurrentVersion();
         if (verified.Count == 0)
         {
-            MessageBox.Show(this, "No trusted backup for the currently installed DLL.",
+            ModernMessageDialog.Show(this, "No trusted backup for the currently installed DLL.",
                 "Restore unavailable", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -576,7 +580,7 @@ public partial class MainWindow : Window
     {
         if (!Directory.Exists(TermsrvEngine.BackupDirectory))
         {
-            MessageBox.Show(this, "No backup directory has been created yet.",
+            ModernMessageDialog.Show(this, "No backup directory has been created yet.",
                 "Backups", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -764,7 +768,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            MessageBox.Show(this, ex.Message, "Cannot save pattern", MessageBoxButton.OK, MessageBoxImage.Warning);
+            ModernMessageDialog.Show(this, ex.Message, "Cannot save pattern", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 
@@ -788,7 +792,7 @@ public partial class MainWindow : Window
             ApplyManualButton.IsEnabled = false;
             _ = CheckAllImportedAsync();
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Invalid pattern file"); }
+        catch (Exception ex) { ModernMessageDialog.Show(this, ex.Message, "Invalid pattern file"); }
     }
 
     private async void CheckAllImported_Click(object sender, RoutedEventArgs e)
@@ -864,7 +868,7 @@ public partial class MainWindow : Window
     {
         if (plan is null)
         {
-            MessageBox.Show(this, "Check the DLL first.", "DryRun", MessageBoxButton.OK,
+            ModernMessageDialog.Show(this, "Check the DLL first.", "DryRun", MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
         }
@@ -886,7 +890,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             DiagnosticsBridge.Remember("DryRun export", ex);
-            MessageBox.Show(this, ex.Message, "DryRun export refused",
+            ModernMessageDialog.Show(this, ex.Message, "DryRun export refused",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -919,7 +923,7 @@ public partial class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(OfflineSource.Text))
         {
-            MessageBox.Show(this, "Choose termsrv.dll first.", "Offline DLL");
+            ModernMessageDialog.Show(this, "Choose termsrv.dll first.", "Offline DLL");
             return;
         }
         var path = OfflineSource.Text;
@@ -1023,7 +1027,7 @@ public partial class MainWindow : Window
 
     private void ExportScan_Click(object sender, RoutedEventArgs e)
     {
-        if (lastScan is null) { MessageBox.Show(this, "Run Search inside DLL first."); return; }
+        if (lastScan is null) { ModernMessageDialog.Show(this, "Run Search inside DLL first."); return; }
         var dialog = new SaveFileDialog { Title = "Save read-only inspection report", Filter = "Text report (*.txt)|*.txt",
             FileName = "termsrv-inspection.txt" };
         if (dialog.ShowDialog(this) != true) return;
@@ -1035,7 +1039,7 @@ public partial class MainWindow : Window
     {
         if (lastScan is null)
         {
-            MessageBox.Show(this, "Run Search inside DLL first.");
+            ModernMessageDialog.Show(this, "Run Search inside DLL first.");
             return;
         }
         Clipboard.SetText(lastScan.AsText());
@@ -1144,7 +1148,7 @@ public partial class MainWindow : Window
         var spec = RdpLocalAdvancedSettings.Find(selected.Setting);
         if (spec is null)
         {
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "This setting is read-only in this version. Check the source above " +
                 "and edit the controlling GPO in Group Policy Management if required.",
                 "RDP setting is not locally editable", MessageBoxButton.OK,
@@ -1169,15 +1173,24 @@ public partial class MainWindow : Window
         await RunBusy(async () =>
         {
             var report = await Task.Run(RdpPolicyDiagnostics.ReadLocal);
+            ShowRdpPolicyReport(report);
             RdpPolicyGrid.ItemsSource = report.Values;
             RdpPolicySummary.Text = report.Values.Count + " settings inspected, " +
                 report.Warnings.Count + " notice(s). TermService: " + report.TermServiceStatus +
                 ". No changes made.";
             RdpPolicyDetails.Text = report.AsText();
-            RdpServiceText.Text = "TermService: " + report.TermServiceStatus +
-                " | " + report.Warnings.Count + " configuration notice(s).";
             FooterText.Text = "RDP configuration diagnostic completed (read-only).";
         });
+    }
+
+    private void MainTabs_SelectionChanged(object sender,
+        System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, MainTabs) || !IsLoaded || busy)
+            return;
+        if (MainTabs.SelectedItem is System.Windows.Controls.TabItem tab &&
+            tab.Header as string == "Remote Desktop" && lastRdpPolicyReport is null)
+            CheckRdpPolicy_Click(sender, new RoutedEventArgs());
     }
 
     private async void RefreshOperationHistory_Click(object sender, RoutedEventArgs e)
@@ -1193,17 +1206,108 @@ public partial class MainWindow : Window
         });
     }
 
+    private static readonly Brush RdpGoodBrush =
+        new SolidColorBrush(Color.FromRgb(22, 101, 52));
+    private static readonly Brush RdpWarningBrush =
+        new SolidColorBrush(Color.FromRgb(146, 64, 14));
+    private static readonly Brush RdpUnknownBrush =
+        new SolidColorBrush(Color.FromRgb(71, 85, 105));
+
+    private static void RenderRdpTile(System.Windows.Controls.TextBlock tile,
+        string value, string source, bool safe)
+    {
+        tile.Text = value + Environment.NewLine + source;
+        tile.Foreground = source == "Unknown" ? RdpUnknownBrush
+            : safe ? RdpGoodBrush : RdpWarningBrush;
+        tile.ToolTip = "Configured values only. Current RDP connectivity is not independently verified.";
+    }
+
+    private static (string Source, string Value) RdpPolicyValue(
+        RdpConfigurationReport report, string setting)
+    {
+        var row = report.Values.FirstOrDefault(x => x.Setting == setting);
+        if (row is null || row.Assessment == "Invalid value")
+            return ("Unknown", "");
+        if (row.Assessment is "Policy differs" or "Policy configured")
+            return ("GPO configured*", row.PolicyValue);
+        if (row.Assessment == "Local setting")
+            return ("Local", row.LocalValue);
+        return ("Unknown", "");
+    }
+
+    private static string RdpSourceLabel(RdpConfigurationReport report, string setting)
+    {
+        var row = report.Values.FirstOrDefault(x => x.Setting == setting);
+        return row?.Assessment switch
+        {
+            "Policy configured" => "GPO configured*",
+            "Policy differs" => "GPO differs* - review",
+            "Local setting" => "Local",
+            "Invalid value" => "Invalid - review",
+            _ => "Unknown"
+        };
+    }
+
+    private void ShowRdpPolicyReport(RdpConfigurationReport report)
+    {
+        lastRdpPolicyReport = report;
+        RdpServiceText.Text = "TermService: " + report.TermServiceStatus +
+            " | " + report.Warnings.Count + " notice(s). Service running does not prove remote reachability.";
+        var policyCount = report.Values.Count(v => v.Assessment is "Policy configured" or "Policy differs");
+        RdpPolicyOverviewText.Text = policyCount == 0
+            ? "Policy source: no applicable registry policy detected in inspected settings; GPO application not independently confirmed."
+            : "Policy source: " + policyCount +
+              " computer policy setting(s) detected; *GPO configured does not prove effective application. See Advanced for the winning RSoP GPO.";
+        RdpEnabledSourceText.Text = RdpSourceLabel(report, "Remote Desktop");
+        NlaSourceText.Text = RdpSourceLabel(report, "Network Level Authentication");
+        SingleSourceText.Text = RdpSourceLabel(report, "One session per user");
+        var remote = RdpPolicyValue(report, "Remote Desktop");
+        var nla = RdpPolicyValue(report, "Network Level Authentication");
+        var single = RdpPolicyValue(report, "One session per user");
+        string remoteValue = remote.Value.StartsWith("Enabled (", StringComparison.Ordinal)
+            ? "Enabled" : remote.Value.StartsWith("Disabled (", StringComparison.Ordinal)
+            ? "Disabled" : "Unknown";
+        string nlaValue = nla.Value.StartsWith("Required (", StringComparison.Ordinal)
+            ? "Required" : nla.Value.StartsWith("Not required (", StringComparison.Ordinal)
+            ? "Not required" : "Unknown";
+        string singleValue = single.Value.StartsWith("On (", StringComparison.Ordinal)
+            ? "On" : single.Value.StartsWith("Off (", StringComparison.Ordinal)
+            ? "Off" : "Unknown";
+        RenderRdpTile(RdpEffectiveEnabledText, remoteValue, remote.Source, remoteValue == "Enabled");
+        RenderRdpTile(RdpEffectiveNlaText, nlaValue, nla.Source, nlaValue == "Required");
+        RenderRdpTile(RdpEffectiveSingleText, singleValue, single.Source, singleValue == "On");
+
+        var port = RdpPolicyValue(report, "RDP TCP port");
+        RdpEffectivePortText.Text = port.Source == "Unknown" ? "Configured port: unknown"
+            : "Configured port: " + port.Value + " (" + port.Source + ")";
+        RdpOverviewText.Text = "RDP configuration: " + remoteValue +
+            " | NLA: " + nlaValue + " | Service: " + report.TermServiceStatus;
+    }
+
     private void ReadRdp()
     {
         var status = RdpConfiguration.Read();
         RdpEnabled.IsChecked = status.Enabled;
         NlaEnabled.IsChecked = status.NetworkLevelAuthentication;
         SingleSession.IsChecked = status.OneSessionPerUser;
-        RdpOverviewText.Text = (status.Enabled ? "RDP enabled" : "RDP disabled") +
-            "   |   NLA: " + (status.NetworkLevelAuthentication ? "required" : "NOT required") +
-            "   |   One session per user: " + (status.OneSessionPerUser ? "Yes" : "No");
-        RdpDetails.Text = "Current local settings loaded. Group Policy may override these values.";
+        RdpOverviewText.Text = "Local RDP: " + (status.Enabled ? "Enabled" : "Disabled") +
+            " | Local NLA: " + (status.NetworkLevelAuthentication ? "Required" : "Not required") +
+            " | Effective remote access: not verified";
+        RenderRdpTile(RdpEffectiveEnabledText, status.Enabled ? "Enabled" : "Disabled",
+            "Local", status.Enabled);
+        RenderRdpTile(RdpEffectiveNlaText, status.NetworkLevelAuthentication ? "Required" : "Not required",
+            "Local", status.NetworkLevelAuthentication);
+        RenderRdpTile(RdpEffectiveSingleText, status.OneSessionPerUser ? "On" : "Off",
+            "Local", status.OneSessionPerUser);
+        RdpEnabledSourceText.Text = NlaSourceText.Text = SingleSourceText.Text =
+            "Local (GPO not yet checked)";
+        RdpPolicyOverviewText.Text = "Policy: not checked. Local values can be overridden by domain policy.";
+        RdpServiceText.Text = "TermService: not yet verified.";
+        RdpEffectiveFirewallText.Text = "Firewall: not independently verified";
+        RdpDetails.Text = "Local values loaded. Use Check configuration under Advanced to inspect policy evidence.";
         var port = RdpPostApply.ReadLocalPort();
+        RdpEffectivePortText.Text = "Configured port (local): " +
+            (port?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "unknown");
         if (RdpPostApply.ListenerRestartRequired(observedRdpListenerPort, port))
         {
             previousRdpListenerPort = observedRdpListenerPort;
@@ -1213,17 +1317,34 @@ public partial class MainWindow : Window
                 " to " + port + ". A TermService restart or Windows reboot may be required. " +
                 "Do not restart from an RDP-only connection.";
             RdpPostApplyActions.Text =
-                "Restart review required. Confirm the new Firewall port and arrange local/console recovery.";
+                "Restart review required. Verify Firewall rules for the new port and arrange independent console recovery.";
         }
         observedRdpListenerPort = port;
+        RdpEffectiveRestartText.Text = portRestartNeedsReview
+            ? "Restart: review required (port changed)" : "Restart: no port drift observed";
         ReviewRdpRestartButton.IsEnabled = portRestartNeedsReview && port.HasValue;
         ReadBlankPasswordPolicy();
+        // Only reuse policy results in the same read cycle when a fresh report
+        // was explicitly requested; a UI reload must not claim a stale GPO state.
+        if (lastRdpPolicyReport is not null)
+            ShowRdpPolicyReport(lastRdpPolicyReport);
     }
 
     private void ReadSettings_Click(object sender, RoutedEventArgs e)
     {
-        try { ReadRdp(); }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Read settings failed"); }
+        try
+        {
+            lastRdpPolicyReport = null;
+            ReadRdp();
+            if (MainTabs.SelectedItem is System.Windows.Controls.TabItem tab &&
+                tab.Header as string == "Remote Desktop")
+                CheckRdpPolicy_Click(sender, e);
+        }
+        catch (Exception ex)
+        {
+            ModernMessageDialog.Show(this, ex.Message, "Read settings failed", MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void ReadBlankPasswordPolicy()
@@ -1235,6 +1356,12 @@ public partial class MainWindow : Window
             false => "WARNING: local accounts with empty passwords may log on remotely.",
             _ => "Current local policy is unavailable; no change permitted."
         };
+        RenderRdpTile(RdpEffectiveBlankText, restricted switch
+        {
+            true => "Restricted",
+            false => "Not restricted",
+            _ => "Unknown"
+        }, restricted.HasValue ? "Local security" : "Unknown", restricted == true);
         BlankPasswordStatus.Foreground = restricted == false
             ? new SolidColorBrush(Color.FromRgb(153, 49, 24))
             : new SolidColorBrush(Color.FromRgb(30, 84, 104));
@@ -1250,7 +1377,7 @@ public partial class MainWindow : Window
         if (RdpBlankPasswordSecurity.Read() is null)
         {
             ReadBlankPasswordPolicy();
-            MessageBox.Show(this, "The local security policy cannot be inspected. No changes made.",
+            ModernMessageDialog.Show(this, "The local security policy cannot be inspected. No changes made.",
                 "Security setting unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -1303,7 +1430,7 @@ public partial class MainWindow : Window
         try { previous = RdpConfiguration.Read(); }
         catch (Exception readError)
         {
-            MessageBox.Show(this, "Could not read original RDP settings: " + readError.Message,
+            ModernMessageDialog.Show(this, "Could not read original RDP settings: " + readError.Message,
                 "Save blocked", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -1321,7 +1448,9 @@ public partial class MainWindow : Window
             completed = true;
             var current = RdpConfiguration.Read();
             var followUp = RdpPostApply.Build(previous, current, syncFirewall);
+            lastRdpPolicyReport = null;
             ReadRdp(); // UI-thread readback, not a guess based on requested values.
+            ShowRdpPolicyReport(await Task.Run(RdpPolicyDiagnostics.ReadLocal));
             RdpApplyImpactText.Text = followUp.Summary +
                 (portRestartNeedsReview
                     ? " RDP listener port drift was detected and requires restart review." : "");
@@ -1354,7 +1483,7 @@ public partial class MainWindow : Window
     {
         if (busy || !SystemInfo.IsAdministrator())
         {
-            MessageBox.Show(this, "Computer policy refresh requires administrator privileges.",
+            ModernMessageDialog.Show(this, "Computer policy refresh requires administrator privileges.",
                 "Refresh Computer Policy", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1372,12 +1501,11 @@ public partial class MainWindow : Window
                     "Group Policy refresh returned exit code " + result.ExitCode +
                     ". Check gpresult and the Windows Group Policy event logs.");
             var report = await Task.Run(RdpPolicyDiagnostics.ReadLocal);
+            ShowRdpPolicyReport(report);
             RdpPolicyGrid.ItemsSource = report.Values;
             RdpPolicySummary.Text = report.Values.Count + " local/policy settings, " +
                 report.Warnings.Count + " notice(s).";
             RdpPolicyDetails.Text = report.AsText();
-            RdpServiceText.Text = "TermService: " + report.TermServiceStatus +
-                " | " + report.Warnings.Count + " configuration notice(s).";
             ReadRdp();
             RdpApplyImpactText.Text =
                 "Computer Group Policy refresh completed (exit 0). " +
@@ -1395,7 +1523,7 @@ public partial class MainWindow : Window
     private void ReviewRdpRestart_Click(object sender, RoutedEventArgs e)
     {
         if (busy || !portRestartNeedsReview) return;
-        MessageBox.Show(this,
+        ModernMessageDialog.Show(this,
             "The local RDP listener port was observed changing from " +
             (previousRdpListenerPort?.ToString() ?? "unknown") + " to " +
             (observedRdpListenerPort?.ToString() ?? "unknown") + ".\n\n" +
@@ -1446,7 +1574,7 @@ public partial class MainWindow : Window
     {
         if (busy || autoTaskChanging)
         {
-            MessageBox.Show(this, "Finish the current operation before switching views.",
+            ModernMessageDialog.Show(this, "Finish the current operation before switching views.",
                 "Switch view", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
@@ -1485,7 +1613,7 @@ public partial class MainWindow : Window
     {
         if (busy || autoTaskChanging || !SystemInfo.IsAdministrator()) return;
         var task = AutoReapplyScheduler.ReadStatus();
-        if (!task.Repairable || MessageBox.Show(this,
+        if (!task.Repairable || ModernMessageDialog.Show(this,
                 "The task runs the expected SYSTEM worker, but its permissions " +
                 "do not match the protected profile.\n\n" +
                 "Restrict editing to SYSTEM and Administrators? No DLL, backups " +
@@ -1504,7 +1632,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             DiagnosticsBridge.Remember("Task ACL repair", ex);
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "Cannot verify the restricted task permissions (" + ex.GetType().Name +
                 "). The task definition was not overwritten. Check Task Scheduler.",
                 "Task security", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -1528,7 +1656,7 @@ public partial class MainWindow : Window
             await RefreshAutoReapplyAsync();
             return;
         }
-        if (enable && MessageBox.Show(this,
+        if (enable && ModernMessageDialog.Show(this,
                 "Install a protected SYSTEM task to check changed termsrv.dll after Windows Update, " +
                 "at startup and daily? Automatic Apply only uses a uniquely verified exact signature, " +
                 "always with full backup. Maintain independent console recovery access.",
@@ -1538,7 +1666,7 @@ public partial class MainWindow : Window
             await RefreshAutoReapplyAsync();
             return;
         }
-        if (!enable && MessageBox.Show(this,
+        if (!enable && ModernMessageDialog.Show(this,
                 "Remove the Auto Reapply task? This does not change the installed DLL.",
                 "Disable Auto Reapply", MessageBoxButton.YesNo,
                 MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
@@ -1560,7 +1688,7 @@ public partial class MainWindow : Window
         catch (Exception error)
         {
             DiagnosticsBridge.Remember("Auto Reapply", error);
-            MessageBox.Show(this, "The scheduled task was not changed successfully: " + error.Message,
+            ModernMessageDialog.Show(this, "The scheduled task was not changed successfully: " + error.Message,
                 "Auto Reapply", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally

@@ -156,7 +156,7 @@ public partial class QuickApplyWindow : Window
         string executionText = initialMode == SessionKind.Console
             ? "LOCAL CONSOLE: Apply will run normally in the elevated GUI."
             : "RDP / UNCONFIRMED: Apply will run as an independent one-shot SYSTEM task.";
-        var approval = MessageBox.Show(this,
+        var approval = ModernMessageDialog.Show(this,
             "Apply the verified automatic patch?\n\n" +
             (createFullBackup
                 ? "Full backup ON: create/refresh System32 termsrv.dll.bak and protected archived copy.\n"
@@ -167,7 +167,7 @@ public partial class QuickApplyWindow : Window
             "Confirm protected Apply", MessageBoxButton.YesNo,
             MessageBoxImage.Warning, MessageBoxResult.No);
         if (approval != MessageBoxResult.Yes) return;
-        if (!createFullBackup && MessageBox.Show(this,
+        if (!createFullBackup && ModernMessageDialog.Show(this,
                 "Do not create backup is selected. The encrypted recovery journal stores only the " +
                 "original changed bytes. If Windows Update replaces this DLL or the local DPAPI " +
                 "machine keys are lost, automatic Revert will be unavailable. " +
@@ -231,7 +231,7 @@ public partial class QuickApplyWindow : Window
             QuickStatusText.Text = "Apply failed or did not start";
             QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             QuickHelpText.Text = ex.GetType().Name + ": " + ex.Message;
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "Protected Apply did not complete successfully.\n" + ex.Message,
                 "Protected Apply", MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -266,7 +266,7 @@ public partial class QuickApplyWindow : Window
               "This only reverses a unique fixed embedded signature. " +
               "The resulting SHA-256 is calculated, NOT compared to an authentic Microsoft original."
             : "Restore the original termsrv.dll using verified " + approved.RecoverySource + " evidence.";
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 operation + "\n\nThis temporarily stops RDP and may disconnect remote users.\n\n" +
                 route + "\n\nResult SHA-256: " + approved.OriginalSha256[..16] +
                 "...\n\nRetain VM console access and an independent recovery option.",
@@ -274,7 +274,7 @@ public partial class QuickApplyWindow : Window
                 MessageBoxButton.YesNo, MessageBoxImage.Warning,
                 MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
-        if (sourceFree && MessageBox.Show(this,
+        if (sourceFree && ModernMessageDialog.Show(this,
                 "There is NO authenticated backup or recovery journal. " +
                 "Matching fixed bytes is not proof that other DLL bytes are original. " +
                 "For fully authenticated Windows recovery, use SFC / DISM and a local console. " +
@@ -336,7 +336,7 @@ public partial class QuickApplyWindow : Window
             QuickStatusText.Text = "Revert failed or could not start";
             QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             QuickHelpText.Text = ex.GetType().Name + ". Open Advanced for diagnostics.";
-            MessageBox.Show(this, "Protected Revert did not complete:\n" + ex.Message,
+            ModernMessageDialog.Show(this, "Protected Revert did not complete:\n" + ex.Message,
                 "Protected Revert", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -437,7 +437,7 @@ public partial class QuickApplyWindow : Window
     private void OfferReportAfterSuccessfulApply()
     {
         if (!IsLoaded) return;
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
                 "The operation completed successfully. Would you like to share " +
                 "a short compatibility report to help improve future versions?\n\n" +
                 "You will see the information before sending. No passwords, " +
@@ -486,7 +486,7 @@ public partial class QuickApplyWindow : Window
     {
         if (checking || queued || autoTaskChanging || !SystemInfo.IsAdministrator()) return;
         var task = AutoReapplyScheduler.ReadStatus();
-        if (!task.Repairable || MessageBox.Show(this,
+        if (!task.Repairable || ModernMessageDialog.Show(this,
                 "The existing task matches the program's SYSTEM action and schedule, " +
                 "but Windows returned additional task permissions.\n\n" +
                 "Restrict this task to SYSTEM and Administrators? " +
@@ -505,7 +505,7 @@ public partial class QuickApplyWindow : Window
         catch (Exception ex)
         {
             DiagnosticsBridge.Remember("Task ACL repair", ex);
-            MessageBox.Show(this,
+            ModernMessageDialog.Show(this,
                 "Could not verify protected task permissions (" + ex.GetType().Name +
                 "). No task definition was replaced. Review Task Scheduler.",
                 "Task permissions", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -529,7 +529,7 @@ public partial class QuickApplyWindow : Window
             await RefreshAutoReapplyAsync();
             return;
         }
-        if (enable && MessageBox.Show(this,
+        if (enable && ModernMessageDialog.Show(this,
                 "Create a protected SYSTEM task to inspect termsrv.dll after Windows Update, " +
                 "after restart and daily? It will apply ONLY a verified exact automatic profile " +
                 "to a changed DLL, with full backup. You must have console recovery access. " +
@@ -540,7 +540,7 @@ public partial class QuickApplyWindow : Window
             await RefreshAutoReapplyAsync();
             return;
         }
-        if (!enable && MessageBox.Show(this,
+        if (!enable && ModernMessageDialog.Show(this,
                 "Remove the persistent Auto Reapply task? Your DLL and backups remain unchanged.",
                 "Disable Auto Reapply", MessageBoxButton.YesNo,
                 MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
@@ -562,7 +562,7 @@ public partial class QuickApplyWindow : Window
         catch (Exception ex)
         {
             DiagnosticsBridge.Remember("Auto Reapply", ex);
-            MessageBox.Show(this, "Could not update the scheduled task: " + ex.Message,
+            ModernMessageDialog.Show(this, "Could not update the scheduled task: " + ex.Message,
                 "Auto Reapply", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
@@ -576,7 +576,7 @@ public partial class QuickApplyWindow : Window
     {
         if (checking || queued)
         {
-            MessageBox.Show(this, "Finish the current protected operation before Cleanup.");
+            ModernMessageDialog.Show(this, "Finish the current protected operation before Cleanup.");
             return;
         }
         new CleanupWindow { Owner = this }.ShowDialog();

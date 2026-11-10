@@ -63,7 +63,7 @@ public partial class SuccessfulFixWindow : Window
             Status.Text = "Enter a temporary GitHub Issues write token or choose Skip.";
             return;
         }
-        if (MessageBox.Show(this,
+        if (ModernMessageDialog.Show(this,
             offlineMetadata is null
                 ? "Send the displayed Windows versions, SHA-256 and changed byte ranges to " +
                   "the PUBLIC GitHub compatibility issue? The token is used only for this request."
@@ -90,7 +90,7 @@ public partial class SuccessfulFixWindow : Window
                 ? "Successful fix compatibility metadata was submitted to GitHub Issues."
                 : "Offline DLL compatibility metadata was submitted to GitHub Issues.");
             Status.Text = "GitHub accepted the report. Repository aggregation is separate.";
-            MessageBox.Show(this, Status.Text, "Compatibility report", MessageBoxButton.OK,
+            ModernMessageDialog.Show(this, Status.Text, "Compatibility report", MessageBoxButton.OK,
                 MessageBoxImage.Information);
             DialogResult = true;
             Close();
