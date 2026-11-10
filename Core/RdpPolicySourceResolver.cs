@@ -25,7 +25,8 @@ internal sealed record RdpPolicySource(
 
     internal string Details => (Resolved && !string.IsNullOrWhiteSpace(GpoName)
             ? "Winning GPO: " + GpoName + (string.IsNullOrWhiteSpace(GpoId) ? "" : " [" + GpoId + "]")
-            : "Winning GPO not identified. " + Explanation) +
+            : "Winning GPO not identified. " + Explanation +
+              (string.IsNullOrWhiteSpace(GpoId) ? "" : " [RSoP GPO ID (unverified): " + GpoId + "]")) +
         Environment.NewLine + "Controlled setting: " + RegistryPath;
 }
 
