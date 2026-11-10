@@ -21,7 +21,7 @@
                TextChanged="DescriptionChanged"/>
       <CheckBox x:Name="IncludeWindowsEvidenceCheck"
                 Content="Include Windows build, termsrv.dll version and SHA-256 (review before sending)"
-                IsChecked="True" Margin="0,9,0,0" TextWrapping="Wrap"
+                IsChecked="True" Margin="0,9,0,0"
                 Checked="EvidenceSelectionChanged" Unchecked="EvidenceSelectionChanged"
                 ToolTip="Read-only evidence for compatibility observations. The exact DLL hash may uniquely identify a custom build; uncheck to omit."/>
     </StackPanel>
