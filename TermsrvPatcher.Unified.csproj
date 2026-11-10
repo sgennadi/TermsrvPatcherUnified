@@ -30,6 +30,7 @@
     <Compile Remove="Tests/**/*.cs" />
     <Compile Remove="Shared/**/*.cs" />
     <Compile Include="Shared/UniversalDiagnostics/UniversalDiagnosticsRelayClient.cs" />
+    <Compile Include="Shared/UniversalDiagnostics/UniversalDiagnosticsDirectDelivery.cs" />
     <None Remove="Assets/app.ico" />
     <Resource Include="Assets/app.ico" />
   </ItemGroup>
