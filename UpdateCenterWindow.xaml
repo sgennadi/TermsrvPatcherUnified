@@ -40,7 +40,7 @@
       <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
       <TextBlock Grid.Row="0" x:Name="InstallHelp" Foreground="#8B531A"
                  TextWrapping="Wrap" Margin="0,0,0,10"
-                 Text="Check for a LIVE release first. Installation requires an elevated EXE in a protected Program Files folder."/>
+                 Text="Check for a LIVE release first. You can update the EXE from any regular local folder, including Desktop and Downloads."/>
       <WrapPanel Grid.Row="1">
         <Button x:Name="CheckButton" Tag="&#xE72C;" Content="Check" Style="{StaticResource PrimaryButton}"
                 Click="Check_Click" MinWidth="105"/>
