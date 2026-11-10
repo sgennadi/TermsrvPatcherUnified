@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Latest published version:** [`0.1.0-preview.28`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v0.1.0-preview.28) · **Next milestone:** `1.0.0` Stable candidate (not yet released) · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
+**Latest Stable release:** [`1.0.0`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.0) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
@@ -8,11 +8,11 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 **Google reporting verified:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replaced Formspree in Preview.28. A real user-authorized submission from Preview.28 was accepted as [GitHub Issue #32](https://github.com/sgennadi/TermsrvPatcherUnified/issues/32), and its reviewed Windows/DLL metadata appears in [the observations CSV](data/diagnostic-observations.csv) with `verification=unverified`. This proves receipt of that report, **not** that a patch worked or that all deployments will succeed. Sending is opt-in, requires a preview of the exact typed metadata, creates a **public** GitHub Issue only after explicit approval, and requires no end-user token, login, or local file. The former public Formspree ID remains solely in source archive documentation.
 
-## Preparing Stable 1.0.0
+## Stable 1.0.0
 
-The candidate is in [the dedicated release-preparation branch](https://github.com/sgennadi/TermsrvPatcherUnified/tree/feature/ui-refresh-stable-1-0-gate). It is **not** a published Stable release until the Windows safety gates pass and GitHub publishes `v1.0.0` as a non-prerelease. Do not treat the proposed version number or a green CI job as a guarantee of installed RDP functionality.
+[Stable 1.0.0](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.0) was published as a **non-prerelease** after [final Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42851593054) and the separate [Stable release safety gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42851593018) completed successfully. Published assets were verified to contain exactly the portable ZIP, updater-only ZIP and SHA-256 file. These checks are not proof of end-to-end RDP compatibility on every Windows build.
 
-The Stable candidate includes:
+Stable 1.0.0 includes:
 
 - A wider, resizable **Simple** window with its primary actions in a fixed footer, improved **Advanced** layout, and scrollable modern confirmation dialogs; the usable desktop work area is respected at 100–200% scaling.
 - **Stable / Preview** selectors inside Updates. The **Updates** buttons in **both** Simple and Advanced show a highlighted **NEW** indicator when either channel has a newer release, with the version and channel in the tooltip. Cached results are explicitly marked and **cannot authorize installation**; Check must verify a live release before Install.
@@ -20,7 +20,7 @@ The Stable candidate includes:
 - Consent-based Google Apps Script-to-GitHub diagnostic reports, SHA-256 metadata, release ZIP verification, and a portable EXE updater with rollback.
 - An explicit non-destructive CI gate for the protected SYSTEM/Session 0 worker, read-only DLL probes, backup integrity, automatic-signature safety, and WPF smoke tests.
 
-**Before calling 1.0.0 stable:** obtain a clean Windows Server 2025 CI run on the final candidate and verify the release artifacts and checksums. A real Windows 11 VM test with independent console recovery is still recommended for Apply/Revert, RDP reconnection, and physical 200% DPI. The signed-in user's machine is not modified by GitHub CI. Auto Reapply remains OFF by default and must not be mistaken for a tested unattended Windows servicing guarantee.
+**Validation limits:** Windows Server 2025 CI checked read-only/synthetic code paths and non-destructive SYSTEM/Session 0 execution, not a protected live Windows 11 System32 Apply/Revert, actual RDP reconnection, real Windows Update reapplication or on-screen physical 200% DPI rendering. For such operations use an authorized isolated VM and independent local-console recovery. Auto Reapply is OFF by default, and the unsigned EXE requires normal publisher-trust precautions.
 
 ## Disclaimer — use entirely at your own risk
 
@@ -81,7 +81,7 @@ The inspection command produces a `.txt` report; it does not modify the DLL or W
 
 ## Requirements and test limits
 
-- Windows 10/11 **x64 client**, .NET 10 Windows Desktop, or a self-contained x64 Preview ZIP. Windows Server DLLs can be inspected offline; protected system Apply is restricted to supported client systems.
+- Windows 10/11 **x64 client**, .NET 10 Windows Desktop, or a self-contained x64 release ZIP. Windows Server DLLs can be inspected offline; protected system Apply is restricted to supported client systems.
 - The bundled NSudo 8.2 x64 native dependency is verified by SHA-256 and used only for explicitly confirmed protected writes. No `takeown.exe` or `icacls.exe` ownership/ACL fallback.
 - GitHub Actions covers synthetic signature/PE safety, offline x86/x64 copy-patching, read-only real Windows DLL inspection, backup-copy integrity, updater rollback and synthetic WPF layout checks.
 - **Live system DLL Apply/Restore, RDP service recovery, actual RDP logons and on-screen 200%-DPI layout are not validated by CI.** Test these in an isolated Windows VM with console access.

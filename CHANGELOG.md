@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.0 — 2026-11-10 (Stable release candidate)
+## 1.0.0 — 2026-11-10 (Stable released)
 
 - **UI:** wider Simple and Advanced windows, fixed Simple action footer, work-area sizing for high-DPI displays and scrollable modern confirmation dialogs.
 - **Updates:** Stable/Preview selection plus visible **Updates • NEW** badge in both Simple and Advanced. Channel/version tooltips distinguish cached from live results. Installing requires a fresh, operator-approved, verified release and rollback safety.
