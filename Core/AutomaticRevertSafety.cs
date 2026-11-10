@@ -31,7 +31,18 @@ internal static class AutomaticRevertSafety
         // The authenticated journal is independent of the signature catalog.
         // It is deliberately keyed by the EXACT current (patched) file hash.
         // If Windows Update replaced this DLL, stale journals do not match.
-        var journal = RecoveryJournalStore.LoadExact(installed, os.DllVersion);
+        RecoveryJournalStore.Verified? journal = null;
+        try { journal = RecoveryJournalStore.LoadExact(installed, os.DllVersion); }
+        catch (Exception ex) when (ex is InvalidDataException or
+                                   System.Security.Cryptography.CryptographicException or
+                                   System.Text.Json.JsonException)
+        {
+            // Corrupt recovery content must never authorize a write, but it
+            // also must not hide an independently validated protected original.
+            // Keep the bad journal untouched for forensic/manual inspection.
+            AuditLog.Append("Recovery journal is unreadable (" + ex.GetType().Name +
+                            "); evaluating independent protected backup evidence.");
+        }
         if (journal is not null)
         {
             if (journal.OriginalSha256.Equals(currentHash,
@@ -103,7 +114,7 @@ internal static class AutomaticRevertSafety
     // Keep this pure for synthetic Windows Update/ambiguous backup regressions.
     internal static bool HasUniqueOriginal(IEnumerable<string> matchedHashes) =>
         matchedHashes.Where(x => !string.IsNullOrWhiteSpace(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() <= 1;
+            .Distinct(StringComparer.OrdinalIgnoreCase).Take(2).Count() == 1;
 
     internal static bool SameApproval(AutomaticRevertPlan approved,
         AutomaticRevertPlan? current) =>
