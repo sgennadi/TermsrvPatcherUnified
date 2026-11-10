@@ -141,8 +141,8 @@ internal static class UiSmokeTests
                     throw new Exception("Update eligibility explanation or manual-release fallback is missing.");
                 var diagnosticsWindow = new DiagnosticsWindow();
                 if (diagnosticsWindow.FindName("IncludeWindowsEvidenceCheck") is not CheckBox metadataConsent ||
-                    metadataConsent.IsChecked != false)
-                    throw new Exception("Sharing DLL SHA-256 and Windows build must be explicitly selected.");
+                    metadataConsent.IsChecked != true)
+                    throw new Exception("Windows/DLL evidence must be checked by default and still removable by the user.");
                 if (diagnosticsWindow.FindName("AnonymousButton") is not Button anonymous ||
                     anonymous.IsEnabled ||
                     diagnosticsWindow.FindName("RelayState") is not TextBlock relayStatus ||
