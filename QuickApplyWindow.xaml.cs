@@ -55,6 +55,7 @@ public partial class QuickApplyWindow : Window
         QuickCheckButton.IsEnabled = false;
         QuickNoBackupCheck.IsEnabled = false;
         QuickStatusText.Text = "Checking installed DLL...";
+        QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
         QuickHelpText.Text = "Comparing full exact signatures and SHA-256.";
         try
         {
@@ -124,6 +125,7 @@ public partial class QuickApplyWindow : Window
             QuickApplyButton.IsEnabled = false;
             QuickRevertButton.IsEnabled = false;
             QuickStatusText.Text = "Automatic check could not complete";
+            QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             QuickHelpText.Text = e.GetType().Name + ". Open Advanced for diagnostics.";
         }
         finally
@@ -219,6 +221,7 @@ public partial class QuickApplyWindow : Window
         {
             DiagnosticsBridge.Remember("Protected Apply", ex);
             QuickStatusText.Text = "Apply failed or did not start";
+            QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             QuickHelpText.Text = ex.GetType().Name + ": " + ex.Message;
             MessageBox.Show(this,
                 "Protected Apply did not complete successfully.\n" + ex.Message,
@@ -297,6 +300,11 @@ public partial class QuickApplyWindow : Window
                 QuickStatusText.Text = sourceFree
                     ? "Catalog reconstruction completed; result SHA-256 verified"
                     : "Revert completed and original SHA-256 verified";
+                // Green means authenticated recovery success; a catalog-based
+                // reconstruction is not proof of an authentic Windows original.
+                QuickStatusText.Foreground = sourceFree
+                    ? new SolidColorBrush(Color.FromRgb(160, 92, 14))
+                    : new SolidColorBrush(Color.FromRgb(11, 135, 76));
                 QuickHelpText.Text = sourceFree
                     ? "Authenticity of Windows DLL is NOT established. Validate using Windows servicing tools."
                     : "Protected original restored. Use Check to refresh state.";
@@ -318,6 +326,7 @@ public partial class QuickApplyWindow : Window
         {
             DiagnosticsBridge.Remember("Protected Revert", ex);
             QuickStatusText.Text = "Revert failed or could not start";
+            QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             QuickHelpText.Text = ex.GetType().Name + ". Open Advanced for diagnostics.";
             MessageBox.Show(this, "Protected Revert did not complete:\n" + ex.Message,
                 "Protected Revert", MessageBoxButton.OK, MessageBoxImage.Warning);
