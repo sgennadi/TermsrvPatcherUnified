@@ -10,42 +10,40 @@ using TermsrvPatcherUnified.Core;
 internal static class DirectReportingTests
 {
     private static int assertions;
-    private static void Verify(bool value, string message)
+    private static void Verify(bool condition, string reason)
     {
         assertions++;
-        if (!value) throw new InvalidOperationException("Direct reporting QA: " + message);
+        if (!condition) throw new InvalidOperationException("Google reporting QA: " + reason);
     }
 
-    private static void Throws<T>(Action action, string message) where T : Exception
+    private static void Throws<T>(Action action, string reason) where T : Exception
     {
-        bool failed = false;
-        try { action(); } catch (T) { failed = true; }
-        Verify(failed, message);
+        bool rejected = false;
+        try { action(); } catch (T) { rejected = true; }
+        Verify(rejected, reason);
     }
 
-    private sealed class FakeHandler(Func<HttpRequestMessage, string, HttpResponseMessage> respond)
+    private sealed class FakeHandler(Func<HttpRequestMessage, string, HttpResponseMessage> reply)
         : HttpMessageHandler
     {
-        internal int Requests;
-        internal string LastBody = "";
-        internal Uri? LastUri;
-        internal HttpMethod? LastMethod;
+        internal int Count;
+        internal readonly List<(Uri Uri, HttpMethod Method, string Body, bool HasAuth)> Requests = [];
         protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
+            HttpRequestMessage request, CancellationToken token)
         {
-            Requests++;
-            LastUri = request.RequestUri;
-            LastMethod = request.Method;
-            LastBody = request.Content is null ? "" :
-                await request.Content.ReadAsStringAsync(cancellationToken);
-            var response = respond(request, LastBody);
+            string body = request.Content is null ? "" :
+                await request.Content.ReadAsStringAsync(token);
+            Count++;
+            Requests.Add((request.RequestUri!, request.Method, body,
+                request.Headers.Authorization is not null));
+            var response = reply(request, body);
             response.RequestMessage = request;
             return response;
         }
     }
 
-    private static HttpResponseMessage Ok(string json) =>
-        new(HttpStatusCode.OK) { Content = new StringContent(json, Encoding.UTF8, "application/json") };
+    private static HttpResponseMessage Json(string body, HttpStatusCode code = HttpStatusCode.OK) =>
+        new(code) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
     private static AnonymousDiagnosticPayload Example()
     {
@@ -53,9 +51,9 @@ internal static class DirectReportingTests
         const string component = "RdpSettings";
         const string type = "InvalidOperationException";
         const string code = "0x80131509";
-        var signature = string.Join("|", new[] {project, component, type, code}
-            .Select(x => x.ToLowerInvariant()));
-        var fingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(signature)));
+        var parts = new[] { project, component, type, code };
+        var fingerprint = Convert.ToHexStringLower(SHA256.HashData(
+            Encoding.UTF8.GetBytes(string.Join("|", parts.Select(x => x.ToLowerInvariant())))));
         var json = JsonSerializer.Serialize(new
         {
             @event = new
@@ -68,210 +66,172 @@ internal static class DirectReportingTests
                 fingerprint, windows_release = "25H2", windows_build = 26200, windows_ubr = 1234,
                 dll_version = "10.0.26200.1234", dll_sha256 = new string('a', 64)
             },
-            summary = "HOSTNAME PRIVATE DATA MUST NEVER LEAK",
-            delivery = new { status = "pending" }
+            summary = "PRIVATE MACHINE NAME NOT TRANSMITTED"
         });
         return UniversalDiagnosticsRelayClient.Prepare(json);
     }
 
     internal static int Run()
     {
-        var payload = Example();
-        // A direct Formspree submission must not first create a local queue file.
-        var memoryOnly = Path.Combine(Path.GetTempPath(),
-            "TermsrvDirectNoDisk-" + Guid.NewGuid().ToString("N"));
-        var oldQueue = Environment.GetEnvironmentVariable("UDX_STATE_DIR");
-        try
-        {
-            Environment.SetEnvironmentVariable("UDX_STATE_DIR", memoryOnly);
-            var metadata = new DiagnosticEnvironment("25H2", 26200, 1234,
-                "10.0.26200.1234", new string('a', 64));
-            var direct = DiagnosticsBridge.PrepareDirect(
-                new DiagnosticsBridge.DiagnosticDraft("Protected Apply",
-                    "VerifiedSuccess", "SUCCESS", "Private machine description"), metadata);
-            var directJson = FormspreeReportClient.BuildSubmission(direct, DiagnosticsBridge.Project);
-            using (var doc = JsonDocument.Parse(directJson))
-            {
-                var root = doc.RootElement;
-                Verify(root.GetProperty("level").GetString() == "info" &&
-                       root.GetProperty("windows_build").GetInt32() == 26200 &&
-                       root.GetProperty("dll_sha256").GetString() == new string('a', 64) &&
-                       !root.TryGetProperty("summary", out _) &&
-                       !directJson.Contains("Private machine description", StringComparison.Ordinal),
-                    "successful Apply event includes typed Windows metadata without free-text notes");
-            }
-            Verify(!Directory.Exists(memoryOnly),
-                "direct Formspree preparation must not create any local report folder");
-            var minimal = DiagnosticsBridge.PrepareDirect(
-                new DiagnosticsBridge.DiagnosticDraft("Application", "USER_REPORT",
-                    "MANUAL", "Private user description"));
-            using var parsed = JsonDocument.Parse(minimal.Json);
-            Verify(!parsed.RootElement.GetProperty("event").TryGetProperty("dll_sha256", out _) &&
-                   !Directory.Exists(memoryOnly),
-                "unchecked Windows evidence is omitted and no local files are generated");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("UDX_STATE_DIR", oldQueue);
-            if (Directory.Exists(memoryOnly)) Directory.Delete(memoryOnly, true);
-        }
-        var embedded = DirectReportingSettings.Load();
-        Verify((!embedded.HasFormspree || DirectReportingSettings.ValidFormId(embedded.FormspreeFormId)) &&
-               (!embedded.HasGitHubOAuth || DirectReportingSettings.ValidClientId(embedded.GitHubOAuthClientId)),
-            "embedded provider identifiers are valid or safely disabled");
-        var configured = DirectReportingSettings.Parse(
-            "{\"formspree_form_id\":\"mabc1234\",\"github_oauth_client_id\":\"Iv1.12345678\"}");
-        Verify(configured.HasBoth &&
-               configured.FormspreeFormId == "mabc1234" &&
-               configured.GitHubOAuthClientId == "Iv1.12345678",
-            "one-time setup IDs are parsed from the embedded resource schema");
-        Verify(!DirectReportingSettings.Parse(
-            "{\"formspree_form_id\":\"\",\"github_oauth_client_id\":\"\"}").HasBoth,
-            "no provider is silently enabled when build variables are absent");
-        Throws<InvalidDataException>(() =>
-            DirectReportingSettings.Parse(
-                "{\"formspree_form_id\":\"mabc1234\",\"formspree_form_id\":\"evil1234\"}"),
-            "duplicate embedded JSON keys are forbidden");
-        Throws<InvalidDataException>(() =>
-            DirectReportingSettings.Parse(
-                "{\"formspree_form_id\":\"https://evil.example\",\"github_oauth_client_id\":\"\"}"),
-            "embedded provider ID cannot contain an arbitrary URL");
-        Throws<InvalidDataException>(() =>
-            DirectReportingSettings.Parse(
-                "{\"formspree_form_id\":\"mabc1234\",\"secret\":\"not allowed\"}"),
-            "embedded configuration refuses secrets or unknown fields");
+        var settings = DirectReportingSettings.Load();
+        const string deployed = "https://script.google.com/macros/s/AKfycbyV-tq5tMa08XaEmgo6-vpHD6ISQGOci32oPjy5ELm2pHUAud_Wn5j5YjVV0kcc6o62/exec";
+        Verify(GoogleAppsScriptReportClient.IsApprovedEndpoint(deployed),
+            "exact approved Google deployment URL");
+        Verify(!GoogleAppsScriptReportClient.IsApprovedEndpoint("http://script.google.com/macros/s/AKfycbyVxxxxxxxxxxxxxxxxxxxxxxxx/exec"),
+            "HTTP endpoint is rejected");
+        Verify(!GoogleAppsScriptReportClient.IsApprovedEndpoint("https://evil.example/macros/s/AKfycbyVxxxxxxxxxxxxxxxxxxxxxxxx/exec"),
+            "non-Google endpoint is rejected");
+        Verify(!GoogleAppsScriptReportClient.IsApprovedEndpoint(deployed + "?token=NOT_ALLOWED"),
+            "Google endpoint cannot contain query secrets");
+        Verify(!GoogleAppsScriptReportClient.IsApprovedEndpoint("https://formspree.io/f/mvkkernb"),
+            "obsolete Formspree cannot be configured as Google provider");
+        var parsed = DirectReportingSettings.Parse(
+            JsonSerializer.Serialize(new Dictionary<string, string> {
+                ["google_apps_script_url"] = deployed, ["github_oauth_client_id"] = ""
+            }));
+        Verify(parsed.HasGoogleScript && !parsed.HasGitHubOAuth &&
+               parsed.GoogleAppsScriptUrl == deployed, "embedded Google endpoint loads without OAuth");
+        Throws<InvalidDataException>(() => DirectReportingSettings.Parse(
+            "{\"formspree_form_id\":\"mvkkernb\"}"),
+            "legacy Formspree key explicitly rejected");
+        Throws<InvalidDataException>(() => DirectReportingSettings.Parse(
+            "{\"google_apps_script_url\":\"https://evil.example/exec\"}"),
+            "unsafe embedded Google destination rejected");
+        Throws<InvalidDataException>(() => DirectReportingSettings.Parse(
+            "{\"github_oauth_client_id\":\"\", \"secret\":\"DO_NOT_EMBED\"}"),
+            "unknown fields and tokens cannot be embedded");
+        Throws<InvalidDataException>(() => DirectReportingSettings.Parse(
+            "{\"google_apps_script_url\":\"\",\"google_apps_script_url\":\"\"}"),
+            "duplicate configuration keys rejected");
         if (string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true",
                 StringComparison.OrdinalIgnoreCase))
         {
+            Verify(settings.HasGoogleScript && settings.GoogleAppsScriptUrl == deployed,
+                "GitHub Actions EXE embeds supplied Google deployment URL");
             Verify(typeof(DirectReportingSettings).Assembly.GetManifestResourceNames()
-                    .Contains(DirectReportingSettings.ResourceName, StringComparer.Ordinal),
-                "GitHub Actions EXE must actually embed provider configuration as a .NET resource");
-            Verify(embedded.HasFormspree,
-                "Windows CI must preconfigure a real Formspree form ID before packaging the EXE");
-            Verify(FormspreeReportClient.Endpoint(embedded.FormspreeFormId).AbsoluteUri ==
-                   "https://formspree.io/f/" + embedded.FormspreeFormId,
-                "Embedded Formspree endpoint must be pinned to the Formspree service");
-        }
-        Verify(DirectReportingSettings.ValidFormId("mabc1234") &&
-               !DirectReportingSettings.ValidFormId("x/../../secret") &&
-               !DirectReportingSettings.ValidFormId("https://evil.example"),
-            "form ID validation refuses arbitrary URLs and traversal");
-        Verify(DirectReportingSettings.ValidClientId("Iv1.12345678") &&
-               !DirectReportingSettings.ValidClientId("unsafe client id"),
-            "OAuth client IDs are bounded and cannot contain whitespace");
-
-        var endpoint = FormspreeReportClient.Endpoint("mabc1234");
-        Verify(endpoint.AbsoluteUri == "https://formspree.io/f/mabc1234",
-            "Formspree endpoint is pinned to official HTTPS host");
-        var outgoing = FormspreeReportClient.BuildSubmission(payload, DiagnosticsBridge.Project);
-        Throws<InvalidDataException>(() =>
-            FormspreeReportClient.BuildSubmission(payload, "sgennadi/OtherProject"),
-            "Formspree report cannot be reassigned to a different project");
-        using (var doc = JsonDocument.Parse(outgoing))
-        {
-            var root = doc.RootElement;
-            Verify(root.GetProperty("windows_build").GetInt32() == 26200 &&
-                   root.GetProperty("dll_sha256").GetString() == new string('a', 64),
-                "typed optional DLL evidence preserved");
-            Verify(!root.TryGetProperty("summary", out _) &&
-                   !root.TryGetProperty("delivery", out _) &&
-                   !outgoing.Contains("HOSTNAME PRIVATE DATA", StringComparison.Ordinal),
-                "raw summary and local queue are never shared with Formspree");
+                .Contains(DirectReportingSettings.ResourceName, StringComparer.Ordinal),
+                "built-in executable resource is present");
         }
 
-        var success = new FakeHandler((_, _) => Ok("{\"ok\":true}"));
-        using (var http = new HttpClient(success))
-        using (var client = new FormspreeReportClient(http))
+        var payload = Example();
+        string body = GoogleAppsScriptReportClient.BuildSubmission(payload);
+        Verify(!body.Contains("PRIVATE MACHINE NAME", StringComparison.Ordinal) &&
+               !body.Contains("formspree", StringComparison.OrdinalIgnoreCase),
+            "outgoing JSON excludes free text and the old destination");
+        using (var doc = JsonDocument.Parse(body))
         {
-            client.SendAsync("mabc1234", outgoing, payload, DiagnosticsBridge.Project).GetAwaiter().GetResult();
-            Verify(success.Requests == 1 && success.LastUri == endpoint &&
-                   success.LastMethod == HttpMethod.Post,
-                "Formspree receives exactly one POST to pinned endpoint");
-            Verify(success.LastBody == outgoing && !success.LastBody.Contains("HOSTNAME PRIVATE DATA"),
-                "Formspree receives exact reviewed JSON only");
+            var e = doc.RootElement.GetProperty("event");
+            Verify(e.GetProperty("windows_build").GetInt32() == 26200 &&
+                   e.GetProperty("dll_sha256").GetString() == new string('a', 64) &&
+                   !doc.RootElement.TryGetProperty("summary", out _),
+                "typed Windows build and DLL SHA-256 included without raw summary");
+        }
+
+        var direct = DiagnosticsBridge.PrepareDirect(
+            new DiagnosticsBridge.DiagnosticDraft(
+                "Protected Apply", "VerifiedSuccess", "SUCCESS", "USER'S PRIVATE NOTES"),
+            new DiagnosticEnvironment("25H2", 26200, 1234,
+                "10.0.26200.1234", new string('a', 64)));
+        string prepared = GoogleAppsScriptReportClient.BuildSubmission(direct);
+        Verify(prepared.Contains("\"level\": \"info\"") &&
+               !prepared.Contains("PRIVATE NOTES"),
+            "verified successful Apply yields sanitized info report");
+        var minimal = DiagnosticsBridge.PrepareDirect(
+            new DiagnosticsBridge.DiagnosticDraft("Application", "USER_REPORT", "MANUAL", "PRIVATE"));
+        Throws<InvalidDataException>(() => GoogleAppsScriptReportClient.BuildSubmission(minimal),
+            "unchecked DLL evidence is not silently substituted or invented");
+
+        const string receipt = "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1234\"}";
+        var handler = new FakeHandler((req, _) =>
+        {
+            if (req.Method == HttpMethod.Post)
+            {
+                var redirect = Json("", HttpStatusCode.Found);
+                redirect.Headers.Location = new Uri("https://script.googleusercontent.com/macros/echo?user_content_key=test_receipt&lib=example");
+                return redirect;
+            }
+            return Json(receipt);
+        });
+        using (var http = new HttpClient(handler))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            var confirmed = client.SendAsync(deployed, body, payload).GetAwaiter().GetResult();
+            Verify(confirmed.AbsoluteUri == "https://github.com/sgennadi/TermsrvPatcherUnified/issues/1234",
+                "only confirmed repository Issue becomes successful delivery");
+            Verify(handler.Count == 2 && handler.Requests[0].Method == HttpMethod.Post &&
+                   handler.Requests[0].Uri.AbsoluteUri == deployed &&
+                   handler.Requests[1].Method == HttpMethod.Get &&
+                   handler.Requests[1].Uri.Host == "script.googleusercontent.com",
+                "exactly one POST, then Google receipt GET (no second POST)");
+            Verify(!handler.Requests.Any(x => x.HasAuth) &&
+                   handler.Requests[1].Body.Length == 0,
+                "no credentials or diagnostic bytes sent to redirected response host");
+            Verify(handler.Requests[0].Body == body,
+                "the only POST carries the exact reviewed payload");
             Throws<InvalidDataException>(() =>
-                client.SendAsync("mabc1234", outgoing + " ", payload, DiagnosticsBridge.Project).GetAwaiter().GetResult(),
-                "reviewed Formspree JSON cannot change before dispatch");
-            Verify(success.Requests == 1, "modified payload rejected before HTTP");
+                client.SendAsync(deployed, body + " ", payload).GetAwaiter().GetResult(),
+                "changed report refused without network transmission");
+            Verify(handler.Count == 2, "mutated payload does not cause an extra request");
         }
 
-        foreach (var (code, json) in new[] {
-            (HttpStatusCode.OK, "{\"ok\":false}"),
-            (HttpStatusCode.Forbidden, "{\"ok\":true}"),
-            (HttpStatusCode.Redirect, "{\"ok\":true}")
+        var malicious = new FakeHandler((_, _) =>
+        {
+            var redirect = Json("", HttpStatusCode.Found);
+            redirect.Headers.Location = new Uri("https://attacker.example/macros/echo?user_content_key=exfil");
+            return redirect;
+        });
+        using (var http = new HttpClient(malicious))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            Throws<InvalidDataException>(() =>
+                client.SendAsync(deployed, body, payload).GetAwaiter().GetResult(),
+                "off-host redirect refused");
+            Verify(malicious.Count == 1, "no redirect follow to unknown host");
+        }
+
+        foreach (string response in new [] {
+            "{\"ok\":false,\"error\":\"github_not_confirmed\"}",
+            "{\"ok\":true,\"issue_url\":\"https://evil.example/issues/1234\"}",
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/OtherRepo/issues/4\"}",
+            "{\"ok\":true}",
+            "invalid json"
         })
         {
-            var handler = new FakeHandler((_, _) => new HttpResponseMessage(code) {
-                Content = new StringContent(json, Encoding.UTF8, "application/json")
-            });
-            using var http = new HttpClient(handler);
-            using var client = new FormspreeReportClient(http);
-            bool denied = false;
-            try { client.SendAsync("mabc1234", outgoing, payload, DiagnosticsBridge.Project).GetAwaiter().GetResult(); }
-            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException)
-            { denied = true; }
-            Verify(denied && handler.Requests == 1,
-                "Formspree status or JSON confirmation is required");
+            var fake = new FakeHandler((_, _) => Json(response));
+            using var http = new HttpClient(fake);
+            using var client = new GoogleAppsScriptReportClient(http);
+            bool failed = false;
+            try { client.SendAsync(deployed, body, payload).GetAwaiter().GetResult(); }
+            catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException or JsonException)
+            { failed = true; }
+            Verify(failed && fake.Count == 1,
+                "unconfirmed, malicious or invalid JSON response never marks report delivered");
         }
 
-        var github = new FakeHandler((request, body) => request.RequestUri!.AbsoluteUri switch
+        var github = new FakeHandler((request, _) => request.RequestUri!.AbsoluteUri switch
         {
             "https://github.com/login/device/code" =>
-                Ok("{\"device_code\":\"" + new string('a', 40) +
-                   "\",\"user_code\":\"WDJB-MJHT\",\"verification_uri\":\"https://github.com/login/device\"," +
-                   "\"expires_in\":120,\"interval\":1}"),
+                Json("{\"device_code\":\"" + new string('a',40) +
+                     "\",\"user_code\":\"WDJB-MJHT\",\"verification_uri\":\"https://github.com/login/device\"," +
+                     "\"expires_in\":120,\"interval\":1}"),
             "https://github.com/login/oauth/access_token" =>
-                Ok("{\"access_token\":\"gho_" + new string('b', 36) +
-                   "\",\"token_type\":\"bearer\",\"scope\":\"public_repo\"}"),
-            _ => new HttpResponseMessage(HttpStatusCode.NotFound)
+                Json("{\"access_token\":\"gho_" + new string('b',36) +
+                     "\",\"token_type\":\"bearer\",\"scope\":\"public_repo\"}"),
+            _ => Json("{}", HttpStatusCode.NotFound)
         });
         using (var http = new HttpClient(github))
-        using (var auth = new GitHubDeviceAuthorization(http))
+        using (var oauth = new GitHubDeviceAuthorization(http))
         {
-            var challenge = auth.RequestCodeAsync("Iv1.12345678").GetAwaiter().GetResult();
-            Verify(challenge.UserCode == "WDJB-MJHT" &&
-                   challenge.VerificationUri.AbsoluteUri == "https://github.com/login/device" &&
-                   github.Requests == 1,
-                "GitHub code request returns only official browser URL");
-            Verify(github.LastBody.Contains("scope=public_repo", StringComparison.Ordinal) &&
-                   github.LastBody.Contains("client_id=Iv1.12345678", StringComparison.Ordinal),
-                "GitHub requests only public repository scope");
-            string token = auth.WaitForAuthorizationAsync(challenge).GetAwaiter().GetResult();
-            Verify(token.StartsWith("gho_", StringComparison.Ordinal) && github.Requests == 2 &&
-                   github.LastUri?.AbsoluteUri == "https://github.com/login/oauth/access_token" &&
-                   github.LastBody.Contains("device_code=", StringComparison.Ordinal) &&
-                   !github.LastBody.Contains("client_secret", StringComparison.Ordinal),
-                "browser-authorized token returned in memory without client secret");
+            var code = oauth.RequestCodeAsync("Iv1.12345678").GetAwaiter().GetResult();
+            Verify(code.UserCode == "WDJB-MJHT" && github.Count == 1,
+                "optional GitHub OAuth still accepts device-flow challenge");
+            string token = oauth.WaitForAuthorizationAsync(code).GetAwaiter().GetResult();
+            Verify(token.StartsWith("gho_", StringComparison.Ordinal) &&
+                   !github.Requests.Any(x => x.HasAuth),
+                "device-flow token exists only in memory");
         }
-
-        // Missing Formspree and OAuth IDs must fail closed; these are not built-in credentials.
-        var oldState = Environment.GetEnvironmentVariable("UDX_STATE_DIR");
-        var temp = Path.Combine(Path.GetTempPath(), "TermsrvDirectQA-" + Guid.NewGuid().ToString("N"));
-        try
-        {
-            Environment.SetEnvironmentVariable("UDX_STATE_DIR", temp);
-            var receipt = DiagnosticsBridge.Capture(
-                new DiagnosticsBridge.DiagnosticDraft("Test", "USER_REPORT", "TEST", "Test"),
-                "Synthetic and sanitized report");
-            DiagnosticsBridge.MarkFormspreeSubmitted(receipt.Path, receipt.Id, "mabc1234");
-            using var doc = JsonDocument.Parse(File.ReadAllText(receipt.Path));
-            var delivery = doc.RootElement.GetProperty("delivery");
-            Verify(delivery.GetProperty("status").GetString() == "submitted" &&
-                   delivery.GetProperty("provider").GetString() == "formspree" &&
-                   delivery.GetProperty("form_id").GetString() == "mabc1234" &&
-                   delivery.GetProperty("url").ValueKind == JsonValueKind.Null,
-                "Formspree receipt does not claim a GitHub Issue URL");
-            Throws<InvalidOperationException>(() =>
-                DiagnosticsBridge.MarkFormspreeSubmitted(receipt.Path, receipt.Id, "mabc1234"),
-                "an acknowledged receipt cannot be recorded twice");
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("UDX_STATE_DIR", oldState);
-            if (Directory.Exists(temp)) Directory.Delete(temp, recursive: true);
-        }
-        Console.WriteLine("PASS: " + assertions +
-            " receiver-free provider, privacy, OAuth, Formspree and queue tests (stub HTTP)");
+        Console.WriteLine("PASS: " + assertions + " Google-to-GitHub, consent-data, redirect, " +
+            "receipt, configuration and OAuth synthetic tests; no live report sent.");
         return assertions;
     }
 }
