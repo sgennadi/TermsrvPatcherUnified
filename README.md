@@ -6,4 +6,84 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 **[Download a Preview](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)**
 
-**Preview.28:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replace the former Formspree service. An operator-approved Google Apps Script deployment is embedded in the EXE. Sending is optional, requires review of the exact metadata, and creates a **public GitHub Issue** only after Google confirms its issue URL. No end-user accounts, API tokens, or local settings are needed. Windows/DLL evidence is selected by default; disabling it also disables Google sending because the deployed v1 gateway requires complete evidence. The old public Formspree ID is kept solely in a source-code archive. Live external delivery requires separate verification.
+**Preview.28:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replace the former Formspree service. An operator-approved Google Apps Script deployment URL is embedded in the EXE. Sending is voluntary, requires reviewing the exact metadata, and counts as delivered only after a valid PUBLIC GitHub Issue receipt. No end-user account, API token, local save or setup file is needed. Windows and DLL evidence is selected by default. The old public Formspree ID is kept only in source archival documentation; live Google acceptance remains to be confirmed.
+
+## Disclaimer — use entirely at your own risk
+
+**THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT ANY WARRANTY, TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW.** The authors, maintainers and contributors do not guarantee compatibility, functionality, recovery or availability. To the extent permitted by law, they disclaim liability for service outages, loss of remote access, damaged systems and data loss. Nothing here overrides [GPLv3](LICENSE), excludes liability where prohibited, or grants permission to bypass Microsoft licensing requirements.
+
+**You are responsible** for lawful, licensed use, isolated VM testing, independently verified backups, reviewing proposed changes and keeping local/console recovery access. Modifying Remote Desktop system files can interrupt services or disconnect users; do not rely only on RDP for recovery.
+
+## Features
+
+- **Automatic check:** shows a read-only **Automatic Apply priority list** for the three trusted x64 signature families and a clearly marked 12-byte Hot Patch reference (inspection only). The table displays exact hits, offsets, selected/skipped/blocked decisions and reasons. An OS-aware priority order is displayed; it never applies several profiles in sequence, and the external reference cannot be selected for protected Apply. Compares three embedded x64 signature families against actual DLL bytes. Separate read-only tables show each profile's completeness, fixed-byte count, exact Find/Replace hits and offsets. When an installed Windows 11 version-specific embedded profile and the older generic fallback both match, the single specific target is chosen for the normal verified Apply workflow; the generic bytes are left untouched. Other multi-target ambiguities stay blocked. A unique generic match is still eligible. Manual and offline scans do not infer a host OS. SHA-256, executable-section and rollback checks remain mandatory.
+- **Manual patterns:** explicit HEX Find/Replace with `*` or `??` one-byte masks. A live read-only 16-column HEX/ASCII viewer shows the actual installed DLL bytes, highlighted exact/wildcard positions, addresses, context and previous/next matches. Import a pattern catalog and use **Check all imported** to compare every entry against actual bytes and OS/DLL version hints. A near match or a version hint never generates or authorizes replacement bytes.
+- **Offline DLL:** choose a `termsrv.dll` in any folder and save a *different* verified output file. Read x86/PE32 or x64/PE32+ architecture, version, CRC32, SHA-256 and byte offsets. x86 files require an exact operator-supplied pattern; the application itself remains x64-only.
+- **Protected Apply and Revert / remote-session safety:** the compact startup shows **Apply / Revert / Check / Advanced / Cancel**. A verified Automatic Apply can run locally or as a one-shot SYSTEM Task Scheduler worker in RDP/unknown sessions, independent of GUI disconnect. A compact **Revert** similarly runs at the console or via its own protected SYSTEM worker. The advanced **manual Restore** file picker and **manual Apply** remain console-only. Before writing, workers revalidate the exact current DLL SHA-256, version and approved evidence. The operation remains explicitly confirmed; Task Scheduler Queued is never reported as completed. A real *non-destructive* Windows Server 2025 smoke verified SYSTEM / Session 0 launch but NOT a Windows 11 protected Apply/Revert or actual RDP reconnect. Headless `--reapply` continues to defer RDP Apply with exit code `6`.
+- **Full backup optional, recovery journal mandatory for Automatic:** the default is full backup ON: before Apply, verify/create `%SystemRoot%\System32\termsrv.dll.bak` and a separately protected original copy under ProgramData. **Do not create backup** disables both new full copies after an extra warning, but never disables a small DPAPI machine-protected recovery journal containing exact previous byte ranges and before/after SHA-256. During a subsequent *approved Apply*, a stale System32 `.bak` from a previous Windows Update is archived BEFORE being replaced with a verified original for the new DLL; **Check is read-only** and never silently overwrites backups. Corrupt, linked or untrusted backup files fail closed; historic audit-folder backups are not auto-imported.
+- **One-click Revert source priority:** exact matching protected journal, otherwise a trusted original backup whose verified reapplication reconstructs the entire current DLL, otherwise a strictly bounded **ExactCatalog** fallback for 13-byte (24H2) or 19-byte (25H2/26H2) **fully fixed** patterns only. Without an original, that last fallback is *byte reconstruction*, NOT proof the DLL is a genuine Microsoft original, and requires two independent confirmations. An unverified, wildcard Generic, unknown, changed or ambiguous DLL has Revert disabled: use Windows component-store repair/SFC, or restore a known-good VM snapshot. Revert cannot recover from arbitrary unrecorded modifications.
+- **Remote Desktop (combined):** one dashboard for RDP enablement, NLA, single-session-per-user, eligible Domain/Private firewall rules, local service health, session inventory and read-only Group Policy. The expandable advanced table also inspects TLS/security layer, RDP port, encryption, password prompts, redirection, idle/active/disconnected session limits and TCP/UDP transport. Local setting writes use verification and reverse-order rollback; Group Policy may override them. The local blank-password logon restriction is explicitly separate, OFF is high-risk and needs two confirmations. Monitoring includes DLL hash/version drift against an operator-recorded baseline.
+- **RDP post-apply guidance:** after saving settings, the unified RDP dashboard summarizes what changed and recommends a **new connection** or the **next sign-in** where appropriate. **Refresh Computer Policy** is opt-in, explicitly confirmed, and executes `gpupdate.exe /target:computer /force /wait:90` as an administrator; it may reapply non-RDP computer GPOs. It does **not** invoke `/boot`, `/logoff`, stop TermService, or reboot Windows. A locally observed valid listener-port change unlocks **Review service restart**, a read-only warning/instructions dialog; the GUI does not disrupt RDP sessions to perform a restart. A local registry readback is not proof that an RDP client can connect or that the effective domain policy has propagated.
+- **Auto reapply after Windows Update — optional, default OFF:** a checkbox in both Simple and Advanced creates a persistent, ACL-protected Task Scheduler job under **SYSTEM / Session 0**, with its own verified EXE under administrator-owned ProgramData (not the potentially writable Desktop EXE). Event ID 19 in WindowsUpdateClient/Operational is checked after a 30-minute delay, plus a post-boot check after 15 minutes and a daily fallback at 03:00. The worker compares the installed DLL SHA-256 with its last observation, skips when a reboot is pending, and attempts Apply **only** with an exact, uniquely verified automatic profile, a supported Windows client and mandatory full backup plus encrypted recovery journal. Unknown/ambiguous/unrecognized DLLs are never patched. Rechecking a previously skipped DLL after an application update is supported. No scheduling is enabled merely by launching or updating the app.
+- **Cleanup (explicit opt-in):** choose backup/recovery deletion, local app log/history/diagnostic cleanup and optionally removal of the Auto Reapply scheduled task. The task-removal box is OFF by default and receives a separate Yes/No question. Deleting backups warns about possible permanent loss of Revert; active/uncertain SYSTEM jobs block cleanup. It never erases the installed DLL, Windows Event Logs, Windows Update history, files exported outside app-managed folders, or updater rollback hold.
+- **Updates and Diagnostics:** visible update indicator, manual Check/Install of verified preview packages with EXE rollback and reviewed diagnostics. **Send anonymously** uses the canonical UniversalDiagnostics v1 HTTPS relay, sends only a reviewed typed metadata allowlist (no free-text description, raw logs, paths, hostnames or client GitHub token) and requires a validated receipt for a PUBLIC GitHub Issue. Without an administrator-configured HTTPS receiver the button stays disabled and local reports remain pending. Reports are never uploaded without consent.
+- **Windows DLL telemetry for compatibility observations (opt-in):** in Diagnostics, a checked option collects the running Windows release, Build/UBR, the installed `termsrv.dll` numeric file version and **SHA-256 of the current DLL** without uploading file bytes. The exact values are shown before saving or sending. Uncheck to omit them; a custom DLL digest could identify that custom build. The optional fields travel only in the strictly checked anonymous metadata or reviewed manual report. An approved new Issue can populate `data/diagnostic-observations.csv` as **UNVERIFIED** compatibility evidence, including an error code and app version. This never modifies `Patterns/AutomaticPatterns.txt` or marks a DLL as successfully patched. The shared HTTPS relay remains **not deployed**, so this is a development branch feature, not proof of live anonymous transport.
+
+A unique matching signature does **not** prove Remote Desktop will work after modification or that any additional sessions are licensed.
+
+## Install and inspect
+
+1. Download the x64 package from [Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases) and verify its separately published `SHA256SUMS.txt`. The portable ZIP contains exactly **TermsrvPatcherUnified.exe** and **Example.txt** (HEX examples plus full GPLv3/MIT license texts and notices); the updater-only ZIP contains **one EXE**. Automatic patterns, NSudo, updater, diagnostics and framework dependencies are compiled/bundled in the EXE.
+2. Start the EXE. Choose **Check DLL** for a read-only local inspection.
+3. Use **Offline DLL** to inspect a file without modifying Windows services, or use **Remote Desktop** to inspect checksum drift, sessions, security options and policies.
+4. For protected Apply or Revert, use an elevated administrator session with independent console recovery access. Keep full backup enabled whenever possible. Turning it off never removes the automatic recovery journal, and exact catalog reconstruction without a genuine original is high-risk.
+5. Use **Updates → Check → Install** to update the running portable EXE in place from **any regular local folder**, including Desktop or Downloads. The enabled protected Auto Reapply worker is refreshed only after a successful verified EXE update. Administrator approval is required; the checked release archive and executable must pass hash, architecture and startup health verification. The updater runs separately from an administrator-owned temporary directory, waits for the original EXE to exit and rolls back if its health probe fails. Symlinks, directory junctions and network shares are not automatic update targets. If **Install** is disabled, the updater explains why and offers the official GitHub release ZIP. No silent installation is performed.
+
+6. The Simple window provides one **Auto reapply after Windows Update** checkbox. It is OFF by default; enabling it requires administrator approval and creates the protected scheduled task. Use **Cleanup...** for reviewed deletion of backups or reports, and optionally remove the task via its own unchecked choice and confirmation. Removing backups/recovery journals may make Revert impossible; make an independent system backup first.
+
+Non-elevated, offline-only GUI startup:
+
+```powershell
+.\TermsrvPatcherUnified.exe --offline
+```
+
+Read-only command-line DLL inspection (no administrator rights required):
+
+```powershell
+.\TermsrvPatcherUnified.exe --inspect-file "C:\Windows\System32\termsrv.dll" --report "$env:TEMP\termsrv-inspection.txt"
+```
+
+The inspection command produces a `.txt` report; it does not modify the DLL or Windows services. Valid inspection returns exit status 0; invalid input or command returns 2.
+
+## Files, privacy and safety
+
+- Full original backups: `%SystemRoot%\System32\termsrv.dll.bak` (latest verified original) and `%ProgramData%\TermsrvPatcherUnified.Secure\Backups` (protected original copies). Previous System32 `.bak` versions are archived under `%ProgramData%\TermsrvPatcherUnified.Secure\System32Backup\PreviousWindowsVersions`.
+- Small authenticated recovery journals: `%ProgramData%\TermsrvPatcherUnified.Secure\Recovery\journal-<patched-sha256>.dpapi`; encrypted/authenticated with Windows DPAPI LocalMachine plus administrator/SYSTEM-only directory ACLs. Key loss may prevent recovery. No client-supplied replacement bytes are accepted during Revert.
+- Local operation log: `%ProgramData%\TermsrvPatcherUnified\operations.log`.
+- Health baseline: `%LOCALAPPDATA%\TermsrvPatcherUnified\Health\baseline.json`. This user-editable snapshot is **informational only**, never trusted for patch authorization.
+- Local WTS session names are not transmitted or included in compatibility reports.
+- Optional public GitHub reports are reviewed before sending with a temporary, unsaved token and contain bounded DLL/version/hash/byte-change metadata, **not** usernames, hostnames, IP addresses, full files or raw logs.
+- No watchdog or scheduled SYSTEM auto-repatch task is created. Unknown signatures fail closed.
+
+## Requirements and test limits
+
+- Windows 10/11 **x64 client**, .NET 10 Windows Desktop, or a self-contained x64 Preview ZIP. Windows Server DLLs can be inspected offline; protected system Apply is restricted to supported client systems.
+- The bundled NSudo 8.2 x64 native dependency is verified by SHA-256 and used only for explicitly confirmed protected writes. No `takeown.exe` or `icacls.exe` ownership/ACL fallback.
+- GitHub Actions covers synthetic signature/PE safety, offline x86/x64 copy-patching, read-only real Windows DLL inspection, backup-copy integrity, updater rollback and synthetic WPF layout checks.
+- **Live system DLL Apply/Restore, RDP service recovery, actual RDP logons and on-screen 200%-DPI layout are not validated by CI.** Test these in an isolated Windows VM with console access.
+
+## Build from source
+
+```powershell
+dotnet restore .\TermsrvPatcher.Unified.csproj
+dotnet run --project .\Tests\TermsrvPatcher.Tests.csproj -c Release
+dotnet publish .\TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o .\publish
+```
+
+For local NSudo-enabled builds, prepare the pinned official binary with `scripts/prepare-nsudo.ps1` and publish with `-p:RequireNSudo=true`. GitHub Actions does this automatically.
+
+## Documentation and licenses
+
+See [CHANGELOG.md](CHANGELOG.md) for the complete build-by-build history, [docs/QA_STATUS.md](docs/QA_STATUS.md) for test evidence, [docs/RDPCONTROL_SOURCE_COMPARISON.md](docs/RDPCONTROL_SOURCE_COMPARISON.md) for source-level comparisons, and [SECURITY.md](SECURITY.md) for security and recovery guidance.
+
+The application is **GPLv3**. It incorporates ideas from [geissbuehler/TermsrvPatcher](https://github.com/geissbuehler/TermsrvPatcher) (GPLv3) and [fabianosrc/TermsrvPatcher](https://github.com/fabianosrc/TermsrvPatcher) (MIT), with attribution in [NOTICE.md](NOTICE.md) and `licenses/`. The separate RDPControl review does not copy its code.
