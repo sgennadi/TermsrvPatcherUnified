@@ -100,8 +100,8 @@ jobs:
             "TermsrvPatcherUnified $env:RELEASE_VERSION - UNSIGNED PREVIEW (not Stable)."
             'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
             'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
-            'No automatic or silent unsigned installation is supported.'
-            'Preview.22 includes opt-in full backup, protected recovery journal and compact Revert; no live Windows 11 protected transaction is certified.'
+            'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
+            'This Preview adds Simple/Advanced navigation, unified Remote Desktop, opt-in post-update SYSTEM task and reviewed Cleanup; no live Windows 11 patch or persistent task validation is certified.'
             'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
             ''
             'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased changes after 0.1.0-preview.22 — 2026-11-10
+## 0.1.0-preview.23 — 2026-11-10
 
 - **Simple GUI:** rebuild the compact startup window with separate Patch and Status cards, concise Automatic Pattern Recognition, backup and Auto Reapply options, and Cleanup/Updates/Advanced actions. Advanced has a direct **Back to Simple** button and preserves the no-backup selection in both directions.
 - **Consolidated Remote Desktop:** replace separate RDP Settings/Health tabs with one status/settings/health/policies/sessions page, with advanced read-only inspection of additional Windows and Group Policy parameters. Local blank-password restriction has a guarded, explicitly confirmed setting, verified readback and rollback.
