@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.QuickApplyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 1.0.2"
+        Title="TermsrvPatcherUnified 1.0.3"
         Width="940" Height="675" MinWidth="690" MinHeight="510"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
@@ -16,7 +16,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="1.0.2   •   Remote Desktop maintenance"
+          <TextBlock Text="1.0.3   •   Remote Desktop maintenance"
                      FontSize="12" Margin="0,4,0,0"
                      Foreground="{StaticResource MutedBrush}"/>
         </StackPanel>
@@ -84,6 +84,15 @@
                     IsChecked="False" Checked="AutoReapplyChanged" Unchecked="AutoReapplyChanged"/>
           <TextBlock x:Name="QuickAutoReapplyStatus" Text="Scheduled task: checking..."
                      FontSize="12" TextWrapping="Wrap" Margin="20,5,0,0"
+                     Foreground="{StaticResource MutedBrush}"/>
+          <CheckBox x:Name="QuickAutoUpdateCheck"
+                    Content="Auto-update Stable (confirm before installing)"
+                    Margin="0,10,0,0" IsChecked="False"
+                    Checked="AutoUpdateChanged" Unchecked="AutoUpdateChanged"
+                    ToolTip="Checks at startup and every 4 hours. If the trusted Auto Reapply task runs, it checks Stable without installing."/>
+          <TextBlock x:Name="QuickAutoUpdateStatus"
+                     Text="Automatic Stable checks: not configured."
+                     FontSize="12" TextWrapping="Wrap" Margin="20,4,0,0"
                      Foreground="{StaticResource MutedBrush}"/>
           <Button x:Name="QuickRepairTaskButton" Content="Repair task permissions..."
                   Visibility="Collapsed" Margin="20,7,0,0" MinWidth="210"

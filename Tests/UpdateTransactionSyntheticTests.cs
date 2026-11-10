@@ -11,6 +11,18 @@ internal static class UpdateTransactionSyntheticTests
         if (!OperatingSystem.IsWindows())
             return 0; // CI runs on windows-2025; File.Replace is tested there.
 
+        var stable = SemanticVersion.Parse("1.0.3");
+        var preview = SemanticVersion.Parse("1.0.3-preview.1");
+        if (!GitHubReleaseClient.MatchesChannel(UpdateChannel.Stable, false, stable) ||
+            GitHubReleaseClient.MatchesChannel(UpdateChannel.Stable, true, stable) ||
+            GitHubReleaseClient.MatchesChannel(UpdateChannel.Stable, false, preview) ||
+            !GitHubReleaseClient.MatchesChannel(UpdateChannel.Prerelease, true, preview) ||
+            GitHubReleaseClient.MatchesChannel(UpdateChannel.Prerelease, false, stable) ||
+            GitHubReleaseClient.MatchesChannel(UpdateChannel.Prerelease, true, stable) ||
+            GitHubReleaseClient.MatchesChannel(UpdateChannel.Prerelease, false, preview))
+            throw new Exception("Stable/Preview channel isolation failed: only matching GitHub flag plus SemVer may pass.");
+        Console.WriteLine("PASS: Preview and Stable channels reject cross-channel and incorrectly labelled releases.");
+
         RunOneCase(failHealthProbe: false);
         RunOneCase(failHealthProbe: true);
         Console.WriteLine("PASS: transactional update replaced a disposable EXE and recovered from a rejected health probe.");

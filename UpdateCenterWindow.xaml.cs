@@ -11,16 +11,18 @@ public partial class UpdateCenterWindow : Window
     private readonly UpdateIntegration updates;
     private bool checking;
     private bool installing;
+    private readonly bool automaticOffer;
 
-    internal UpdateCenterWindow(UpdateIntegration updates)
+    internal UpdateCenterWindow(UpdateIntegration updates, bool offerStableAutomatically = false)
     {
         InitializeComponent();
         this.updates = updates;
+        automaticOffer = offerStableAutomatically;
         InstalledText.Text = $"Installed: {UpdateIntegration.Version} | Windows x64";
-        if (UpdateIntegration.Version.Contains('-', StringComparison.Ordinal))
-            PreviewChannelButton.IsChecked = true;
-        else
+        if (offerStableAutomatically || !UpdateIntegration.Version.Contains('-', StringComparison.Ordinal))
             StableChannelButton.IsChecked = true;
+        else
+            PreviewChannelButton.IsChecked = true;
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         RenderNotice();
     }
@@ -32,9 +34,11 @@ public partial class UpdateCenterWindow : Window
     {
         if (updates is null || StableChannelButton is null ||
             PreviewChannelButton is null || StatusText is null) return;
-        ChannelHint.Text = Channel == UpdateChannel.Stable
-            ? "Stable — recommended for routine use when a stable release exists"
-            : "Preview — early access features that may change";
+        ChannelHint.Text = automaticOffer && Channel == UpdateChannel.Stable
+            ? "Auto-update found a new Stable version. Review it and explicitly approve Install."
+            : Channel == UpdateChannel.Stable
+                ? "Stable — recommended for routine use when a stable release exists"
+                : "Preview — early access features that may change";
         var controller = updates.Get(Channel);
         var notice = controller.Notice;
         string cache = notice.IsCached ? " (cached, not install authorization)" : "";
@@ -128,7 +132,9 @@ public partial class UpdateCenterWindow : Window
                 (reason ?? ""), "Install unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        var warning = "INSTALL UNSIGNED PREVIEW " + release.Version + "?\n\n" +
+        var warning = "INSTALL UNSIGNED " +
+            (channel == UpdateChannel.Stable ? "STABLE " : "PREVIEW ") +
+            release.Version + "?\n\n" +
             "The release originates from this project's GitHub repository. The updater " +
             "checks the SHA-256 digest published by GitHub, ZIP structure and x64 PE format. " +
             "This is NOT a digital publisher signature.\n\n" +
