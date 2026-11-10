@@ -248,8 +248,8 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
                 var quick = new QuickApplyWindow();
-                if (quick.FindName("QuickAutoUpdateCheck") is not CheckBox quickAuto ||
-                    quickAuto.IsChecked != false ||
+                if (quick.FindName("QuickAutoUpdateCheck") is not CheckBox autoUpdateOption ||
+                    autoUpdateOption.IsChecked != false ||
                     quick.FindName("QuickAutoUpdateStatus") is not TextBlock)
                     throw new Exception("Simple mode must expose the same machine-wide Auto-update opt-in.");
                 if (quick.FindName("QuickUpdatesButton") is not Button simpleUpdates ||
