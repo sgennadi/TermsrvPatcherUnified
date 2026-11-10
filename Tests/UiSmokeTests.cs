@@ -148,6 +148,16 @@ internal static class UiSmokeTests
                     diagnosticsWindow.FindName("RelayState") is not TextBlock relayStatus ||
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
+                if (diagnosticsWindow.FindName("FormspreeButton") is not Button formspree ||
+                    formspree.IsEnabled ||
+                    diagnosticsWindow.FindName("FormspreeFormIdInput") is not TextBox ||
+                    diagnosticsWindow.FindName("GitHubClientIdInput") is not TextBox ||
+                    diagnosticsWindow.FindName("GitHubSignInButton") is not Button ||
+                    diagnosticsWindow.FindName("GitHubCancelButton") is not Button ||
+                    diagnosticsWindow.FindName("CopyGitHubCodeButton") is not Button ||
+                    diagnosticsWindow.FindName("PublishButton") is not Button publish ||
+                    publish.IsEnabled)
+                    throw new Exception("Direct reporting controls must be visible and fail closed before local review.");
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
                     quickAuto.IsChecked != false ||
