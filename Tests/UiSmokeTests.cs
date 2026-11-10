@@ -71,6 +71,22 @@ internal static class UiSmokeTests
                 if (tabs.Items.OfType<TabItem>().Count(tab =>
                         tab.Header as string == "System Health") != 1)
                     throw new Exception("DLL monitoring must be in a separate System Health tab.");
+                if (tabs.Items.OfType<TabItem>().Count(tab =>
+                        tab.Header as string == "RDP Doctor") != 1 ||
+                    main.FindName("RunRdpDoctorButton") is not Button ||
+                    main.FindName("CopyRdpDoctorButton") is not Button copyDoctor ||
+                    copyDoctor.IsEnabled ||
+                    main.FindName("DoctorVerdictText") is not TextBlock ||
+                    main.FindName("DoctorBlockersText") is not TextBlock ||
+                    main.FindName("DoctorAttentionText") is not TextBlock ||
+                    main.FindName("DoctorUnknownText") is not TextBlock ||
+                    main.FindName("DoctorFindingsGrid") is not DataGrid doctorFindings ||
+                    !doctorFindings.IsReadOnly || doctorFindings.Columns.Count != 4 ||
+                    main.FindName("DoctorEventsGrid") is not DataGrid doctorEvents ||
+                    !doctorEvents.IsReadOnly || doctorEvents.Columns.Count != 4 ||
+                    main.FindName("DoctorEventStatus") is not TextBlock)
+                    throw new Exception("RDP Doctor must open read-only with separate findings, event metadata and disabled export.");
+
                 if (main.FindName("RdpTechnicalAdvanced") is not Expander technicalRdp ||
                     technicalRdp.IsExpanded ||
                     main.FindName("RdpEffectiveEnabledText") is not TextBlock ||

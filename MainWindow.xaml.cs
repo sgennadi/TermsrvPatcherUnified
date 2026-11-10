@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     private int? previousRdpListenerPort;
     private bool portRestartNeedsReview;
     private RdpConfigurationReport? lastRdpPolicyReport;
+    private RdpDoctorReport? latestRdpDoctorReport;
     private bool openBlankAfterPolicyRefresh;
     private bool autoUpdateLoading;
     private bool autoUpdateChanging;
@@ -1109,6 +1110,64 @@ public partial class MainWindow : Window
             OperationHistory.TryRecord("Baseline", "Success", report.Current.DllVersion,
                 report.Current.Sha256, report.Current.Sha256);
         });
+    }
+
+    private async void RunRdpDoctor_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        latestRdpDoctorReport = null;
+        DoctorFindingsGrid.ItemsSource = null;
+        DoctorEventsGrid.ItemsSource = null;
+        DoctorBlockersText.Text = DoctorAttentionText.Text = DoctorUnknownText.Text = "--";
+        DoctorVerdictText.Text = "Inspecting service, local policy, TCP listeners and Windows logs...";
+        DoctorCheckedText.Text = "Local inspection in progress. No Windows configuration changes.";
+        DoctorEventStatus.Text = "Checking recent RDP event channels...";
+        CopyRdpDoctorButton.IsEnabled = false;
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(RdpDoctor.ReadLocal);
+            latestRdpDoctorReport = report;
+            DoctorFindingsGrid.ItemsSource = report.Findings;
+            DoctorEventsGrid.ItemsSource = report.Events;
+            DoctorBlockersText.Text = report.Blockers.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DoctorAttentionText.Text = report.AttentionCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DoctorUnknownText.Text = report.UnknownCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DoctorVerdictText.Text = report.Verdict;
+            DoctorCheckedText.Text = "Checked " +
+                report.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
+                " UTC. Read-only local evidence; no remote sign-in attempted.";
+            DoctorEventStatus.Text = report.Events.Count + " event metadata record(s); " +
+                report.EventWarnings.Count + " inaccessible/unavailable channel(s)." +
+                (report.EventWarnings.Count == 0
+                    ? ""
+                    : Environment.NewLine + string.Join(Environment.NewLine, report.EventWarnings));
+            CopyRdpDoctorButton.IsEnabled = true;
+            FooterText.Text = "RDP Doctor completed. " + report.Blockers +
+                " local blocker(s). No services, registry values or system DLL changed.";
+        });
+    }
+
+    private void CopyRdpDoctor_Click(object sender, RoutedEventArgs e)
+    {
+        if (latestRdpDoctorReport is null) return;
+        try
+        {
+            Clipboard.SetText(latestRdpDoctorReport.AsText());
+            FooterText.Text = "RDP Doctor report copied locally (no usernames, event messages or IP addresses).";
+        }
+        catch (Exception error) when (error is System.Runtime.InteropServices.ExternalException or
+                                       System.Threading.ThreadStateException)
+        {
+            ModernMessageDialog.Show(this, "Windows clipboard is not available: " +
+                error.GetType().Name, "RDP Doctor", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
+    private void OpenRdpSettingsFromDoctor_Click(object sender, RoutedEventArgs e)
+    {
+        var rdpTab = MainTabs.Items.OfType<System.Windows.Controls.TabItem>()
+            .FirstOrDefault(x => x.Header as string == "Remote Desktop");
+        if (rdpTab is not null) MainTabs.SelectedItem = rdpTab;
     }
 
     private async void InspectRdpSecurity_Click(object sender, RoutedEventArgs e)
