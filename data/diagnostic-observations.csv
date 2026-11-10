@@ -1,1 +1,1 @@
-issue_number,observed_utc,received_utc,windows_release,windows_build,windows_ubr,dll_version,dll_sha256,app_version,component,error_type,error_code,severity,architecture,verification
+issue_number,event_id,observed_utc,received_utc,windows_release,windows_build,windows_ubr,dll_version,dll_sha256,app_version,component,error_type,error_code,severity,architecture,verification
