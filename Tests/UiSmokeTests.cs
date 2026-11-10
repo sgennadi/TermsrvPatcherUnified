@@ -63,6 +63,12 @@ internal static class UiSmokeTests
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
                     !historyGrid.IsReadOnly)
                     throw new Exception("Read-only policy and history controls are missing.");
+                if (main.FindName("AutoTechnicalDetails") is not Expander autoDetails ||
+                    autoDetails.IsExpanded ||
+                    main.FindName("AutoSimpleStatus") is not TextBlock ||
+                    main.FindName("AutoSimpleProfile") is not TextBlock ||
+                    main.FindName("AutoSimpleReason") is not TextBlock)
+                    throw new Exception("Automatic must default to concise status with collapsed technical evidence.");
                 if (main.FindName("AutoPriorityGrid") is not DataGrid priorityGrid ||
                     !priorityGrid.IsReadOnly || priorityGrid.CanUserSortColumns ||
                     priorityGrid.CanUserReorderColumns ||
