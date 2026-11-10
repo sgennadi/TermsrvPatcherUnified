@@ -50,6 +50,9 @@
           <TextBlock x:Name="AdvancedAutoReapplyStatus"
                      Text="Scheduled task: checking..." Margin="20,4,0,0"
                      Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+          <Button x:Name="AdvancedRepairTaskButton" Content="Repair task permissions..."
+                  Visibility="Collapsed" Margin="20,7,0,0" MinWidth="210"
+                  HorizontalAlignment="Left" Click="RepairAutoReapply_Click"/>
         </StackPanel>
         <Button x:Name="RefreshButton" Grid.Column="1" Tag="&#xE72C;" Content="Check DLL" Style="{StaticResource PrimaryButton}"
                 Click="Refresh_Click" VerticalAlignment="Center" Margin="15,0,0,0"/>
