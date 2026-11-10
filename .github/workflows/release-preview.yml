@@ -42,7 +42,6 @@ jobs:
           TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
         run: |
           ./scripts/Configure-Reporting.ps1 -FromEnvironment
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Stage pinned official NSudo 8.2 x64
         shell: pwsh
         env:
