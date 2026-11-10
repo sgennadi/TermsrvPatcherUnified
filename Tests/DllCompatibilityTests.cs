@@ -85,6 +85,16 @@ internal static class DllCompatibilityTests
         Verify(index.Rows.Single(x => x.Check == "First seen (local)")
             .Status == "Unverified", "first-seen metadata never becomes an original baseline");
 
+        // PE version resources and Windows registry labels can be arbitrary text,
+        // so they must not leak filenames, paths or account names in copied reports.
+        var hostile = DllCompatibilityIndex.Analyze(
+            current with { DllVersion = @"C:\Users\PrivateUser\termsrv.dll" },
+            host with { Name = @"C:\Users\PrivateUser", DisplayVersion = @"D:\PrivateUser" },
+            observations, successes);
+        Verify(!hostile.AsText().Contains(@"C:\Users", StringComparison.OrdinalIgnoreCase) &&
+               !hostile.AsText().Contains(@"D:\PrivateUser", StringComparison.OrdinalIgnoreCase),
+            "untrusted PE/registry metadata cannot leak local paths into evidence export");
+
         Console.WriteLine("PASS: " + checks + " offline DLL compatibility index checks. " +
             "No system DLL write, network call, license claim or automatic patch authorization.");
         return checks;
