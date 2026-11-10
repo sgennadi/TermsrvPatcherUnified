@@ -22,6 +22,8 @@ public partial class MainWindow : Window
     private ManualFragmentSnapshot? fragmentSnapshot;
     private ImportedCatalogReport? importedReport;
     private bool busy;
+    private bool autoTaskChanging;
+    private bool autoTaskLoading;
     private readonly UpdateIntegration updates = new();
 
     public MainWindow(bool offlineStartup = false)
@@ -55,6 +57,7 @@ public partial class MainWindow : Window
                 ReadRdp();
             }
             catch (Exception e) { FooterText.Text = "Settings read: " + e.Message; }
+            await RefreshAutoReapplyAsync();
             await CheckAsync();
             var independent = IsolatedApplyExecutor.ReadLatestStatus();
             if (independent is not null)
@@ -1204,7 +1207,7 @@ public partial class MainWindow : Window
 
     private void SimpleMode_Click(object sender, RoutedEventArgs e)
     {
-        if (busy)
+        if (busy || autoTaskChanging)
         {
             MessageBox.Show(this, "Finish the current operation before switching views.",
                 "Switch view", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -1219,6 +1222,84 @@ public partial class MainWindow : Window
         Application.Current.MainWindow = simple;
         simple.Show();
         Close();
+    }
+
+
+    private async Task RefreshAutoReapplyAsync()
+    {
+        if (autoTaskChanging) return;
+        var task = await Task.Run(AutoReapplyScheduler.ReadStatus);
+        autoTaskLoading = true;
+        try
+        {
+            AdvancedAutoReapplyCheck.IsChecked = task.Trusted && task.Enabled;
+            AdvancedAutoReapplyCheck.IsEnabled = !busy &&
+                (!task.Installed || task.Trusted);
+            AdvancedAutoReapplyStatus.Text = task.Message;
+        }
+        finally { autoTaskLoading = false; }
+    }
+
+    private async void AutoReapplyChanged(object sender, RoutedEventArgs e)
+    {
+        if (AdvancedAutoReapplyStatus is null || autoTaskLoading || autoTaskChanging) return;
+        if (busy) { await RefreshAutoReapplyAsync(); return; }
+        bool enable = AdvancedAutoReapplyCheck.IsChecked == true;
+        var current = AutoReapplyScheduler.ReadStatus();
+        if (current.Installed && !current.Trusted ||
+            !enable && !current.Installed)
+        {
+            await RefreshAutoReapplyAsync();
+            return;
+        }
+        if (enable && MessageBox.Show(this,
+                "Install a protected SYSTEM task to check changed termsrv.dll after Windows Update, " +
+                "at startup and daily? Automatic Apply only uses a uniquely verified exact signature, " +
+                "always with full backup. Maintain independent console recovery access.",
+                "Enable Auto Reapply", MessageBoxButton.YesNo,
+                MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            await RefreshAutoReapplyAsync();
+            return;
+        }
+        if (!enable && MessageBox.Show(this,
+                "Remove the Auto Reapply task? This does not change the installed DLL.",
+                "Disable Auto Reapply", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+        {
+            await RefreshAutoReapplyAsync();
+            return;
+        }
+        autoTaskChanging = true;
+        AdvancedAutoReapplyCheck.IsEnabled = false;
+        AdvancedAutoReapplyStatus.Text = enable ? "Installing scheduled task..." : "Removing scheduled task...";
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (enable) AutoReapplyScheduler.Enable();
+                else AutoReapplyScheduler.Disable();
+            });
+        }
+        catch (Exception error)
+        {
+            DiagnosticsBridge.Remember("Auto Reapply", error);
+            MessageBox.Show(this, "The scheduled task was not changed successfully: " + error.Message,
+                "Auto Reapply", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            autoTaskChanging = false;
+            await RefreshAutoReapplyAsync();
+        }
+    }
+
+    private async void Cleanup_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || autoTaskChanging) return;
+        new CleanupWindow { Owner = this }.ShowDialog();
+        await RefreshAutoReapplyAsync();
+        await CheckAsync();
     }
 
     private void Updates_Click(object sender, RoutedEventArgs e)
