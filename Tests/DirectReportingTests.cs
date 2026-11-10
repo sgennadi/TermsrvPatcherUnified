@@ -88,7 +88,7 @@ internal static class DirectReportingTests
         var endpoint = FormspreeReportClient.Endpoint("mabc1234");
         Verify(endpoint.AbsoluteUri == "https://formspree.io/f/mabc1234",
             "Formspree endpoint is pinned to official HTTPS host");
-        var outgoing = FormspreeReportClient.BuildSubmission(payload);
+        var outgoing = FormspreeReportClient.BuildSubmission(payload, DiagnosticsBridge.Project);
         using (var doc = JsonDocument.Parse(outgoing))
         {
             var root = doc.RootElement;
@@ -105,14 +105,14 @@ internal static class DirectReportingTests
         using (var http = new HttpClient(success))
         using (var client = new FormspreeReportClient(http))
         {
-            client.SendAsync("mabc1234", outgoing, payload).GetAwaiter().GetResult();
+            client.SendAsync("mabc1234", outgoing, payload, DiagnosticsBridge.Project).GetAwaiter().GetResult();
             Verify(success.Requests == 1 && success.LastUri == endpoint &&
                    success.LastMethod == HttpMethod.Post,
                 "Formspree receives exactly one POST to pinned endpoint");
             Verify(success.LastBody == outgoing && !success.LastBody.Contains("HOSTNAME PRIVATE DATA"),
                 "Formspree receives exact reviewed JSON only");
             Throws<InvalidDataException>(() =>
-                client.SendAsync("mabc1234", outgoing + " ", payload).GetAwaiter().GetResult(),
+                client.SendAsync("mabc1234", outgoing + " ", payload, DiagnosticsBridge.Project).GetAwaiter().GetResult(),
                 "reviewed Formspree JSON cannot change before dispatch");
             Verify(success.Requests == 1, "modified payload rejected before HTTP");
         }
@@ -129,7 +129,7 @@ internal static class DirectReportingTests
             using var http = new HttpClient(handler);
             using var client = new FormspreeReportClient(http);
             bool denied = false;
-            try { client.SendAsync("mabc1234", outgoing, payload).GetAwaiter().GetResult(); }
+            try { client.SendAsync("mabc1234", outgoing, payload, DiagnosticsBridge.Project).GetAwaiter().GetResult(); }
             catch (Exception ex) when (ex is InvalidDataException or InvalidOperationException)
             { denied = true; }
             Verify(denied && handler.Requests == 1,
