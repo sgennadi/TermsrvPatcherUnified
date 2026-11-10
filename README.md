@@ -1,12 +1,12 @@
 # TermsrvPatcherUnified
 
-**Current source version:** `0.1.0-preview.23` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
+**Current source version:** `0.1.0-preview.24` · **Status:** unsigned Preview, not Stable · **Platform:** Windows x64, .NET 10 WPF
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Download a Preview](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)**
 
-**In development:** [Receiver-free diagnostics](docs/DIRECT_REPORTING.md) are tracked in draft PR #27. Formspree is preconfigured to the operator-provided form `mvkkernb` and embedded inside the EXE, including local builds. The optional administrator script configures alternative destinations and GitHub OAuth once. End users need no settings files or provider IDs; sending remains explicitly reviewed. These changes are not yet included in a published Preview.
+**Preview.24:** [Receiver-free diagnostics](docs/DIRECT_REPORTING.md) use the operator-provided Formspree form `mvkkernb`, embedded in the EXE. No local setup, settings files or provider ID entry are needed. Sending requires review and confirmation. Optional GitHub OAuth needs a separately registered OAuth App. Live delivery to the Formspree form has not yet been verified.
 
 ## Disclaimer — use entirely at your own risk
 
