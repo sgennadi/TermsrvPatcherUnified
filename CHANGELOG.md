@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.0-preview.25 — 2026-11-10
+
+- **Task Scheduler:** recognize absent Auto Reapply tasks when Windows COM reports `FileNotFoundException` / known task-not-found HRESULTs during `GetTask`. Show `Scheduled task: Not configured (optional)` instead of a technical error. Do not treat access-denied, service faults or missing worker files as absent tasks.
+- **Status:** show AlreadyPatched / Already patched in red in Advanced and Simple; no change to patch or restore eligibility.
+- **Diagnostics:** explain the two required steps: Review and save locally, then Send report via the preconfigured Formspree form. Nothing is automatically uploaded.
+- **Verification:** add synthetic missing-task vs access/service-failure cases; tests do not register or modify Windows scheduled tasks.
+
 ## 0.1.0-preview.24 — 2026-11-10
 
 - **One-time embedded configuration:** administrator sets the nonsecret public provider IDs once using `scripts/Configure-Reporting.ps1` and GitHub Actions Variables; each subsequent CI/release build embeds them in the EXE. No per-user ProgramData reporting.json, extra file, input box or installation script. Missing IDs disable providers; browser login and reviewed send remain mandatory.

@@ -91,6 +91,28 @@ byte[] FakeBytes(BytePattern group, int offset = 40)
     return value;
 }
 
+// Missing auto-reapply task is ordinary on first launch. A missing filename
+// outside GetTask, access errors or a broken COM service must not be treated
+// as permission to overwrite or create a scheduled task.
+Ensure(AutoReapplyScheduler.IsMissingTaskLookupError(
+        new FileNotFoundException("Task Scheduler task not registered")),
+    "missing-task FileNotFoundException is recognized");
+Ensure(AutoReapplyScheduler.IsMissingTaskLookupError(
+        new System.Runtime.InteropServices.COMException("task not found", unchecked((int)0x80070002))),
+    "missing-task COM HRESULT 0x80070002 is recognized");
+Ensure(AutoReapplyScheduler.IsMissingTaskLookupError(
+        new System.Runtime.InteropServices.COMException("task not found", unchecked((int)0x8004130F))),
+    "Task Scheduler task-not-found HRESULT 0x8004130F is recognized");
+Ensure(!AutoReapplyScheduler.IsMissingTaskLookupError(
+        new UnauthorizedAccessException("task access denied")),
+    "access denied cannot be interpreted as a missing task");
+Ensure(!AutoReapplyScheduler.IsMissingTaskLookupError(
+        new IOException("worker file missing")),
+    "worker file IO errors cannot be treated as absent scheduled task");
+Ensure(!AutoReapplyScheduler.IsMissingTaskLookupError(
+        new System.Runtime.InteropServices.COMException("service unavailable", unchecked((int)0x80041315))),
+    "Task Scheduler service failures cannot be interpreted as a missing task");
+
 // Preview.22: pure policy regression checks, no protected file writes.
 var syntheticOriginalSha = new string('a', 64);
 var syntheticPatchedSha = new string('b', 64);

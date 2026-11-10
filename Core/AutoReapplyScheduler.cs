@@ -62,6 +62,17 @@ internal static class AutoReapplyScheduler
         return system && administrators;
     }
 
+    // Some Windows Task Scheduler COM bindings surface a missing task as
+    // FileNotFoundException (0x80070002), not COMException. Only the named
+    // GetTask lookup may interpret this as 'not configured'. Other missing
+    // files (including the protected worker) must still fail closed.
+    internal static bool IsMissingTaskLookupError(Exception error)
+    {
+        if (error is not COMException && error is not FileNotFoundException)
+            return false;
+        return (uint)error.HResult is 0x80070002 or 0x8004130F;
+    }
+
     internal static TaskState ReadStatus()
     {
         if (!OperatingSystem.IsWindows())
@@ -73,9 +84,10 @@ internal static class AutoReapplyScheduler
             dynamic scheduler = service;
             folder = scheduler.GetFolder(@"\");
             try { registered = ((dynamic)folder).GetTask(TaskName); }
-            catch (COMException error) when ((uint)error.HResult is 0x80070002 or 0x8004130F)
+            catch (Exception error) when (IsMissingTaskLookupError(error))
             {
-                return new(false, false, false, "Not configured.");
+                return new(false, false, false,
+                    "Scheduled task: Not configured (optional).");
             }
             definition = ((dynamic)registered).Definition;
             dynamic taskDef = definition;
