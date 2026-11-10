@@ -20,6 +20,7 @@ public partial class DiagnosticsWindow : Window
     private string? githubSessionToken;
     private CancellationTokenSource? githubLoginCancel;
     private bool formspreeConfirmed;
+    private DirectReportingSettings reportingSettings = new("", "");
 
     public DiagnosticsWindow()
     {
@@ -42,13 +43,21 @@ public partial class DiagnosticsWindow : Window
         }
         try
         {
-            var options = DirectReportingSettings.Load();
-            GitHubClientIdInput.Text = options.GitHubOAuthClientId;
-            FormspreeFormIdInput.Text = options.FormspreeFormId;
+            reportingSettings = DirectReportingSettings.Load();
+            GitHubSignInButton.IsEnabled = reportingSettings.HasGitHubOAuth;
+            GitHubDeviceStatus.Text = reportingSettings.HasGitHubOAuth
+                ? "Ready: connect through GitHub browser sign-in when you wish to publish."
+                : "GitHub OAuth is not configured in this EXE; optional temporary token remains available.";
+            FormspreeStatus.Text = reportingSettings.HasFormspree
+                ? "Ready: save and review a report; no login or setup is needed."
+                : "Formspree is not configured in this EXE. Reporting stays local.";
         }
         catch (Exception ex) when (ex is InvalidDataException or UnauthorizedAccessException or IOException or JsonException)
         {
-            FormspreeStatus.Text = "Provider configuration unavailable. Enter an ID manually.";
+            GitHubSignInButton.IsEnabled = false;
+            FormspreeButton.IsEnabled = false;
+            GitHubDeviceStatus.Text = "Embedded GitHub reporting configuration is invalid. Disabled.";
+            FormspreeStatus.Text = "Embedded Formspree reporting configuration is invalid. Disabled.";
         }
         Closed += (_, _) =>
         {
@@ -135,7 +144,7 @@ public partial class DiagnosticsWindow : Window
             ReportPreview.Text = markdown;
             PublishButton.IsEnabled = true;
             FormspreeButton.IsEnabled = anonymousPayload is not null &&
-                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
+                reportingSettings.HasFormspree;
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null;
             Status.Text = $"Saved locally. Report ID: {receipt.Id}. Review before sharing.";
         }
@@ -212,7 +221,7 @@ public partial class DiagnosticsWindow : Window
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null && submittedIssue is null;
             FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
                 submittedIssue is null && !formspreeConfirmed &&
-                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
+                reportingSettings.HasFormspree;
         }
     }
 
@@ -271,7 +280,7 @@ public partial class DiagnosticsWindow : Window
                 anonymousPayload is not null && submittedIssue is null;
             FormspreeButton.IsEnabled = savedReport is not null && anonymousPayload is not null &&
                 submittedIssue is null && !formspreeConfirmed &&
-                DirectReportingSettings.ValidFormId(FormspreeFormIdInput.Text);
+                reportingSettings.HasFormspree;
         }
     }
 
