@@ -446,6 +446,42 @@ internal static class IsolatedApplyExecutor
         return process.SessionId == 0;
     }
 
+    /// <summary>
+    /// Stronger preflight for destructive Cleanup: inspect every job folder,
+    /// not just the ten most recent. Unreadable/incomplete jobs fail closed.
+    /// </summary>
+    internal static bool AnyActiveJob()
+    {
+        if (!Directory.Exists(Root)) return false;
+        try
+        {
+            NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
+            NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+            int seen = 0;
+            foreach (var dir in Directory.EnumerateDirectories(Root, "job-*",
+                         SearchOption.TopDirectoryOnly))
+            {
+                if (++seen > 1024 ||
+                    (File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+                    return true;
+                string path = Path.Combine(dir, StatusName);
+                if (!File.Exists(path) ||
+                    (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+                    return true;
+                var status = JsonSerializer.Deserialize<Status>(File.ReadAllText(path));
+                if (status is null || !TryNormalizeId(status.Id, out _) ||
+                    status.State is "Queued" or "Running" or "Unconfirmed" or "ProbeQueued")
+                    return true;
+            }
+            return false;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   JsonException or InvalidOperationException)
+        {
+            return true;
+        }
+    }
+
     internal static Status? ReadLatestStatus()
     {
         if (!Directory.Exists(Root)) return null;

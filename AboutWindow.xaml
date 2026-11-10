@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.AboutWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="About / Components — 0.1.0-preview.22" Height="435" Width="590" MinWidth="520" MinHeight="380"
+        Title="About / Components — 0.1.0-preview.23" Height="435" Width="590" MinWidth="520" MinHeight="380"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResizeWithGrip"
         FontFamily="Segoe UI" FontSize="13" Background="{StaticResource BackgroundBrush}" Icon="Assets/app.ico">
   <Grid Margin="20">
@@ -18,7 +18,7 @@
           <TextBlock Text="Protected file access" FontWeight="SemiBold"/>
           <TextBlock x:Name="NSudoStatusText" Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Updates" FontWeight="SemiBold"/>
-          <TextBlock Text="UniversalUpdater — GitHub Releases check; installation requires a trusted installer." Margin="0,3,0,12" TextWrapping="Wrap"/>
+          <TextBlock Text="UniversalUpdater — verified release checks and in-place updates from local folders, including Desktop." Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Diagnostics" FontWeight="SemiBold"/>
           <TextBlock Text="UniversalDiagnostics — local capture and optional reviewed GitHub Issue publication; no background upload." Margin="0,3,0,12" TextWrapping="Wrap"/>
           <TextBlock Text="Licensing" FontWeight="SemiBold"/>

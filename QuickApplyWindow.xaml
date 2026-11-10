@@ -1,70 +1,102 @@
 <Window x:Class="TermsrvPatcherUnified.QuickApplyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 0.1.0-preview.22"
-        Width="705" Height="420" MinWidth="640" MinHeight="396"
+        Title="TermsrvPatcherUnified 0.1.0-preview.23"
+        Width="750" Height="635" MinWidth="650" MinHeight="530"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
         FontFamily="Segoe UI" FontSize="13" Icon="Assets/app.ico">
-  <Grid Margin="22">
-    <Grid.RowDefinitions>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="*"/>
-      <RowDefinition Height="Auto"/>
-      <RowDefinition Height="Auto"/>
-    </Grid.RowDefinitions>
-    <StackPanel Grid.Row="0" Margin="0,0,0,16">
-      <TextBlock Text="TermsrvPatcherUnified" FontSize="23" FontWeight="SemiBold"
-                 Foreground="{StaticResource NavyBrush}"/>
-      <TextBlock Text="0.1.0-preview.22 · Automatic check" FontSize="12"
-                 Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}"/>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel Margin="24,19,24,19">
+      <DockPanel Margin="0,0,0,17">
+        <StackPanel DockPanel.Dock="Left">
+          <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
+                     Foreground="{StaticResource NavyBrush}"/>
+          <TextBlock Text="0.1.0-preview.23   •   Remote Desktop maintenance"
+                     FontSize="12" Margin="0,4,0,0"
+                     Foreground="{StaticResource MutedBrush}"/>
+        </StackPanel>
+      </DockPanel>
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="260"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <GroupBox Header="Patch" Grid.Column="0" Margin="0,0,11,12" Padding="15">
+          <StackPanel>
+            <Button x:Name="QuickApplyButton" Content="Apply Patch" Tag="&#xE8FB;"
+                    Style="{StaticResource PrimaryButton}" Click="Apply_Click"
+                    IsEnabled="False" MinWidth="180"/>
+            <Button x:Name="QuickRevertButton" Content="Revert Changes" Tag="&#xE777;"
+                    Click="Revert_Click" IsEnabled="False" MinWidth="180"/>
+            <Button x:Name="QuickCheckButton" Content="Check Status" Tag="&#xE72C;"
+                    Click="Check_Click" MinWidth="180"/>
+          </StackPanel>
+        </GroupBox>
+        <GroupBox Header="Status" Grid.Column="1" Margin="0,0,0,12" Padding="15">
+          <StackPanel>
+            <TextBlock x:Name="QuickSystemText" Text="Detecting Windows..."
+                       FontWeight="SemiBold" TextWrapping="Wrap"/>
+            <TextBlock x:Name="QuickDllText" Text="Checking termsrv.dll..."
+                       Foreground="{StaticResource MutedBrush}" Margin="0,10,0,0"/>
+            <TextBlock x:Name="QuickStatusText" Text="Checking..."
+                       FontSize="15" FontWeight="SemiBold"
+                       Foreground="{StaticResource NavyBrush}" Margin="0,14,0,0"/>
+          </StackPanel>
+        </GroupBox>
+      </Grid>
+      <Border Background="White" BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1" CornerRadius="10" Padding="15" Margin="0,1,0,13">
+        <StackPanel>
+          <TextBlock Text="Automatic Pattern Recognition" FontSize="16"
+                     FontWeight="SemiBold" Foreground="{StaticResource NavyBrush}"/>
+          <TextBlock x:Name="QuickHelpText"
+                     Text="An exact DLL signature and SHA-256 match are required."
+                     TextWrapping="Wrap" Margin="0,9,0,0"
+                     Foreground="{StaticResource MutedBrush}"/>
+          <TextBlock x:Name="QuickLastJobText" Text="" FontSize="12"
+                     TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
+                     Margin="0,8,0,0"/>
+        </StackPanel>
+      </Border>
+      <Border Background="White" BorderBrush="{StaticResource BorderBrush}"
+              BorderThickness="1" CornerRadius="10" Padding="15" Margin="0,0,0,12">
+        <StackPanel>
+          <TextBlock Text="Options" FontSize="16" FontWeight="SemiBold"
+                     Foreground="{StaticResource NavyBrush}"/>
+          <CheckBox x:Name="QuickNoBackupCheck" Margin="0,10,0,0"
+                    Content="Do not create backup" IsChecked="False"
+                    Checked="BackupOptionChanged" Unchecked="BackupOptionChanged"
+                    ToolTip="Keep this OFF for a full DLL backup and protected archived original."/>
+          <TextBlock x:Name="QuickBackupInfoText"
+                     Text="Full backup ON: verified System32 .bak and protected original."
+                     FontSize="12" TextWrapping="Wrap" Margin="20,5,0,12"
+                     Foreground="{StaticResource MutedBrush}"/>
+          <CheckBox x:Name="QuickAutoReapplyCheck"
+                    Content="Auto reapply after Windows Update"
+                    IsChecked="False" Checked="AutoReapplyChanged" Unchecked="AutoReapplyChanged"/>
+          <TextBlock x:Name="QuickAutoReapplyStatus" Text="Scheduled task: checking..."
+                     FontSize="12" TextWrapping="Wrap" Margin="20,5,0,0"
+                     Foreground="{StaticResource MutedBrush}"/>
+        </StackPanel>
+      </Border>
+      <Grid Margin="0,2,0,0">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <Button x:Name="QuickCleanupButton" Content="Cleanup..." Tag="&#xE74D;"
+                Grid.Column="0" Click="Cleanup_Click" MinWidth="105"/>
+        <Button Content="Updates" Tag="&#xE896;" Grid.Column="2"
+                Click="Updates_Click" MinWidth="90"/>
+        <Button x:Name="QuickAdvancedButton" Content="Advanced" Tag="&#xE713;"
+                Grid.Column="3" Click="Advanced_Click" MinWidth="110"/>
+        <Button x:Name="QuickCancelButton" Content="Close" Grid.Column="4"
+                Click="Cancel_Click" MinWidth="90" Margin="0,0,0,10"/>
+      </Grid>
     </StackPanel>
-    <Border Grid.Row="1" Background="White" BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="1" CornerRadius="10" Padding="18">
-      <StackPanel>
-        <TextBlock x:Name="QuickSystemText" Text="Detecting Windows and checking termsrv.dll..."
-                   FontWeight="SemiBold" FontSize="15"/>
-        <TextBlock x:Name="QuickDllText" Text="Read-only verification in progress"
-                   Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}"/>
-        <TextBlock x:Name="QuickStatusText" Text="Checking..."
-                   Margin="0,13,0,0" FontWeight="SemiBold" FontSize="15"
-                   Foreground="{StaticResource NavyBrush}"/>
-        <TextBlock x:Name="QuickHelpText"
-                   Text="Apply is available only after an exact, verified signature match."
-                   TextWrapping="Wrap" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}"/>
-        <TextBlock x:Name="QuickLastJobText" Text="" FontSize="12"
-                   TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}"
-                   Margin="0,8,0,0"/>
-        <TextBlock x:Name="QuickBackupInfoText"
-                   Text="Full backup is ON: verified .bak in System32 and protected archived copy."
-                   Foreground="{StaticResource MutedBrush}" FontSize="12"
-                   TextWrapping="Wrap" Margin="0,10,0,0"/>
-      </StackPanel>
-    </Border>
-    <CheckBox x:Name="QuickNoBackupCheck" Grid.Row="2" Margin="0,12,0,0"
-              Content="Do not create backup" IsChecked="False"
-              Checked="BackupOptionChanged" Unchecked="BackupOptionChanged"
-              ToolTip="Disables full DLL .bak and ProgramData backup. A small encrypted recovery journal is still required for Automatic Apply."/>
-    <Grid Grid.Row="3" Margin="0,14,0,0">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="*"/>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="Auto"/>
-        <ColumnDefinition Width="Auto"/>
-      </Grid.ColumnDefinitions>
-      <Button x:Name="QuickApplyButton" Grid.Column="0"
-              Content="Apply" Tag="&#xE8FB;" Style="{StaticResource PrimaryButton}"
-              IsEnabled="False" Click="Apply_Click" MinWidth="124"
-              HorizontalAlignment="Left"/>
-      <Button x:Name="QuickRevertButton" Grid.Column="1" Content="Revert"
-              Click="Revert_Click" MinWidth="88" IsEnabled="False" Tag="&#xE777;"/>
-      <Button x:Name="QuickCheckButton" Grid.Column="2" Content="Check"
-              Click="Check_Click" MinWidth="78" Tag="&#xE72C;"/>
-      <Button x:Name="QuickAdvancedButton" Grid.Column="3" Content="Advanced"
-              Click="Advanced_Click" MinWidth="106" Tag="&#xE713;"/>
-      <Button x:Name="QuickCancelButton" Grid.Column="4" Content="Cancel"
-              Click="Cancel_Click" MinWidth="88"/>
-    </Grid>
-  </Grid>
+  </ScrollViewer>
 </Window>

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
@@ -36,14 +37,47 @@ internal static class UiSmokeTests
                     main.FindName("OfflineSource") is not TextBox ||
                     main.FindName("OfflineSaveButton") is not Button)
                     throw new Exception("Expected exactly one offline DLL patch tab and its controls.");
+                if (tabs.Items.OfType<TabItem>().Count(tab =>
+                        tab.Header as string == "Remote Desktop") != 1 ||
+                    tabs.Items.OfType<TabItem>().Any(tab =>
+                        (tab.Header as string) is "RDP Health" or "RDP Settings"))
+                    throw new Exception("RDP settings and health must be merged into exactly one tab.");
                 if (main.FindName("RdpSessionsGrid") is not DataGrid grid ||
-                    !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox)
-                    throw new Exception("Read-only RDP Health controls are missing.");
+                    !grid.IsReadOnly || main.FindName("DllHealthDetails") is not TextBox ||
+                    main.FindName("RdpSessionsCountText") is not TextBlock ||
+                    main.FindName("RdpOverviewText") is not TextBlock ||
+                    main.FindName("BlankPasswordStatus") is not TextBlock ||
+                    main.FindName("RdpSecurityAdvanced") is not Expander secExpanded ||
+                    secExpanded.IsExpanded ||
+                    main.FindName("BlankPasswordRestriction") is not CheckBox ||
+                    main.FindName("SaveBlankPasswordButton") is not Button ||
+                    main.FindName("SimpleModeButton") is not Button)
+                    throw new Exception("Unified RDP dashboard, hidden security controls or back navigation missing.");
+                if (main.FindName("RdpApplyImpactText") is not TextBlock ||
+                    main.FindName("RdpPostApplyActions") is not TextBlock ||
+                    main.FindName("RefreshComputerPolicyButton") is not Button policyRefresh ||
+                    policyRefresh.Content is not string policyText ||
+                    !policyText.Contains("Refresh Computer Policy", StringComparison.Ordinal) ||
+                    main.FindName("ReviewRdpRestartButton") is not Button restartReview ||
+                    restartReview.IsEnabled)
+                    throw new Exception(
+                        "RDP post-apply action guidance and fail-safe restart review controls are missing.");
+                if (main.FindName("AdvancedAutoReapplyCheck") is not CheckBox advancedReapply ||
+                    advancedReapply.IsChecked != false ||
+                    main.FindName("AdvancedAutoReapplyStatus") is not TextBlock ||
+                    main.FindName("CleanupButton") is not Button)
+                    throw new Exception("Advanced Auto Reapply and Cleanup controls are missing.");
                 if (main.FindName("RdpPolicyGrid") is not DataGrid policyGrid ||
                     !policyGrid.IsReadOnly || main.FindName("RdpPolicyDetails") is not TextBox ||
                     main.FindName("OperationHistoryGrid") is not DataGrid historyGrid ||
                     !historyGrid.IsReadOnly)
                     throw new Exception("Read-only policy and history controls are missing.");
+                if (main.FindName("AutoTechnicalDetails") is not Expander autoDetails ||
+                    autoDetails.IsExpanded ||
+                    main.FindName("AutoSimpleStatus") is not TextBlock ||
+                    main.FindName("AutoSimpleProfile") is not TextBlock ||
+                    main.FindName("AutoSimpleReason") is not TextBlock)
+                    throw new Exception("Automatic must default to concise status with collapsed technical evidence.");
                 if (main.FindName("AutoPriorityGrid") is not DataGrid priorityGrid ||
                     !priorityGrid.IsReadOnly || priorityGrid.CanUserSortColumns ||
                     priorityGrid.CanUserReorderColumns ||
@@ -80,6 +114,24 @@ internal static class UiSmokeTests
                     main.FindName("ManualHexCopy") is not Button copy ||
                     copy.IsEnabled)
                     throw new Exception("Read-only 16-column HEX viewer and navigation controls are missing.");
+                // Desktop/Downloads are legal portable update targets; no EXE
+                // is executed and no system application is changed by this smoke test.
+                var tempRoot = Path.Combine(Path.GetTempPath(),
+                    "TermsrvPortableQA-" + Guid.NewGuid().ToString("N"));
+                var pseudoDesktop = Path.Combine(tempRoot, "Desktop");
+                Directory.CreateDirectory(pseudoDesktop);
+                try
+                {
+                    var dummyExe = Path.Combine(pseudoDesktop, UpdateInstallBridge.ExecutableName);
+                    File.WriteAllBytes(dummyExe, [0x4D, 0x5A]);
+                    if (!UpdateInstallBridge.IsSafePortableInstallTarget(dummyExe, out _) ||
+                        UpdateInstallBridge.IsSafePortableInstallTarget(
+                            Path.Combine(pseudoDesktop, "not-our-program.exe"), out _) ||
+                        UpdateInstallBridge.IsSafePortableInstallTarget(
+                            @"\\server\share\TermsrvPatcherUnified.exe", out _))
+                        throw new Exception("Portable update location rules rejected local desktop or accepted an invalid target.");
+                }
+                finally { Directory.Delete(tempRoot, recursive: true); }
                 var updaterWindow = new UpdateCenterWindow(updater);
                 if (updaterWindow.FindName("InstallHelp") is not TextBlock eligibilityHelp ||
                     eligibilityHelp.Text.Contains("signed update installer", StringComparison.OrdinalIgnoreCase) ||
@@ -94,6 +146,11 @@ internal static class UiSmokeTests
                     string.IsNullOrWhiteSpace(relayStatus.Text))
                     throw new Exception("Anonymous HTTPS reporting must be visible but disabled before local capture.");
                 var quick = new QuickApplyWindow();
+                if (quick.FindName("QuickAutoReapplyCheck") is not CheckBox quickAuto ||
+                    quickAuto.IsChecked != false ||
+                    quick.FindName("QuickAutoReapplyStatus") is not TextBlock ||
+                    quick.FindName("QuickCleanupButton") is not Button)
+                    throw new Exception("Simple Auto Reapply checkbox and Cleanup controls missing.");
                 if (quick.FindName("QuickApplyButton") is not Button quickApply ||
                     quickApply.IsEnabled ||
                     quick.FindName("QuickRevertButton") is not Button quickRevert ||
@@ -107,12 +164,27 @@ internal static class UiSmokeTests
                     quick.FindName("QuickCheckButton") is not Button ||
                     quick.FindName("QuickStatusText") is not TextBlock)
                     throw new Exception("Compact Apply / Revert / Check / Advanced / Cancel and safe backup default missing.");
+                var cleanup = new CleanupWindow();
+                if (cleanup.FindName("CleanupBackupsCheck") is not CheckBox ||
+                    cleanup.FindName("CleanupReportsCheck") is not CheckBox ||
+                    cleanup.FindName("CleanupTaskCheck") is not CheckBox taskOption ||
+                    taskOption.IsChecked != false ||
+                    cleanup.FindName("CleanupExecuteButton") is not Button cleanButton ||
+                    cleanButton.IsEnabled)
+                    throw new Exception("Cleanup categories and task deletion must require explicit opt-in.");
+                var overview = CleanupService.Preview(new CleanupService.Options(
+                    Backups: true, LocalReports: true, ScheduledTask: false));
+                if (!overview.Contains("recovery journals", StringComparison.OrdinalIgnoreCase) ||
+                    !overview.Contains("Windows Event Logs", StringComparison.OrdinalIgnoreCase))
+                    throw new Exception("Cleanup preview must warn about recovery loss and excluded system logs.");
+
                 var windows = new Window[]
                 {
                     quick,
                     main,
                     updaterWindow,
                     diagnosticsWindow,
+                    cleanup,
                     new AboutWindow(),
                     new SuccessfulFixWindow(record)
                 };

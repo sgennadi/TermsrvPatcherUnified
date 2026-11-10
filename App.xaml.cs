@@ -93,6 +93,15 @@ public partial class App : Application
             return;
         }
 
+        if (e.Args.Length > 0 &&
+            e.Args[0].Equals(AutoReapplyScheduler.WorkerArgument, StringComparison.Ordinal))
+        {
+            // Headless, SYSTEM Session 0 only. No UI or desktop-executable path.
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            Shutdown(e.Args.Length == 1 ? AutoReapplyScheduler.RunWorker() : 2);
+            return;
+        }
+
         if (e.Args.Any(a => a.Equals("--reapply", StringComparison.OrdinalIgnoreCase)))
         {
             ShutdownMode = ShutdownMode.OnExplicitShutdown;

@@ -33,6 +33,21 @@ internal static class System32BackupStore
     internal static bool NeedsRefresh(string expectedOriginalSha, string? existingSha)
         => !expectedOriginalSha.Equals(existingSha, StringComparison.OrdinalIgnoreCase);
 
+    // Pure safety gate: only the exact currently approved original may
+    // reconcile a stale index after Windows Update or an interrupted rotation.
+    // Used by CI with disposable bytes; it performs no writes.
+    internal static bool CanReconcileNewOriginal(string? approvedOriginalSha,
+        byte[] installedOriginal, byte[] existingBak)
+    {
+        if (approvedOriginalSha is not { Length: 64 } ||
+            !approvedOriginalSha.All(Uri.IsHexDigit) ||
+            installedOriginal.Length == 0 ||
+            !installedOriginal.AsSpan().SequenceEqual(existingBak))
+            return false;
+        return SystemInfo.Sha256(installedOriginal).Equals(
+            approvedOriginalSha, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool IsSha(string? value) =>
         value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
@@ -166,7 +181,18 @@ internal static class System32BackupStore
             if (priorIndex is not null &&
                 (!priorIndex.Sha256.Equals(oldHash, StringComparison.OrdinalIgnoreCase) ||
                  priorIndex.FileLength != oldBytes.Length))
-                throw new IOException("Existing .bak differs from the protected index: manual review required.");
+            {
+                // Windows servicing or interruption after an atomic .bak swap
+                // can leave a NEW, correct original beside an OLD index.
+                // Reconcile only when the existing copy is byte-for-byte the
+                // freshly inspected, still-installed, trusted Ready original.
+                // Never adopt a mismatched older or modified .bak by name.
+                if (!CanReconcileNewOriginal(plan.OriginalSha256, source, oldBytes))
+                    throw new IOException(
+                        "Existing .bak differs from its protected index and current original; manual review required.");
+                WriteIndex(plan.OriginalSha256, plan.FileVersion, source.Length);
+                return;
+            }
         }
         else if (priorIndex is not null)
         {

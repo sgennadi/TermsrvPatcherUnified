@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-preview.23 — 2026-11-10
+
+- **Simple GUI:** rebuild the compact startup window with separate Patch and Status cards, concise Automatic Pattern Recognition, backup and Auto Reapply options, and Cleanup/Updates/Advanced actions. Advanced has a direct **Back to Simple** button and preserves the no-backup selection in both directions.
+- **Consolidated Remote Desktop:** replace separate RDP Settings/Health tabs with one status/settings/health/policies/sessions page, with advanced read-only inspection of additional Windows and Group Policy parameters. Local blank-password restriction has a guarded, explicitly confirmed setting, verified readback and rollback.
+- **RDP post-save actions:** show precisely which local settings changed, whether next-session testing is advised, and when observed listener-port drift requires restart review. Add explicit, administrator-confirmed computer-only `gpupdate` with bounded wait and a post-refresh RDP/GPO readback. Never automatically stop TermService, log users off or reboot when clicking Save or refreshing policy.
+- **Auto reapply after Windows Update:** opt-in main checkbox registers an administrator-only SYSTEM task and copies the current EXE to a protected ProgramData worker directory. Triggered by Windows Update event 19 (30-minute delay), Windows boot (15-minute delay), and a daily fallback. A changed DLL must match a trusted automatic profile exactly before any write, and **full backup is mandatory** regardless of the manual no-backup option. Pending reboot, unknown signatures and competing protected jobs block changes.
+- **Cleanup:** explicit categories for protected DLL backups, local reports/history and the persistent Auto Reapply task; task deletion is independently selectable (OFF by default) and separately confirmed. No Windows event-log or external-file erasure. Protected Apply/Revert tasks block Cleanup while pending, active or unconfirmed.
+- **Portable updates:** permit manually approved self-update from local Desktop/Downloads/other regular local directories, while continuing to refuse network and linked targets. The verified updater helper remains in protected ProgramData; a successfully installed EXE refreshes an already-opted-in SYSTEM task copy.
+- **Backup restoration:** improve disambiguation across valid backup generations, tolerate a replaced System32 .bak only when it equals a separately verified current original, and allow independent trusted backup recovery if a journal is corrupt.
+- **Verification boundary:** GitHub Actions uses synthetic .NET/WPF layouts, read-only policy and DLL checks and non-destructive Task Scheduler probes. Actual Windows 11 DLL modification, permanent post-update Task Scheduler operation and live RDP recovery still require isolated Windows 11 testing. No Stable release is implied.
+
+
 ## 0.1.0-preview.22 — 2026-11-09
 
 - **Quick Revert and compact no-backup:** add Revert beside Apply, Check and Advanced, and an unchecked-by-default `Do not create backup` box. A separate confirmation is required before skipping full DLL backups. Advanced Apply honors the same choice. Automatic Apply always saves a small encrypted/authenticated per-version recovery journal before system writes.

@@ -52,7 +52,7 @@ public partial class UpdateCenterWindow : Window
         bool available = !checking && !installing && freshRelease && canInstall;
         InstallButton.IsEnabled = available;
         InstallHelp.Text = available
-            ? "Ready: administrator-owned Program Files EXE. The unsigned preview is verified; the current EXE is backed up and rollback is attempted if health verification fails."
+            ? "Ready: local EXE update. The verified package will replace this executable in its current folder after closing the app; rollback is attempted if the probe fails."
             : checking ? "Checking release metadata. Installation is unavailable until the live check completes."
             : installing ? "Installation in progress."
             : notice.Status == UpdateNoticeStatus.InstallationHeld
@@ -63,7 +63,7 @@ public partial class UpdateCenterWindow : Window
             : notice.Status == UpdateNoticeStatus.Available && live is null
                 ? "Install blocked: no verified LIVE release details. Press Check."
             : freshRelease && !canInstall
-                ? "Install blocked: " + reason + " Download the full ZIP from GitHub for a manual, administrator-approved installation."
+                ? "Install blocked: " + reason + " For network or linked folders, use a regular local folder or the official release ZIP."
             : "Install is unavailable: no newer LIVE release is selected. Choose Preview and press Check.";
         InstallButton.ToolTip = available ? "Install the verified update" : InstallHelp.Text;
 
@@ -121,7 +121,7 @@ public partial class UpdateCenterWindow : Window
             "This is NOT a digital publisher signature.\n\n" +
             "The existing EXE will be backed up; the app will close, replace the EXE and " +
             "run a health probe. If the probe fails, a rollback is attempted. " +
-            "Install only on a computer you administer, from a trusted location.\n\nProceed?";
+            "Install only on a computer you administer. Local Desktop and Downloads paths are supported; network and linked paths are blocked.\n\nProceed?";
         if (MessageBox.Show(this, warning, "Confirm manual EXE replacement",
             MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;

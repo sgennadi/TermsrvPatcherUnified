@@ -46,14 +46,7 @@ internal static class UpdateInstallBridge
             reason = "Install is available only in the packaged TermsrvPatcherUnified.exe.";
             return false;
         }
-        if (new FileInfo(current).Attributes.HasFlag(FileAttributes.ReparsePoint) ||
-            new DirectoryInfo(Path.GetDirectoryName(current)!).Attributes.HasFlag(
-                FileAttributes.ReparsePoint))
-        {
-            reason = "Update installation through filesystem links is disabled.";
-            return false;
-        }
-        if (!IsProtectedInstallDirectory(Path.GetDirectoryName(current)!, out reason))
+        if (!IsSafePortableInstallTarget(current, out reason))
             return false;
         reason = "";
         return true;
@@ -72,68 +65,55 @@ internal static class UpdateInstallBridge
     internal static bool HasMutatingRights(System.Security.AccessControl.FileSystemRights rights) =>
         (rights & MutatingRights) != 0;
 
-    // An elevated updater cannot safely execute a replacement EXE from
-    // Downloads, Desktop or another folder writable by standard users.
-    private static bool IsProtectedInstallDirectory(string directory, out string reason)
+    // Portable releases run from a user-selected local folder. The elevated
+    // helper stays in administrator-owned ProgramData and validates the
+    // original EXE hash, downloaded archive, staged EXE and post-install
+    // probe. Desktop/Downloads are valid; redirects and network targets are
+    // not silently followed.
+    internal static bool IsSafePortableInstallTarget(string path, out string reason)
     {
-        var trustedRoot = Path.GetFullPath(Environment.GetFolderPath(
-            Environment.SpecialFolder.ProgramFiles)).TrimEnd(Path.DirectorySeparatorChar);
-        var currentPath = Path.GetFullPath(directory);
-        if (!currentPath.StartsWith(trustedRoot + Path.DirectorySeparatorChar,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            reason = "For secure EXE replacement, install TermsrvPatcherUnified in a protected subfolder of Program Files.";
-            return false;
-        }
         try
         {
-            var administrators = new System.Security.Principal.SecurityIdentifier(
-                System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null);
-            var system = new System.Security.Principal.SecurityIdentifier(
-                System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
-            var trustedInstaller = new System.Security.Principal.SecurityIdentifier(
-                "S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464");
-            var creatorOwner = new System.Security.Principal.SecurityIdentifier(
-                System.Security.Principal.WellKnownSidType.CreatorOwnerSid, null);
-            // FileSystemRights.Modify also contains READ bits; using it as an
-            // ACE mask mistakenly rejects the standard Users: ReadAndExecute
-            // entry inherited by Program Files. Check only mutating rights.
-            // CreateFiles/CreateDirectories alias WriteData/AppendData.
-            for (var info = new DirectoryInfo(currentPath); info != null;
-                info = info.Parent)
+            if (string.IsNullOrWhiteSpace(path) ||
+                !Path.IsPathFullyQualified(path) ||
+                path.StartsWith(@"\\", StringComparison.Ordinal) ||
+                !Path.GetFileName(path).Equals(ExecutableName,
+                    StringComparison.OrdinalIgnoreCase))
             {
-                if ((info.Attributes & FileAttributes.ReparsePoint) != 0)
-                    throw new UnauthorizedAccessException("Install directory uses a filesystem link.");
-                var rules = info.GetAccessControl(
-                    System.Security.AccessControl.AccessControlSections.Access);
-                foreach (System.Security.AccessControl.FileSystemAccessRule entry in
-                    rules.GetAccessRules(true, true,
-                        typeof(System.Security.Principal.SecurityIdentifier)))
-                {
-                    if (entry.AccessControlType !=
-                        System.Security.AccessControl.AccessControlType.Allow ||
-                        !HasMutatingRights(entry.FileSystemRights)) continue;
-                    if (entry.IdentityReference is not
-                        System.Security.Principal.SecurityIdentifier sid)
-                        throw new UnauthorizedAccessException("Unresolvable installation permissions.");
-                    if (sid.Equals(administrators) || sid.Equals(system) ||
-                        sid.Equals(trustedInstaller)) continue;
-                    if (sid.Equals(creatorOwner) &&
-                        entry.PropagationFlags.HasFlag(
-                            System.Security.AccessControl.PropagationFlags.InheritOnly)) continue;
-                    throw new UnauthorizedAccessException(
-                        "Install directory allows modification by a non-administrator principal.");
-                }
-                if (info.FullName.Equals(trustedRoot, StringComparison.OrdinalIgnoreCase))
-                    break;
+                reason = "Select a local TermsrvPatcherUnified.exe, not a network or redirected file.";
+                return false;
+            }
+            var full = Path.GetFullPath(path);
+            if (!File.Exists(full))
+            {
+                reason = "Application executable is missing.";
+                return false;
+            }
+            var driveRoot = Path.GetPathRoot(full) ??
+                throw new IOException("Cannot determine the target drive.");
+            var type = new DriveInfo(driveRoot).DriveType;
+            if (type is not (DriveType.Fixed or DriveType.Removable))
+            {
+                reason = "Automatic EXE replacement requires a local fixed or USB drive.";
+                return false;
+            }
+            if ((File.GetAttributes(full) & FileAttributes.ReparsePoint) != 0)
+                throw new IOException("EXE is a filesystem link.");
+            for (DirectoryInfo? dir = new DirectoryInfo(Path.GetDirectoryName(full)!);
+                 dir is not null; dir = dir.Parent)
+            {
+                if ((dir.Attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new IOException("Installation folder or ancestor is a filesystem link.");
             }
             reason = "";
             return true;
         }
-        catch (Exception error) when (error is UnauthorizedAccessException or IOException or
-                                      System.Security.SecurityException)
+        catch (Exception ex) when (ex is ArgumentException or IOException or
+                                   UnauthorizedAccessException or NotSupportedException or
+                                   System.Security.SecurityException)
         {
-            reason = "Update blocked: the installation folder must deny ordinary-user writes.";
+            reason = "Cannot safely update this local EXE: " + ex.GetType().Name +
+                ". Use a regular local folder without junctions or symlinks.";
             return false;
         }
     }
@@ -267,8 +247,8 @@ internal static class UpdateInstallBridge
         var age = DateTimeOffset.UtcNow - job.CreatedUtc;
         if (age < TimeSpan.Zero || age > TimeSpan.FromMinutes(15))
             throw new InvalidDataException("Update job expired.");
-        if (!IsProtectedInstallDirectory(Path.GetDirectoryName(job.TargetPath) ?? "", out _))
-            throw new UnauthorizedAccessException("Updater target installation directory is not protected.");
+        if (!IsSafePortableInstallTarget(job.TargetPath, out var targetReason))
+            throw new UnauthorizedAccessException("Updater target path failed local safety checks: " + targetReason);
         if (!Path.IsPathFullyQualified(job.TargetPath) ||
             !string.Equals(job.TargetPath, Path.GetFullPath(job.TargetPath),
                 StringComparison.Ordinal) ||
@@ -318,6 +298,21 @@ internal static class UpdateInstallBridge
             installDir, ExecutableName, explicitlyApproved: true,
             async (exe, ct) => await ProbeInstalledAsync(exe, job.CandidateVersion, ct));
         AuditLog.Append("EXE replacement result: " + result.Summary);
+        if (result.Success)
+        {
+            try
+            {
+                // Keep the explicitly enabled SYSTEM worker in sync with the
+                // newly installed, verified EXE rather than launching the
+                // original Desktop/Downloads executable as SYSTEM.
+                AutoReapplyScheduler.RefreshWorkerAfterSuccessfulUpdate(job.TargetPath);
+            }
+            catch (Exception error)
+            {
+                AuditLog.Append("Verified EXE updated; auto-reapply worker refresh needs review: " +
+                    error.GetType().Name);
+            }
+        }
         try { File.Delete(inProgress); } catch (IOException) { }
 
         if (result.Success || result.RolledBack)

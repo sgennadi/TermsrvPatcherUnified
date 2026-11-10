@@ -96,7 +96,42 @@ internal static class RdpPolicyDiagnostics
                 value => value switch { 0 => "RDP security (0)", 1 => "Negotiate (1)",
                     2 => "TLS (2)", _ => "Unknown" }),
             Evaluate("Minimum encryption level", ReadDword(tcp, "MinEncryptionLevel"),
-                ReadDword(policy, "MinEncryptionLevel"), 1, 4)
+                ReadDword(policy, "MinEncryptionLevel"), 1, 4,
+                value => value switch { 1 => "Low (1)", 2 => "Client compatible (2)",
+                    3 => "High (3)", 4 => "FIPS (4)", _ => "Unknown" }),
+            Evaluate("Always request password", ReadDword(tcp, "fPromptForPassword"),
+                ReadDword(policy, "fPromptForPassword"), 0, 1,
+                value => value == 1 ? "Prompt even if supplied (1)" : "Client-supplied password allowed (0)"),
+            Evaluate("Disable clipboard redirection", null,
+                ReadDword(policy, "fDisableClip"), 0, 1, DescribeDisabled),
+            Evaluate("Disable drive redirection", null,
+                ReadDword(policy, "fDisableCdm"), 0, 1, DescribeDisabled),
+            Evaluate("Disable printer redirection", null,
+                ReadDword(policy, "fDisableCpm"), 0, 1, DescribeDisabled),
+            Evaluate("Disable COM port redirection", null,
+                ReadDword(policy, "fDisableCcm"), 0, 1, DescribeDisabled),
+            Evaluate("Idle session limit", ReadDword(tcp, "MaxIdleTime"),
+                ReadDword(policy, "MaxIdleTime"), 0, int.MaxValue, DescribeMilliseconds),
+            Evaluate("Active session time limit", ReadDword(tcp, "MaxConnectionTime"),
+                ReadDword(policy, "MaxConnectionTime"), 0, int.MaxValue, DescribeMilliseconds),
+            Evaluate("Disconnected session time limit", ReadDword(tcp, "MaxDisconnectionTime"),
+                ReadDword(policy, "MaxDisconnectionTime"), 0, int.MaxValue, DescribeMilliseconds),
+            Evaluate("Automatic reconnection disabled", null,
+                ReadDword(policy, "fDisableAutoReconnect"), 0, 1, DescribeDisabled),
+            Evaluate("TCP/UDP transport policy", null,
+                ReadDword(policy, "SelectTransport"), 0, 2,
+                value => value.ToString(System.Globalization.CultureInfo.InvariantCulture) +
+                    " (confirm current ADMX before changing)"),
+            Evaluate("Blank-password restriction (local accounts)",
+                RdpBlankPasswordSecurity.Read() switch
+                {
+                    true => 1,
+                    false => 0,
+                    _ => (int?)null
+                }, null, 0, 1,
+                value => value == 1
+                    ? "Restricted to console (secure)"
+                    : "Remote blank-password sign-in permitted (unsafe)")
         };
 
         var warnings = new List<string>();
@@ -113,6 +148,8 @@ internal static class RdpPolicyDiagnostics
             warnings.Add("RDP appears enabled without required NLA. Review security policy.");
         if (effectiveDeny == 0 && tcp is null)
             warnings.Add("RDP-Tcp settings are inaccessible although RDP appears enabled.");
+        if (RdpBlankPasswordSecurity.Read() == false)
+            warnings.Add("HIGH RISK: Local accounts with blank passwords are not restricted to console logon. Domain policy may change the effective state.");
 
         string serviceStatus;
         try
@@ -129,6 +166,18 @@ internal static class RdpPolicyDiagnostics
         if (effectiveDeny == 0 && serviceStatus != "Running")
             warnings.Add("TermService is not confirmed running; no service start was attempted.");
         return new(DateTimeOffset.UtcNow, rows, serviceStatus, warnings);
+    }
+
+    private static string DescribeDisabled(int value) =>
+        value == 1 ? "Disabled by policy (1)" : "Allowed by policy (0)";
+
+    private static string DescribeMilliseconds(int value)
+    {
+        if (value == 0) return "Unlimited (0)";
+        var duration = TimeSpan.FromMilliseconds(value);
+        return duration.TotalMinutes >= 60
+            ? duration.TotalHours.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " h"
+            : duration.TotalMinutes.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + " min";
     }
 
     private static int? ReadDword(RegistryKey? key, string name)

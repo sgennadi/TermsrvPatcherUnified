@@ -1,4 +1,13 @@
-# Preview QA status — 2026-11-09
+# Preview QA status — 2026-11-10
+
+## 0.1.0-preview.23 — isolated Windows CI only
+
+- Windows 2025 pipeline runs compiler, synthetic signature and rollback tests, WPF layout smoke, update-archive packaging validation and a one-shot non-destructive SYSTEM worker probe.
+- The new persistent Auto Reapply event/boot/daily task has *not* been activated or validated end-to-end on an actual Windows 11 client. No real termsrv.dll service write, reboot-after-servicing, RDP disconnection/reconnection or real DPI screenshot is certified.
+- Default Auto Reapply OFF; unknown or ambiguous DLL signatures block patching; backups are mandatory for unattended operations. Cleanup requires explicit user confirmation.
+
+## Historical QA
+
 
 Version: 0.1.0-preview.10
 
