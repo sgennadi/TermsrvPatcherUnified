@@ -263,6 +263,66 @@ internal static class DirectReportingTests
                    sent.Requests[1].Body == unified.Compatibility.Json,
                 "one approved unified review can submit exactly two separately acknowledged typed records");
         }
+
+        // The first Google POST can be acknowledged while the second is
+        // rejected by a stale deployed Apps Script. That partial outcome is
+        // not a successful unified report and must never authorize auto consent
+        // or dismiss the review window. Retrying sends ONLY the second record.
+        var diagnosticUri = new Uri(
+            "https://github.com/sgennadi/TermsrvPatcherUnified/issues/43");
+        var compatibilityUri = new Uri(
+            "https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-6789");
+        Verify(!UnifiedReportDeliveryState.IsComplete(true, null, null) &&
+               !UnifiedReportDeliveryState.IsComplete(true, diagnosticUri, null) &&
+               !UnifiedReportDeliveryState.IsComplete(true, null, compatibilityUri) &&
+               UnifiedReportDeliveryState.IsComplete(true, diagnosticUri, compatibilityUri) &&
+               UnifiedReportDeliveryState.IsComplete(false, null, compatibilityUri) &&
+               !UnifiedReportDeliveryState.RetryCompatibilityOnly(true, null, null) &&
+               UnifiedReportDeliveryState.RetryCompatibilityOnly(true, diagnosticUri, null) &&
+               !UnifiedReportDeliveryState.RetryCompatibilityOnly(
+                   true, diagnosticUri, compatibilityUri) &&
+               !UnifiedReportDeliveryState.RetryCompatibilityOnly(
+                   false, diagnosticUri, null),
+            "one approved report closes only after ALL required receipts, never on a partial success");
+        int compatAttempts = 0;
+        var partialHandler = new FakeHandler((req, body) =>
+        {
+            if (body.Contains("universal-diagnostics/v1", StringComparison.Ordinal))
+                return Json(generalReceipt);
+            return Json(++compatAttempts == 1
+                ? "{\"ok\":false,\"error\":\"invalid_evidence\"}"
+                : fixReceipt);
+        });
+        using (var http = new HttpClient(partialHandler))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            Uri diag = client.SendAsync(deployed, unified.DiagnosticJson,
+                unified.Diagnostics).GetAwaiter().GetResult();
+            Verify(!UnifiedReportDeliveryState.IsComplete(true, diag, null),
+                "validated diagnostic Issue alone may not close the combined report");
+            bool rejected = false;
+            try
+            {
+                _ = client.SendCompatibilityAsync(deployed, unified.Compatibility.Json,
+                    unified.Compatibility).GetAwaiter().GetResult();
+            }
+            catch (InvalidOperationException ex)
+            {
+                rejected = ex.Message.Contains("Google receiver rejected", StringComparison.Ordinal) &&
+                    ex.Message.Contains("Manage deployments", StringComparison.Ordinal);
+            }
+            Verify(rejected && partialHandler.Count == 2,
+                "the exact server rejection reason must be surfaced without claiming completion");
+            Uri compat = client.SendCompatibilityAsync(deployed, unified.Compatibility.Json,
+                unified.Compatibility).GetAwaiter().GetResult();
+            Verify(UnifiedReportDeliveryState.IsComplete(true, diag, compat) &&
+                   partialHandler.Count == 3 &&
+                   partialHandler.Requests.Count(req => req.Body.Contains(
+                       "universal-diagnostics/v1", StringComparison.Ordinal)) == 1 &&
+                   partialHandler.Requests.Count(req => req.Body.Contains(
+                       "termsrv-compatibility/v1", StringComparison.Ordinal)) == 2,
+                "manual retry confirms compatibility without creating a duplicate diagnostic Issue");
+        }
         const string consentSchema = "termsrv-auto-compatibility-consent/v1";
         var consentJson = JsonSerializer.Serialize(new {
             SchemaId = consentSchema,

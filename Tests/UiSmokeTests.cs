@@ -343,6 +343,7 @@ internal static class UiSmokeTests
                 var successReport = new SuccessfulFixWindow(record);
                 if (successReport.FindName("SendButton") is not Button compatibilitySend ||
                     compatibilitySend.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
+                    compatibilitySend.Content?.ToString() != "Review and send" ||
                     successReport.FindName("Preview") is not TextBox publicPreview ||
                     !publicPreview.IsReadOnly ||
                     !publicPreview.Text.Contains("termsrv-compatibility/v1", StringComparison.Ordinal) ||

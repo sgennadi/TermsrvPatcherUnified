@@ -100,6 +100,12 @@ function truth(value, label) {
   assert.ok(value, label);
   checks++;
 }
+const health = JSON.parse(sandbox.doGet().text);
+truth(health.ok === true && health.gateway_schema_version === 2 &&
+      health.capabilities.includes('universal-diagnostics/v1') &&
+      health.capabilities.includes('termsrv-compatibility/v1'),
+  'read-only GET advertises both supported reporting schemas without GitHub writes');
+eq(githubPosts.length, 0, 'GET capability check never creates an Issue or comment');
 const report = compat('successful_apply', initialBody);
 let receipt = post(report);
 truth(receipt.ok && receipt.issue_url.endsWith('/issues/1') &&
