@@ -58,6 +58,9 @@
                      Text="Automatic Stable checks: not configured."
                      Margin="20,4,0,0" TextWrapping="Wrap"
                      Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+          <Button x:Name="AdvancedRevokeAutoReportsButton" Content="Stop automatic reports"
+                  Visibility="Collapsed" Margin="20,7,0,0" MinWidth="210"
+                  HorizontalAlignment="Left" Click="RevokeAutoReports_Click"/>
           <Button x:Name="AdvancedRepairTaskButton" Content="Repair task permissions..."
                   Visibility="Collapsed" Margin="20,7,0,0" MinWidth="210"
                   HorizontalAlignment="Left" Click="RepairAutoReapply_Click"/>
