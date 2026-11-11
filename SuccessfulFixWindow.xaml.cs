@@ -158,12 +158,7 @@ public partial class SuccessfulFixWindow : Window
                     "\nGeneral diagnostics: " + diagnosticsReceipt.AbsoluteUri) +
                 consentStatus + "\nThis does not certify external RDP connectivity.";
             AuditLog.Append("Explicit unified/compatibility Google report confirmed by GitHub.");
-            ModernMessageDialog.Show(this,
-                "GitHub accepted " + (unified is null ? "the offline compatibility observation." :
-                "both reviewed report sections.") +
-                " CSV aggregation is separate and all compatibility evidence remains unverified." +
-                consentStatus, "Report received", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            // No extra success popup: verified receipt(s) close this report dialog.
             DialogResult = true;
             Close();
         }

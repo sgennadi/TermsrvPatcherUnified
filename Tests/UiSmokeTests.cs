@@ -277,6 +277,17 @@ internal static class UiSmokeTests
                 if (diagnosticsWindow.FindName("SaveButton") is not Button ||
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
+                // No network calls or windows shown. Invalid receipt must never
+                // dismiss Diagnostics; a valid repository Issue must close it.
+                var completedReportDialog = new DiagnosticsWindow();
+                if (completedReportDialog.CloseAfterConfirmedDelivery(null) ||
+                    completedReportDialog.CloseAfterConfirmedDelivery(
+                        new Uri("https://evil.example/issues/40")))
+                    throw new Exception("Unconfirmed report closed Diagnostics.");
+                if (!completedReportDialog.CloseAfterConfirmedDelivery(
+                        new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/40")))
+                    throw new Exception("Confirmed GitHub report did not close Diagnostics.");
+                verified++;
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickAutoUpdateCheck") is not CheckBox autoUpdateOption ||
                     autoUpdateOption.IsChecked != false ||
