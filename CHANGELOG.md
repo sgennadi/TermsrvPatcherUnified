@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.6-preview.2 — 2026-11-11 (Preview candidate)
+## 1.0.6-preview.2 — 2026-11-11 (Preview released)
 
 1. Separate RDP Doctor **Verified locally**, **Observed locally**, **Attention**, **Unavailable**, **Incomplete**, and **Not tested** states instead of a blanket Unverified label.
 2. Inspect Windows Firewall COM inbound TCP rule candidates for the actual configured RDP port, active Domain/Private/Public profile, rule action, enabled state and remote scope — including explicitly matching custom rules.

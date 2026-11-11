@@ -1,9 +1,9 @@
-## Preview 1.0.6-preview.2 — RDP Doctor statuses and Firewall regression (candidate)
+## Preview 1.0.6-preview.2 — RDP Doctor statuses and Firewall regression (published 2026-11-11)
 
 - **Trust model:** local facts have separate Verified locally / Observed locally states; incomplete enumeration, unavailable sources and deliberately Not tested external connectivity are distinct from each other. No local observation is a remote sign-in claim.
 - **Firewall:** exact configured TCP port and active Domain/Private/Public profile, enabled Allow/Block candidates, custom exact-port rules. COM failure falls back to read-only limited CIM and registry evidence and must never show Verified locally.
 - **Tests:** pure port, range, protocol, action, profile and partial-result tests; synthetic Doctor classification; local-only raw Firewall/LSA/certificate information excluded from Copy safe report; WPF six-card layout and colored read-only table.
-- **Pending release gate:** Windows 2025 PR CI, WPF 100–200% offscreen smoke, packaging and safe SYSTEM Session 0 probe. No protected DLL or Firewall policy writes, live Windows 11 RDP authentication, or physical 200% DPI claimed.
+- **Verified gates:** [PR Windows 2025 CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086119000), [main Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086615656) and [Preview publisher](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086615648) passed; [Preview 1.0.6-preview.2](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.2) contains the expected ZIPs and checksum manifest. No protected DLL or Firewall policy writes, live Windows 11 RDP authentication, or physical 200% DPI claimed.
 
 ## Preview 1.0.6-preview.1 — SYSTEM/Session 0 scheduler ACL acceptance (published 2026-11-11)
 
