@@ -23,6 +23,8 @@ internal static class IsolatedApplyExecutor
     private const string RequestName = "request.json";
     private const string RevertRequestName = "revert-request.json";
     private const string StatusName = "status.json";
+    private const string ReportOfferedName = "report-offered.flag";
+    private const string ReportDeliveredName = "report-delivered.flag";
     private const string LockName = "started.lock";
 
     internal static string Root => Path.Combine(
@@ -33,7 +35,10 @@ internal static class IsolatedApplyExecutor
         string FileVersion, string ProfileId, string ExeSha256, bool CreateBackup = true);
     internal sealed record RevertRequest(string Id, string OriginalSha256, string CurrentSha256,
         string FileVersion, string ProfileId, string RecoverySource, string ExeSha256);
-    internal sealed record Status(string Id, string State, string Details, string Utc);
+    // Optional field preserves compatibility with statuses written by older versions.
+    // Only the explicit one-shot SYSTEM Apply worker includes reviewed metadata.
+    internal sealed record Status(string Id, string State, string Details, string Utc,
+        SuccessfulFixMetadata? Report = null);
     internal sealed record ProbeRequest(string Id, string ExeSha256);
 
     internal static bool TryNormalizeId(string? input, out string id)
@@ -335,9 +340,26 @@ internal static class IsolatedApplyExecutor
                 if (!SystemInfo.Sha256(after).Equals(req.ExpectedPatchedSha256,
                     StringComparison.OrdinalIgnoreCase))
                     throw new IOException("Post-transaction DLL checksum mismatch.");
+                // Persist bounded, validated metadata before announcing success.
+                // GUI may be destroyed when TermService restarts during RDP Apply.
+                // Optional reporting metadata failure must never reclassify Apply
+                // or rerun a completed protected DLL transaction.
+                SuccessfulFixMetadata? report = null;
+                try
+                {
+                    report = SuccessfulFixMetadata.FromSuccessfulApply(
+                        engine.EnvironmentInfo(), plan);
+                }
+                catch (Exception reportError) when (reportError is
+                    InvalidDataException or InvalidOperationException or IOException or
+                    UnauthorizedAccessException or ArgumentException)
+                {
+                    AuditLog.Append("One-shot Apply report evidence unavailable: " +
+                                    reportError.GetType().Name);
+                }
                 WriteStatus(dir, new Status(id, "Succeeded",
                     "Protected write and RDP service recovery returned successfully.",
-                    DateTimeOffset.UtcNow.ToString("O")));
+                    DateTimeOffset.UtcNow.ToString("O"), report));
                 return 0;
             }
             catch (Exception ex)
@@ -505,6 +527,150 @@ internal static class IsolatedApplyExecutor
             return null;
         }
         return null;
+    }
+
+    /// <summary>
+    /// Pure policy for attaching a self-reported success to a one-shot task:
+    /// request, persisted success and CURRENT installed DLL SHA must agree.
+    /// A queued or AlreadyPatched task cannot imply a newly completed Apply.
+    /// </summary>
+    internal static bool VerifiedReportMatches(Status? status, Request? request,
+        string? installedSha256)
+    {
+        var record = status?.Report;
+        if (status?.State != "Succeeded" || request is null || record is null ||
+            !TryNormalizeId(status.Id, out var id) ||
+            !string.Equals(request.Id, id, StringComparison.OrdinalIgnoreCase) ||
+            request.OriginalSha256.Length != 64 ||
+            request.ExpectedPatchedSha256.Length != 64 ||
+            string.IsNullOrWhiteSpace(installedSha256) ||
+            !string.Equals(installedSha256, request.ExpectedPatchedSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.OriginalSha256, request.OriginalSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.PatchedSha256, request.ExpectedPatchedSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(record.DllVersion, request.FileVersion,
+                StringComparison.Ordinal) ||
+            record.Mode != "automatic")
+            return false;
+        try { record.Validate(); return true; }
+        catch (Exception ex) when (ex is InvalidDataException or
+                                   ArgumentException or OverflowException)
+        { return false; }
+    }
+
+    /// <summary>
+    /// The persisted job is a USER-APPROVED one-shot Apply, never the
+    /// unattended Windows-Update AutoReapply task. Read-only, fail-closed.
+    /// </summary>
+    internal static bool TryReadVerifiedReport(Status? status,
+        out SuccessfulFixMetadata? report)
+    {
+        report = null;
+        if (!SystemInfo.IsAdministrator() ||
+            status?.State != "Succeeded" || status.Report is null ||
+            !TryNormalizeId(status.Id, out var id))
+            return false;
+        try
+        {
+            NsudoDevilModeScope.EnsurePrivateDirectory(
+                Path.GetDirectoryName(Root)!);
+            NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+            string dir = JobDirectory(id);
+            if (!Directory.Exists(dir) ||
+                (File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+                return false;
+            NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+            string statusFile = Path.Combine(dir, StatusName);
+            string requestFile = Path.Combine(dir, RequestName);
+            if (!File.Exists(statusFile) || !File.Exists(requestFile) ||
+                (File.GetAttributes(statusFile) & FileAttributes.ReparsePoint) != 0 ||
+                (File.GetAttributes(requestFile) & FileAttributes.ReparsePoint) != 0 ||
+                new FileInfo(statusFile).Length > 10000 ||
+                new FileInfo(requestFile).Length > 3000)
+                return false;
+            var persisted = JsonSerializer.Deserialize<Status>(File.ReadAllText(statusFile));
+            var request = JsonSerializer.Deserialize<Request>(File.ReadAllText(requestFile));
+            if (persisted is null || request is null || persisted.Id != id ||
+                !string.Equals(status.Utc, persisted.Utc, StringComparison.Ordinal))
+                return false;
+
+            var os = SystemInfo.Read();
+            if (!os.Supported || os.DllVersion != persisted.Report?.DllVersion ||
+                os.Name != persisted.Report.WindowsName ||
+                os.DisplayVersion != persisted.Report.WindowsRelease ||
+                os.Build != persisted.Report.WindowsBuild ||
+                os.Ubr != persisted.Report.Ubr)
+                return false;
+
+            string installedHash = SystemInfo.Sha256(File.ReadAllBytes(os.DllPath));
+            if (!VerifiedReportMatches(persisted, request, installedHash))
+                return false;
+            report = persisted.Report;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   JsonException or InvalidDataException or ArgumentException or
+                                   InvalidOperationException or System.Security.SecurityException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// A durable at-most-once UI OFFER, not an upload permission. The user
+    /// still approves every report in the normal review/confirmation window.
+    /// </summary>
+    internal static bool TryClaimReportOffer(string id) =>
+        TryCreateReportMarker(id, ReportOfferedName);
+
+    internal static bool WasReportDelivered(string id) =>
+        ReportMarkerExists(id, ReportDeliveredName);
+
+    internal static bool TryMarkReportDelivered(string id) =>
+        TryCreateReportMarker(id, ReportDeliveredName);
+
+    private static bool ReportMarkerExists(string id, string marker)
+    {
+        if (!TryNormalizeId(id, out _)) return false;
+        try
+        {
+            string dir = JobDirectory(id);
+            return Directory.Exists(dir) &&
+                (File.GetAttributes(dir) & FileAttributes.ReparsePoint) == 0 &&
+                File.Exists(Path.Combine(dir, marker));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   ArgumentException) { return false; }
+    }
+
+    private static bool TryCreateReportMarker(string id, string marker)
+    {
+        if (!SystemInfo.IsAdministrator() || !TryNormalizeId(id, out _))
+            return false;
+        try
+        {
+            NsudoDevilModeScope.EnsurePrivateDirectory(
+                Path.GetDirectoryName(Root)!);
+            NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+            string dir = JobDirectory(id);
+            if (!Directory.Exists(dir) ||
+                (File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+                return false;
+            NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+            using var stream = new FileStream(Path.Combine(dir, marker),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                1024, FileOptions.WriteThrough);
+            byte[] timestamp = System.Text.Encoding.UTF8.GetBytes(
+                DateTimeOffset.UtcNow.ToString("O"));
+            stream.Write(timestamp);
+            stream.Flush(flushToDisk: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
+                                   ArgumentException or System.Security.SecurityException)
+        { return false; }
     }
 
     private static bool SamePreview(PatchPlan a, PatchPlan b)
