@@ -111,7 +111,7 @@ internal static class RdpFirewallInspector
 
     private static bool ProfileIntersects(int ruleProfiles, int activeProfiles) =>
         activeProfiles != 0 &&
-        (ruleProfiles == int.MaxValue || ruleProfiles == 0 ||
+        (ruleProfiles == int.MaxValue ||
          (ruleProfiles & activeProfiles) != 0);
 
     private static string Clip(string? value, int length = 100) =>
@@ -247,6 +247,7 @@ internal static class RdpFirewallInspector
             .AppendLine("Firewall COM unavailable: " + comError)
             .AppendLine("Firewall CIM unavailable: " + cimError)
             .AppendLine("Fallback: read-only local persistent FirewallRules registry snapshot.");
+        int observed = 0;
         try
         {
             using var key = Registry.LocalMachine.OpenSubKey(LocalRuleKey);
@@ -254,6 +255,7 @@ internal static class RdpFirewallInspector
             {
                 string? raw = key?.GetValue(name) as string;
                 if (raw is null) { details.AppendLine(name + ": not present"); continue; }
+                observed++;
                 var parts = raw.Split('|', StringSplitOptions.RemoveEmptyEntries);
                 string[] known = ["Active=", "Action=", "Dir=", "LPort=", "Profile="];
                 string summary = string.Join("; ", parts
@@ -267,8 +269,12 @@ internal static class RdpFirewallInspector
             details.AppendLine("Registry fallback unavailable: " + ex.GetType().Name);
         }
         details.AppendLine("Registry is NOT the effective merged GPO/MDM/ActiveStore firewall policy.");
-        return new(RdpDoctorLevel.Unknown,
-            "Firewall policy inspection unavailable; limited local registry metadata only.",
-            details.ToString());
+        return observed > 0
+            ? new(RdpDoctorLevel.Unknown,
+                "Firewall COM/CIM unavailable; limited local registry metadata (no effective port decision).",
+                details.ToString())
+            : new(RdpDoctorLevel.Unavailable,
+                "Firewall COM/CIM unavailable and no useful local RDP rule metadata could be read.",
+                details.ToString());
     }
 }
