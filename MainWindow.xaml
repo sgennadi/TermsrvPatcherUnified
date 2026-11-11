@@ -59,6 +59,9 @@
                      Text="Automatic Stable checks: not configured."
                      Margin="20,4,0,0" TextWrapping="Wrap"
                      Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+          <Button x:Name="AdvancedPendingReportButton" Content="Share verified Apply report..."
+                  Visibility="Collapsed" Margin="20,7,0,0" MinWidth="215"
+                  HorizontalAlignment="Left" Click="PendingApplyReport_Click"/>
           <Button x:Name="AdvancedRevokeAutoReportsButton" Content="Stop automatic reports"
                   Visibility="Collapsed" Margin="20,7,0,0" MinWidth="210"
                   HorizontalAlignment="Left" Click="RevokeAutoReports_Click"/>

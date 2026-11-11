@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Diagnostics;
 using System.Text;
 using System.Windows;
+using System.Windows.Threading;
 using TermsrvPatcherUnified.Core;
 
 namespace TermsrvPatcherUnified;
@@ -33,12 +34,18 @@ public partial class MainWindow : Window
     private bool openBlankAfterPolicyRefresh;
     private bool autoUpdateLoading;
     private bool autoUpdateChanging;
+    private string? pendingIndependentApplyId;
+    private string? lastOfferedIndependentApplyId;
+    private bool independentReportDialogOpen;
+    private readonly DispatcherTimer independentReportTimer;
     private readonly UpdateIntegration updates = new();
     private readonly AutoUpdateGuiCoordinator autoUpdateCoordinator;
 
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        independentReportTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        independentReportTimer.Tick += (_, _) => RefreshIndependentReportOffer();
         autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,
             () => IsActive && !busy && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
@@ -52,6 +59,7 @@ public partial class MainWindow : Window
             fragmentLookup?.Cancel();
             fragmentLookup?.Dispose();
             WindowSettings.Save(this);
+            independentReportTimer.Stop();
             autoUpdateCoordinator.Dispose();
             updates.Dispose();
         };
@@ -61,6 +69,7 @@ public partial class MainWindow : Window
         RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
+            independentReportTimer.Start();
             ReadAutoUpdateSetting();
             autoUpdateCoordinator.Start();
             if (offlineStartup)
@@ -81,6 +90,7 @@ public partial class MainWindow : Window
                 FooterText.Text = "Independent Apply: " + independent.State +
                                   " (job " + independent.Id[..8] + "). " +
                                   independent.Details;
+            RefreshIndependentReportOffer();
             // Startup metadata discovery; opted-in auto-update can open a
             // per-release confirmation, but never replaces an EXE silently.
             _ = StartupUpdatesAsync();
@@ -475,6 +485,7 @@ public partial class MainWindow : Window
                 await RunBusy(async () =>
                 {
                     string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan, createBackup));
+                    pendingIndependentApplyId = jobId;
                     FooterText.Text = "RDP/unknown session: SYSTEM Apply queued (" + jobId[..8] +
                                       "). Closing the GUI does not stop the job.";
                 }, "Apply");
@@ -528,6 +539,86 @@ public partial class MainWindow : Window
             AuditLog.Append("Optional compatibility dialog unavailable: " +
                 ex.GetType().Name);
         }
+    }
+
+    /// <summary>
+    /// Poll only the previously approved one-shot worker result. Windows Update
+    /// Auto Reapply has separate state and NEVER triggers a GUI report prompt.
+    /// </summary>
+    private void RefreshIndependentReportOffer()
+    {
+        if (busy || independentReportDialogOpen || !IsLoaded) return;
+        var status = IsolatedApplyExecutor.ReadLatestStatus();
+        if (status?.State != "Succeeded" || status.Report is null ||
+            IsolatedApplyExecutor.WasReportDelivered(status.Id) ||
+            pendingIndependentApplyId is not null &&
+                !string.Equals(status.Id, pendingIndependentApplyId,
+                    StringComparison.OrdinalIgnoreCase))
+        {
+            AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+        AdvancedPendingReportButton.Visibility = Visibility.Visible;
+        if (!string.Equals(lastOfferedIndependentApplyId, status.Id,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            lastOfferedIndependentApplyId = status.Id;
+            _ = OfferIndependentApplyReportAsync(status.Id, userRequested: false);
+        }
+    }
+
+    private async Task OfferIndependentApplyReportAsync(string jobId, bool userRequested)
+    {
+        if (!IsLoaded || independentReportDialogOpen || busy) return;
+        try
+        {
+            var status = IsolatedApplyExecutor.ReadLatestStatus();
+            if (status?.State != "Succeeded" || status.Report is null ||
+                !string.Equals(status.Id, jobId, StringComparison.OrdinalIgnoreCase) ||
+                IsolatedApplyExecutor.WasReportDelivered(status.Id))
+                return;
+            var result = await Task.Run(() =>
+            {
+                bool valid = IsolatedApplyExecutor.TryReadVerifiedReport(status,
+                    out var metadata);
+                return (valid, metadata);
+            });
+            if (!IsLoaded || independentReportDialogOpen) return;
+            if (!result.valid || result.metadata is null)
+            {
+                AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
+                FooterText.Text = "Saved Apply report no longer matches the verified installed DLL.";
+                return;
+            }
+            if (!userRequested && !IsolatedApplyExecutor.TryClaimReportOffer(status.Id))
+                return;
+            independentReportDialogOpen = true;
+            try
+            {
+                if (new SuccessfulFixWindow(result.metadata) { Owner = this }
+                        .ShowDialog() == true)
+                {
+                    IsolatedApplyExecutor.TryMarkReportDelivered(status.Id);
+                    AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
+                }
+                await RefreshAutoReapplyAsync();
+            }
+            finally { independentReportDialogOpen = false; }
+        }
+        catch (Exception ex)
+        {
+            AuditLog.Append("Pending independent Apply report unavailable: " +
+                            ex.GetType().Name);
+            FooterText.Text = "Verified Apply report unavailable (" +
+                ex.GetType().Name + "). No report was sent.";
+        }
+    }
+
+    private void PendingApplyReport_Click(object sender, RoutedEventArgs e)
+    {
+        var status = IsolatedApplyExecutor.ReadLatestStatus();
+        if (status?.State == "Succeeded" && status.Report is not null)
+            _ = OfferIndependentApplyReportAsync(status.Id, userRequested: true);
     }
 
     private async void ApplyAuto_Click(object sender, RoutedEventArgs e) => await ApplyAsync(autoPlan, false);
