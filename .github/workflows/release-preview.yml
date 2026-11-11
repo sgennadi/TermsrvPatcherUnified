@@ -148,11 +148,11 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            '1. Fixed missing Apply reports for DLL versions with WinBuild text.'
-            '2. Recovered verified Preview.3 reports without another Apply.'
-            '3. Restored the Share report option in Simple and Advanced.'
-            '4. Added strict original/patched SHA-256 and journal checks.'
-            '5. Kept scheduled Auto Reapply silent and consent-only.'
+            '1. Automatically close the unified report after confirmed delivery.'
+            '2. Retry only missing DLL compatibility, without duplicate Issues.'
+            '3. Show the Google receiver error and repair instructions.'
+            '4. Add a read-only gateway version and schema check.'
+            '5. Keep automatic reports opt-in and silent after Windows Update.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           if ($releaseExists) {

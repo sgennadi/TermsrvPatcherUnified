@@ -29,8 +29,17 @@ function output_(result) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+// Public, read-only deployment capability check. No token, credentials,
+// issue data or GitHub write is exposed. Older deployments lack capabilities;
+// owners can use this to verify that the updated code is ACTUALLY deployed.
 function doGet() {
-  return output_({ok: true, service: 'TermsrvPatcherUnified diagnostics', method: 'POST'});
+  return output_({
+    ok: true,
+    service: 'TermsrvPatcherUnified diagnostics',
+    method: 'POST',
+    gateway_schema_version: 2,
+    capabilities: ['universal-diagnostics/v1', 'termsrv-compatibility/v1']
+  });
 }
 
 function sha256_(text) {

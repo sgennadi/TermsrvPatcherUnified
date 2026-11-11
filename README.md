@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Preview candidate version:** `1.0.5-preview.4` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
+**Preview candidate version:** `1.0.5-preview.5` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
 
 **RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md). In the 1.0.5 candidate, it is integrated into **Advanced > Remote Desktop**; a single Run RDP Doctor button collects both the summary and expandable technical security evidence.
 

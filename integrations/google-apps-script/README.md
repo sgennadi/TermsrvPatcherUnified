@@ -60,3 +60,33 @@ The same public `/exec` endpoint now accepts two **strictly separated** typed JS
 Owner: copy the updated [Code.gs](Code.gs) into your existing Google Apps Script project, click **Save**, then **Deploy > Manage deployments > Edit (pencil) > Version: New version > Deploy**. Do **not** create a separate deployment when retaining the current configured endpoint. The pre-existing owner-only `GITHUB_ISSUES_TOKEN` must remain in Script Properties with Issues write rights. No end user needs GitHub credentials. The gateway itself does not initiate unattended uploads or automatic retries. A Windows SYSTEM Auto Reapply worker can submit two typed records only after independently protected, endpoint-bound, operator-approved consent and verified Apply; no silent submission occurs by default. This repo's CI tests do not deploy Apps Script or create live reports.
 
 The gateway accepts only complete original/patched SHA-256 and bounded edits; an offline report additionally requires CRC32/architecture. A 30-comment UTC-day limit, 6-hour event-id cache, strict metadata grammar and known Issue URL reduce abuse but do not authenticate the submitter. Every imported record remains **UNVERIFIED**; use it for diagnostics, never authorization, Microsoft provenance or automatic patch selection. Updating the embedded CSV index still requires publishing a new EXE.
+
+
+## Diagnose partial delivery and verify the deployed gateway version
+
+If a reviewed **Unified Apply report** creates a diagnostic Issue, but the DLL
+compatibility comment is not confirmed, **do not interpret this as a full
+success**. Keep the review window open and use **Retry DLL compatibility only**
+after fixing the receiver; the already confirmed diagnostic Issue is not
+resent during that same window session.
+
+The repository version of `Code.gs` now exposes a **read-only** GET capability
+response with `"gateway_schema_version":2` and
+`"capabilities":["universal-diagnostics/v1","termsrv-compatibility/v1"]`.
+Open the application's existing Google `.../exec` URL in a browser and check
+that both schemas are listed. GET cannot create an Issue/comment and never
+exposes the server-side GitHub token. If these fields are absent, the live
+deployment is older than the checked-in script. In Apps Script: replace
+`Code.gs` with the latest repository file, save it, and choose
+**Deploy > Manage deployments > Edit (pencil) > Version: New version > Deploy**.
+Retain the same URL, web app access **Anyone**, and **Execute as Me**.
+
+If the GET capabilities are correct but compatibility still fails, inspect the
+exact error displayed in the revised report window: `invalid_evidence` means
+the receiver rejected the typed payload; `github_not_confirmed` means the
+GitHub comment write failed (check Script Properties for
+`GITHUB_ISSUES_TOKEN` and repository Issues:write permission). Do not paste
+the token or confidential logs into a public Issue or chat. The app closes the
+report window **only after all required GitHub receipts** and never grants
+unattended reporting consent on partial delivery. Reopening a different EXE
+does not automatically recover in-memory partial receipt state.

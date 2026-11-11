@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.DiagnosticsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Diagnostics — 1.0.5-preview.4" Width="960" Height="770"
+        Title="Diagnostics — 1.0.5-preview.5" Width="960" Height="770"
         MinWidth="650" MinHeight="520" WindowStartupLocation="CenterOwner"
         FontFamily="Segoe UI" FontSize="13"
         Background="{StaticResource BackgroundBrush}" Icon="Assets/app.ico">
