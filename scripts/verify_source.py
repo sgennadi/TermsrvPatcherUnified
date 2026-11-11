@@ -202,6 +202,15 @@ packager = (ROOT / 'scripts/package_preview.ps1').read_text(encoding="utf-8")
 workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text(encoding="utf-8")
 release = (ROOT / '.github/workflows/release-preview.yml').read_text(encoding="utf-8")
 example = (ROOT / 'Example.txt').read_text(encoding="utf-8")
+# Exercise the publisher's actual version gate to catch silent Preview skips.
+preview_gate = re.search(r"if \(\$version -notmatch '([^']+)'\)", release).group(1)
+for candidate in ("0.1.0-preview.28", "1.0.5-preview.1", "1.12.3-preview.42"):
+    check(bool(re.fullmatch(preview_gate, candidate)), "Preview publisher accepts " + candidate)
+for candidate in ("1.0.4", "1.0.5", "1.0.5-rc.1", "1.0.5-preview.0",
+                  "1.0.5-preview.01", "1.0.5-preview.1extra", "v1.0.5-preview.1"):
+    check(not re.fullmatch(preview_gate, candidate), "Preview publisher rejects " + candidate)
+check("--prerelease --latest=false" in release, "Preview cannot replace the latest Stable release")
+
 check(all(p in packager for p in ('Example.txt', 'LICENSE', 'NOTICE.md',
       'licenses/NSudo-MIT.txt', 'licenses/fabianosrc-MIT.txt')),
       "portable Example.txt includes complete GPLv3, notices and MIT texts")
