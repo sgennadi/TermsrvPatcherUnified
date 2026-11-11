@@ -157,9 +157,17 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
             {
                 "daily_limit" => "The public report limit for today was reached.",
                 "busy" => "The reporting service is busy.",
-                "invalid_evidence" => "The service rejected incomplete or invalid Windows details.",
+                "invalid_evidence" => requireCommentReceipt
+                    ? "The Google receiver rejected the DLL compatibility payload. " +
+                      "Its published Apps Script deployment may be outdated: " +
+                      "Deploy > Manage deployments > Edit > New version. " +
+                      "If already updated, inspect the compatibility schema and permissions."
+                    : "The service rejected incomplete or invalid Windows details.",
                 "not_configured" => "The Google reporting bridge needs an owner-side GitHub token.",
-                "github_not_confirmed" => "GitHub did not confirm issue creation.",
+                "github_not_confirmed" => requireCommentReceipt
+                    ? "GitHub did not confirm the Issue #1 compatibility comment. " +
+                      "Verify that the Google-side GitHub token can write issue comments."
+                    : "GitHub did not confirm issue creation.",
                 "github_receipt_invalid" => "GitHub returned an unexpected issue receipt.",
                 "temporarily_unavailable" => "The reporting service is temporarily unavailable.",
                 _ => "The reporting service could not confirm receipt."
