@@ -131,23 +131,31 @@ jobs:
           if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
           $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }
-      - name: Non-destructive SYSTEM Task Scheduler worker smoke (no DLL writes)
+      - name: Repeat protected SYSTEM Session 0 probe twice (no DLL writes)
         shell: pwsh
         run: |
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
-          $probe = Start-Process -FilePath $exe -ArgumentList '--isolated-executor-qa' -Wait -PassThru
-          if ($probe.ExitCode -ne 0) {
-            $root = Join-Path $env:ProgramData 'TermsrvPatcherUnified.Secure/Executor'
-            if (Test-Path $root) {
-              Get-ChildItem $root -Directory | Sort-Object CreationTimeUtc -Descending |
-                Select-Object -First 1 | ForEach-Object {
-                  $status = Join-Path $_.FullName 'status.json'
-                  if (Test-Path $status) { Write-Host (Get-Content $status -Raw) }
-                }
+          foreach ($round in 1..2) {
+            Write-Host "Starting safe SYSTEM/Session 0 probe $round of 2"
+            $probe = Start-Process -FilePath $exe -ArgumentList '--isolated-executor-qa' -Wait -PassThru
+            if ($probe.ExitCode -ne 0) {
+              $root = Join-Path $env:ProgramData 'TermsrvPatcherUnified.Secure/Executor'
+              if (Test-Path $root) {
+                Get-ChildItem $root -Directory | Sort-Object CreationTimeUtc -Descending |
+                  Select-Object -First 1 | ForEach-Object {
+                    $status = Join-Path $_.FullName 'status.json'
+                    if (Test-Path $status) {
+                      try {
+                        $result = Get-Content $status -Raw | ConvertFrom-Json
+                        Write-Host "Safe probe state: $($result.State); $($result.Details)"
+                      } catch { Write-Warning 'Probe status could not be read.' }
+                    }
+                  }
+              }
+              throw "SYSTEM probe $round failed, exit code $($probe.ExitCode); no system DLL was modified."
             }
-            throw "SYSTEM Task Scheduler probe failed with exit code $($probe.ExitCode). No system DLL was modified."
+            Write-Host "PASS: safe SYSTEM/Session 0 probe $round of 2"
           }
-          Write-Host 'PASS: isolated SYSTEM/Session 0 Task Scheduler worker ran without opening termsrv.dll or touching services.'
       - name: Package exact two-file portable ZIP and one-EXE updater ZIP
         shell: pwsh
         run: ./scripts/package_preview.ps1
