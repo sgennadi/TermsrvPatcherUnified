@@ -382,6 +382,8 @@ public partial class QuickApplyWindow : Window
     {
         if (checking) return;
         var status = IsolatedApplyExecutor.ReadLatestStatus();
+        if (activeJobId is null && completedAppliedPlan is not null && !queued)
+            return; // Keep local console Apply's successful report option visible.
         if (status is null || activeJobId is not null &&
             !status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase)) return;
         // Only a persistent terminal record authorizes claiming success.
@@ -449,8 +451,9 @@ public partial class QuickApplyWindow : Window
 
     private void OfferReportAfterSuccessfulApply()
     {
-        if (!IsLoaded || completedAppliedPlan is not
-            { State: PatchState.Ready, PatchedBytes: not null } completedPlan)
+        var completedPlan = completedAppliedPlan;
+        if (!IsLoaded || completedPlan is null ||
+            completedPlan.State != PatchState.Ready || completedPlan.PatchedBytes is null)
             return;
         try
         {

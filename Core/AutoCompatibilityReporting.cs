@@ -7,8 +7,8 @@ namespace TermsrvPatcherUnified.Core;
 
 /// <summary>
 /// Machine-wide, explicit consent for future silent, verified Auto Reapply
-/// compatibility reports. This is NOT consent for ordinary diagnostics,
-/// offline files, failed jobs or a queued one-shot RDP Apply.
+/// unified (typed diagnostics + compatibility) reports. This is NOT
+/// consent for other diagnostics, offline files, failed jobs or a queued one-shot RDP Apply.
 /// Consent lives in the existing SYSTEM/Administrators-only Task Scheduler
 /// directory, not in an interactive user's profile.
 /// </summary>

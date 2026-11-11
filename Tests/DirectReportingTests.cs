@@ -222,6 +222,65 @@ internal static class DirectReportingTests
                !submission.Json.Contains("PRIVATE", StringComparison.Ordinal),
             "completed Apply produces exact bounded typed metadata without personal identifiers");
 
+
+        // The combined manual report uses two existing strict Google schemas.
+        // One human confirmation may authorize both, but it never upgrades
+        // compatibility claims to verified remote RDP connectivity.
+        var unified = new UnifiedApplyReport(fix);
+        Verify(unified.DiagnosticJson.Contains("universal-diagnostics/v1",
+                    StringComparison.Ordinal) &&
+               unified.Compatibility.Json == submission.Json &&
+               unified.ReviewedText.Contains("1. GENERAL DIAGNOSTICS", StringComparison.Ordinal) &&
+               unified.ReviewedText.Contains("2. DLL COMPATIBILITY", StringComparison.Ordinal) &&
+               !unified.ReviewedText.Contains("PRIVATE", StringComparison.Ordinal),
+               "one reviewed report holds two independent, validated public sections");
+        var sent = new FakeHandler((request, _) =>
+            Json(request.Method == HttpMethod.Post &&
+                 request.Headers.Authorization is null &&
+                 request.RequestUri!.Host == "script.google.com"
+                ? (request.Content!.Headers.ContentType!.MediaType == "application/json"
+                    ? (request.RequestUri.AbsolutePath.EndsWith("/exec", StringComparison.Ordinal)
+                        ? (request.Headers.UserAgent.Count > 0
+                            ? "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/987\"}"
+                            : "{}") : "{}") : "{}") : "{}"));
+        using (var http = new HttpClient(sent))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            // Individual receipt types are deliberately different: diagnostics
+            // must NOT be accepted as proof of compatibility comment delivery.
+            Uri u = client.SendAsync(deployed, unified.DiagnosticJson,
+                unified.Diagnostics).GetAwaiter().GetResult();
+            Verify(u.AbsoluteUri.EndsWith("/987", StringComparison.Ordinal) &&
+                   sent.Count == 1, "general diagnostic is a separately acknowledged Issue");
+        }
+        const string consentSchema = "termsrv-auto-compatibility-consent/v1";
+        var consentJson = JsonSerializer.Serialize(new {
+            SchemaId = consentSchema,
+            ReceiverSha256 = AutoCompatibilityReporting.ReceiverFingerprint(deployed),
+            Enabled = true
+        });
+        Verify(AutoCompatibilityReporting.HasConsent(consentJson, deployed),
+            "exact endpoint-bound machine-wide consent can authorize future silent reports");
+        Verify(!AutoCompatibilityReporting.HasConsent(null, deployed) &&
+               !AutoCompatibilityReporting.HasConsent(consentJson.Replace("true", "false"), deployed) &&
+               !AutoCompatibilityReporting.HasConsent(consentJson, deployed + "?other=1") &&
+               !AutoCompatibilityReporting.HasConsent(consentJson, "https://evil.example/exec") &&
+               !AutoCompatibilityReporting.HasConsent(consentJson + "extra", deployed),
+               "missing, disabled, corrupted or endpoint-mismatched consent fails closed");
+        Verify(AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.Ready,
+                isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(false, true, PatchState.Ready,
+                   isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, false, PatchState.Ready,
+                   isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.Ready,
+                   isManual: true, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.AlreadyPatched,
+                   isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.Ready,
+                   isManual: false, checksumVerified: false),
+               "only a new verified automatic SYSTEM Apply with consent may silently report");
+
         var offline = new OfflineFixMetadata("x64", "10.0.26100.9549",
             UpdateIntegration.Version, new string('a', 64), "1234ABCD",
             new string('b', 64), "AABBCCDD",

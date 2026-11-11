@@ -35,6 +35,12 @@ Tests cover exact SHA/version matching, mismatch, self-reports and diagnostic re
 
 Copied evidence normalizes unsafe registry and PE version labels to prevent local paths and identities from leaking into exported reports.
 
+## Unified Apply report and future silent Auto Reapply (1.0.5 candidate)
+
+After a verified interactive Apply, one report window combines two clearly separated read-only sections: strict `universal-diagnostics/v1` Windows/DLL diagnostics (a public GitHub Issue) and strict `termsrv-compatibility/v1` change evidence (a comment on Issue #1). One **Review and send** confirmation displays the complete contents and receiver before the program submits either record; both acknowledgements are checked. An offline DLL copy retains its separate, compatibility-only observation and never enables automatic reporting. All reports are unverified observations, not working-RDP evidence.
+
+An unchecked-by-default **Automatically send unified reports after future successful Auto Reapply runs** choice is shown only in the Apply report window. Consent is persisted machine-wide in an administrator/SYSTEM-only directory **after both manually approved records are confirmed** and bound to the exact configured Google receiver. An enabled protected Windows Update / boot / daily Auto Reapply SYSTEM task checks this consent and, only after a newly applied, exact automatic signature passes SHA-256 verification and durable state recording, silently sends the same two typed sections. There is no UI, queue or automatic retry, and any reporting failure never changes Apply success or rollback. No reports for AlreadyPatched, failed, uncertain, skipped, manual or offline operations. Simple and Advanced expose **Stop automatic reports** to revoke consent without disabling patch maintenance.
+
 ## Collecting reports for future builds (1.0.5 candidate)
 
 After a **completed, locally verified** console Apply, or separately after a saved **offline DLL copy**, the optional report window shows the exact JSON. **Review and send** asks for a second explicit confirmation with destination and complete payload. The app uses the already configured Google Apps Script HTTPS receiver and **never requires a GitHub token on the client**. Send is disabled if the approved endpoint is unavailable. Declining changes nothing and sends nothing.

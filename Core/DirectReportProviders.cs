@@ -5,7 +5,8 @@ namespace TermsrvPatcherUnified.Core;
 
 /// <summary>
 /// Public Google endpoint and optional OAuth client ID are embedded in the EXE.
-/// No credentials, tokens, runtime configuration files or background uploads.
+/// No credentials or tokens. Silent reporting requires separate protected
+/// machine-wide consent after a fully acknowledged, operator-reviewed Apply report.
 /// </summary>
 internal sealed record DirectReportingSettings(string GoogleAppsScriptUrl, string GitHubOAuthClientId)
 {

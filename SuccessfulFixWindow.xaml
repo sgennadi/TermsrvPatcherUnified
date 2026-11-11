@@ -29,9 +29,10 @@ No computer name, account or path. Short before/after DLL byte ranges are PUBLIC
                    HorizontalScrollBarVisibility="Auto"
                    Padding="9" Margin="0,0,0,12"/>
           <CheckBox x:Name="AutoSendConsentCheck" Visibility="Collapsed"
-                    IsChecked="False" TextBlock.TextWrapping="Wrap"
-                    Content="Automatically send compatibility reports after future successful Auto Reapply runs"
-                    Margin="0,0,0,5"/>
+                    IsChecked="False" Margin="0,0,0,5">
+            <TextBlock Text="Automatically send unified reports after future successful Auto Reapply runs"
+                       TextWrapping="Wrap"/>
+          </CheckBox>
           <TextBlock x:Name="AutoConsentNote" Visibility="Collapsed"
                      TextWrapping="Wrap" Foreground="#64748B" Margin="20,0,0,12"
                      Text="Off by default. Requires a confirmed manual report. Only verified post-Windows-Update Apply results are sent silently; no failures, usernames, logs or DLL files. Revoke in Simple or Advanced."/>

@@ -336,6 +336,10 @@ internal static class UiSmokeTests
                     !publicPreview.IsReadOnly ||
                     !publicPreview.Text.Contains("termsrv-compatibility/v1", StringComparison.Ordinal) ||
                     !publicPreview.Text.Contains("termsrv-success/v2", StringComparison.Ordinal) ||
+                    !publicPreview.Text.Contains("universal-diagnostics/v1", StringComparison.Ordinal) ||
+                    !publicPreview.Text.Contains("GENERAL DIAGNOSTICS", StringComparison.Ordinal) ||
+                    successReport.FindName("AutoSendConsentCheck") is not CheckBox autoConsent ||
+                    autoConsent.Visibility != Visibility.Visible ||
                     successReport.FindName("TokenInput") is not null ||
                     successReport.FindName("SkipButton") is not Button)
                     throw new Exception("Completed Apply must offer read-only, token-free Google compatibility review.");
@@ -347,8 +351,13 @@ internal static class UiSmokeTests
                 if (offlineShare.FindName("Preview") is not TextBox offlinePreview ||
                     !offlinePreview.Text.Contains("termsrv-offline/v1", StringComparison.Ordinal) ||
                     offlinePreview.IsReadOnly != true ||
+                    offlineShare.FindName("AutoSendConsentCheck") is not CheckBox offlineConsent ||
+                    offlineConsent.Visibility != Visibility.Collapsed ||
                     offlineShare.FindName("SendButton") is not Button)
                     throw new Exception("Offline DLL copy must have separate, clearly unverified token-free review.");
+                if (main.FindName("AdvancedRevokeAutoReportsButton") is not Button ||
+                    quick.FindName("QuickRevokeAutoReportsButton") is not Button)
+                    throw new Exception("Both views must expose silent reporting revocation.");
                 var confirm = new ModernConfirmDialog();
                 if (confirm.FindName("DetailsText") is not TextBox reportDetails ||
                     !reportDetails.IsReadOnly ||
