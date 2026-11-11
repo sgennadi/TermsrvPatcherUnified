@@ -303,6 +303,12 @@ internal static class DirectReportingTests
         var completedStatus = new IsolatedApplyExecutor.Status(
             completedId, "Succeeded", "Protected write and RDP service recovery returned successfully.",
             DateTimeOffset.UtcNow.ToString("O"), fix);
+        var persistedStatus = JsonSerializer.Deserialize<IsolatedApplyExecutor.Status>(
+            JsonSerializer.Serialize(completedStatus));
+        Verify(persistedStatus?.Report?.Changes.Count == 1 &&
+               IsolatedApplyExecutor.VerifiedReportMatches(persistedStatus,
+                   completedRequest, fix.PatchedSha256),
+               "protected one-shot status survives full JSON roundtrip after GUI termination");
         Verify(IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
                    completedRequest, fix.PatchedSha256) &&
                !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
