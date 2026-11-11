@@ -134,6 +134,37 @@ Ensure(!AutoReapplyScheduler.HasProtectedTaskDacl(
 Ensure(!AutoReapplyScheduler.HasProtectedTaskDacl(
         "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;AU)"),
     "Authenticated Users cannot be permitted to edit protected task");
+// Refuse private job files that grant access to ordinary users, or omit the
+// SYSTEM/Administrators grant. These are pure ACL tests: no disk writes.
+var adminsSid = new System.Security.Principal.SecurityIdentifier(
+    System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null);
+var systemSid = new System.Security.Principal.SecurityIdentifier(
+    System.Security.Principal.WellKnownSidType.LocalSystemSid, null);
+var usersSid = new System.Security.Principal.SecurityIdentifier(
+    System.Security.Principal.WellKnownSidType.BuiltinUsersSid, null);
+var fileAcl = new System.Security.AccessControl.FileSecurity();
+fileAcl.SetAccessRuleProtection(true, false);
+fileAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+    adminsSid, System.Security.AccessControl.FileSystemRights.FullControl,
+    System.Security.AccessControl.AccessControlType.Allow));
+Ensure(!NsudoDevilModeScope.HasOnlySystemAdminFileAccess(fileAcl),
+    "protected file missing SYSTEM access must fail closed");
+fileAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+    systemSid, System.Security.AccessControl.FileSystemRights.FullControl,
+    System.Security.AccessControl.AccessControlType.Allow));
+Ensure(NsudoDevilModeScope.HasOnlySystemAdminFileAccess(fileAcl),
+    "protected file with SYSTEM and Administrators only is trusted");
+fileAcl.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(
+    usersSid, System.Security.AccessControl.FileSystemRights.ReadData,
+    System.Security.AccessControl.AccessControlType.Allow));
+Ensure(!NsudoDevilModeScope.HasOnlySystemAdminFileAccess(fileAcl),
+    "a user-readable protected executable must be rejected");
+fileAcl.RemoveAccessRuleAll(new System.Security.AccessControl.FileSystemAccessRule(
+    usersSid, System.Security.AccessControl.FileSystemRights.ReadData,
+    System.Security.AccessControl.AccessControlType.Allow));
+Ensure(NsudoDevilModeScope.HasOnlySystemAdminFileAccess(fileAcl),
+    "removing the untrusted allow ACE restores restricted access");
+
 // Preview.22: pure policy regression checks, no protected file writes.
 var syntheticOriginalSha = new string('a', 64);
 var syntheticPatchedSha = new string('b', 64);

@@ -1,3 +1,11 @@
+## SYSTEM/Session 0 scheduler probe ACL regression — QA branch (NOT RELEASED)
+
+- Issue [#25](https://github.com/sgennadi/TermsrvPatcherUnified/issues/25): an older non-destructive Windows CI probe intermittently recorded only `UnauthorizedAccessException` with no stage label. This is a test-hardening change, not a new patch pattern or a new stable build.
+- The isolated Apply, Revert and probe staging paths now create a **new** protected executable stream under an already validated private administrator/SYSTEM directory rather than carrying over source file ACL metadata with `File.Copy`. Original and staged executable hashes must match; partially staged files are removed on failure.
+- The staged executable, request metadata and atomically written status files must have allow ACEs for **SYSTEM and Administrators only**; an untrusted user ACE fails closed. Pure unit tests cover acceptable and rejected file DACLs.
+- The SYSTEM probe failure status records a **fixed stage name and exception type only**, not machine identifiers, account names, paths, tokens or exception messages. CI performs two separate one-shot non-destructive probes per run.
+- **Release gate:** Windows 2025 GitHub Actions must pass on the complete PR head before merge; verify the final, published EXE only in a subsequent release. This change does **not** test a real Windows 11 DLL modification, RDP reconnect, or closing the RDP GUI during an operation. No such success is claimed.
+
 ## Stable 1.0.5 acceptance — 2026-11-11
 
 - **Real operator-approved reporting:** Windows 11 26H2 Apply metadata from Preview.4 was delivered through Google Apps Script into [general diagnostic Issue #46](https://github.com/sgennadi/TermsrvPatcherUnified/issues/46) and a [DLL compatibility Issue #1 comment](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1). The collector added one entry to `data/successful-fixes.csv`, without independently validating an RDP connection. The operator confirmed Unified Apply report closes after the successful send.

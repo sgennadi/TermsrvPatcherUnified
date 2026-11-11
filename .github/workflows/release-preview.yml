@@ -2,7 +2,7 @@ name: Publish Preview Release
 
 on:
   push:
-    branches: [main, feature/dll-compatibility-index-1-0-5]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   publish-preview:
-    if: github.repository == 'sgennadi/TermsrvPatcherUnified' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feature/dll-compatibility-index-1-0-5')
+    if: github.repository == 'sgennadi/TermsrvPatcherUnified' && github.ref == 'refs/heads/main'
     runs-on: windows-2025
     permissions:
       contents: write
@@ -148,11 +148,15 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            '1. Automatically close the unified report after confirmed delivery.'
-            '2. Retry only missing DLL compatibility, without duplicate Issues.'
-            '3. Show the Google receiver error and repair instructions.'
-            '4. Add a read-only gateway version and schema check.'
-            '5. Keep automatic reports opt-in and silent after Windows Update.'
+            '1. Harden SYSTEM executor staging with private inherited NTFS ACLs.'
+            '2. Verify SHA-256 and file permissions before scheduled execution.'
+            '3. Add bounded failure stages for the safe Session 0 probe.'
+            '4. Repeat non-destructive Windows Server 2025 scheduler checks.'
+            '5. Keep Stable 1.0.5 unchanged; Preview installs require approval.'
+            ''
+            'TermsrvPatcherUnified 1.0.6-preview.1 - Windows x64, unsigned.'
+            'This preview changes no automatic patch signatures or Microsoft licensing requirements.'
+            'CI does not perform a protected DLL write or a live Windows 11 RDP-reconnect test.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           if ($releaseExists) {
