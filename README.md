@@ -2,7 +2,7 @@
 
 **Latest Stable:** [**1.0.5**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.5) · **Published:** 2026-11-11 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
 
-**Upcoming Preview candidate:** `1.0.6-preview.1` is being validated in [PR #49](https://github.com/sgennadi/TermsrvPatcherUnified/pull/49). It hardens isolated SYSTEM worker staging and harmless scheduler probes; **Stable 1.0.5 remains the current published recommendation**. See [Changelog](CHANGELOG.md).
+**Latest Preview (optional):** [**1.0.6-preview.1**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.1) · **Published:** 2026-11-11 · hardens protected SYSTEM worker staging, NTFS permissions and non-destructive scheduler checks. [Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43059232023) and [Preview publication](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43059719474) passed. **Stable 1.0.5 remains Latest Stable and recommended**; an unsigned Preview installs only after approval. See [Changelog](CHANGELOG.md).
 
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
