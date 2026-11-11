@@ -71,7 +71,7 @@ internal static class RdpPolicyHistoryTests
                noRemoteAssertion.Verdict.Contains("NOT verified", StringComparison.Ordinal) &&
                noRemoteAssertion.Findings.Any(x =>
                    x.Area == "External client connection" &&
-                   x.Level == RdpDoctorLevel.Unknown),
+                   x.Level == RdpDoctorLevel.NotTested),
                "Local listener and service running never certify external access");
 
         Verify(RdpSecurityInspector.IsRdpRuleGroup("@FirewallAPI.dll,-28752") &&
