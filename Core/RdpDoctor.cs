@@ -54,7 +54,9 @@ internal sealed record RdpDoctorReport(
         ? "Local RDP blocker detected. Remote connectivity has NOT been tested."
         : AttentionCount > 0
             ? "Local issues need review. Remote connectivity has NOT been tested."
-            : "No known local blockers from these checks. Remote connectivity is NOT verified.";
+            : UnavailableCount > 0 || UnknownCount > 0
+                ? "No confirmed blockers, but some local checks are unavailable or incomplete. Remote connectivity is NOT verified."
+                : "No known local blockers from these checks. Remote connectivity is NOT verified.";
 
     internal string AsText()
     {
