@@ -330,8 +330,8 @@ internal static class UiSmokeTests
                     throw new Exception("Cleanup preview must warn about recovery loss and excluded system logs.");
 
                 var successReport = new SuccessfulFixWindow(record);
-                if (successReport.FindName("SendButton") is not Button share ||
-                    share.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
+                if (successReport.FindName("SendButton") is not Button compatibilitySend ||
+                    compatibilitySend.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
                     successReport.FindName("Preview") is not TextBox publicPreview ||
                     !publicPreview.IsReadOnly ||
                     !publicPreview.Text.Contains("termsrv-compatibility/v1", StringComparison.Ordinal) ||
