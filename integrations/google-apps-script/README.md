@@ -1,6 +1,6 @@
 # Free diagnostic reports via Google Apps Script -> GitHub Issues
 
-The owner supplied a Google Apps Script deployment URL, now embedded in the application. The deployment was not independently verified with a live report. It costs no monthly subscription within Google Apps Script's quota and requires no private VPS. It is nevertheless a *public, hosted HTTPS receiver*. The Formspree Free plan does **not** automatically forward messages to GitHub: its webhook integration is paid.
+The owner supplied a Google Apps Script deployment URL, now embedded in the application. An operator-approved live submission was confirmed in public diagnostic Issue #46 and compatibility Issue #1 on 2026-11-11. Such receipts do not independently prove a working RDP session. It costs no monthly subscription within Google Apps Script's quota and requires no private VPS. It is nevertheless a *public, hosted HTTPS receiver*. The Formspree Free plan does **not** automatically forward messages to GitHub: its webhook integration is paid.
 
 ## What the repository owner configures ONCE
 
@@ -51,9 +51,9 @@ The web app maps exactly the allowed \`universal-diagnostics/v1\` Windows/DLL fi
 - It then uses GitHub REST \`POST /repos/sgennadi/TermsrvPatcherUnified/issues\` with the server-side token.
 - The existing \`diagnostic-observations.yml\` workflow parses those Issues into \`data/diagnostic-observations.csv\`, which is marked \`unverified\`. Unverified reports never become automatically trusted patch patterns.
 
-All code here is prepared for human deployment and local testing; Google project deployment, real requests and end-to-end receipt confirmation have **not** been performed by the repository maintainer's assistant.
+The repository maintainer's assistant did not deploy the Google project or submit live public reports. The operator separately confirmed delivery to public Issues #46 and #1; automated CI tests remain synthetic/offline.
 
-## Upgrade existing deployment for token-free fix reports (1.0.5 candidate)
+## Upgrade existing deployment for token-free fix reports (Stable 1.0.5)
 
 The same public `/exec` endpoint now accepts two **strictly separated** typed JSON schemas. `universal-diagnostics/v1` still creates a public diagnostic Issue and populates unverified observations; `termsrv-compatibility/v1` creates a comment on the already-open public [Issue #1](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1). The reply includes both `issue_url` and `comment_url`; the Windows client verifies the comment receipt before indicating success.
 
