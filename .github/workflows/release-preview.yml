@@ -148,15 +148,16 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            '1. Harden SYSTEM executor staging with private inherited NTFS ACLs.'
-            '2. Verify SHA-256 and file permissions before scheduled execution.'
-            '3. Add bounded failure stages for the safe Session 0 probe.'
-            '4. Repeat non-destructive Windows Server 2025 scheduler checks.'
-            '5. Keep Stable 1.0.5 unchanged; Preview installs require approval.'
+            '1. Show local, incomplete, unavailable and untested RDP evidence separately.'
+            '2. Inspect RDP Firewall TCP port, active profile and Allow/Block candidates.'
+            '3. Fall back to clearly limited CIM/registry evidence if Firewall COM fails.'
+            '4. Improve the compact Doctor dashboard and safe, privacy-aware report.'
+            '5. Add Firewall/RDP synthetic tests; never modify Firewall or system DLL.'
             ''
-            'TermsrvPatcherUnified 1.0.6-preview.1 - Windows x64, unsigned.'
-            'This preview changes no automatic patch signatures or Microsoft licensing requirements.'
-            'CI does not perform a protected DLL write or a live Windows 11 RDP-reconnect test.'
+            'TermsrvPatcherUnified 1.0.6-preview.2 - Windows x64, unsigned.'
+            'Stable 1.0.5 remains Latest Stable; unsigned Preview installation requires explicit approval.'
+            'Matching local Firewall rules cannot prove remote connectivity or licensing.'
+            'CI does not perform a protected DLL write or a live Windows 11 RDP authentication test.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           if ($releaseExists) {

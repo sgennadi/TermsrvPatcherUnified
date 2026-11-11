@@ -14,7 +14,12 @@ namespace TermsrvPatcherUnified.Core;
 /// </summary>
 internal sealed record RdpSecurityInspection(
     DateTimeOffset CheckedUtc, string Firewall, string LogonRights,
-    string Certificate, string Graphics);
+    string Certificate, string Graphics)
+{
+    // Structured firewall status for Doctor; raw rule names and address scopes
+    // stay only in local Technical evidence, never the safe copied report.
+    internal RdpFirewallEvidence? FirewallEvidence { get; init; }
+}
 
 internal static class RdpSecurityInspector
 {
@@ -22,12 +27,16 @@ internal static class RdpSecurityInspector
     private const string ListenerKey =
         @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp";
 
-    internal static RdpSecurityInspection ReadLocal()
+    internal static RdpSecurityInspection ReadLocal(int? configuredTcpPort = null)
     {
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("Local Windows security APIs are required.");
-        return new(DateTimeOffset.UtcNow, SafeRead(ReadFirewall),
-            SafeRead(ReadLogonRights), SafeRead(ReadCertificate), SafeRead(ReadGraphics));
+        var firewall = RdpFirewallInspector.ReadLocal(configuredTcpPort);
+        return new(DateTimeOffset.UtcNow, firewall.Details,
+            SafeRead(ReadLogonRights), SafeRead(ReadCertificate), SafeRead(ReadGraphics))
+        {
+            FirewallEvidence = firewall
+        };
     }
 
     private static string SafeRead(Func<string> inspect)
@@ -53,68 +62,6 @@ internal static class RdpSecurityInspector
 
     private static string Clip(string? value, int limit = 132) =>
         value is null ? "(unknown)" : value.Length <= limit ? value : value[..limit] + "...";
-
-    private static string ReadFirewall()
-    {
-        var type = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
-        if (type is null) return "Windows Firewall policy COM is unavailable. Status UNKNOWN.";
-        object? instance = Activator.CreateInstance(type);
-        if (instance is null) return "Could not open Windows Firewall policy. Status UNKNOWN.";
-        var lines = new StringBuilder()
-            .AppendLine("Windows Firewall COM / inbound RDP rule metadata (read-only).");
-        int seen = 0, displayed = 0;
-        try
-        {
-            dynamic policy = instance;
-            int activeProfiles = (int)policy.CurrentProfileTypes;
-            lines.AppendLine("Active Windows network profiles (COM): " +
-                             DescribeProfiles(activeProfiles));
-            foreach (dynamic rule in policy.Rules)
-            {
-                try
-                {
-                    if (!IsRdpRuleGroup((string?)rule.Grouping) ||
-                        (int)rule.Direction != 1) continue;
-                    seen++;
-                    if (displayed++ >= 36) continue;
-                    int p = (int)rule.Protocol;
-                    string protocol = p switch { 6 => "TCP", 17 => "UDP", _ => "IP " + p };
-                    int profiles = (int)rule.Profiles;
-                    string profileNames = DescribeProfiles(profiles);
-                    string scope = Clip(Convert.ToString((object?)rule.RemoteAddresses));
-                    lines.AppendLine()
-                        .AppendLine("Rule: " + Clip(Convert.ToString((object?)rule.Name)))
-                        .AppendLine("  Enabled: " + ((bool)rule.Enabled ? "Yes" : "No") +
-                                    "; Action: " + ((int)rule.Action == 1 ? "Allow" : "Block") +
-                                    "; Protocol: " + protocol)
-                        .AppendLine("  Local ports: " + Clip(Convert.ToString((object?)rule.LocalPorts)) +
-                                    "; Profiles: " + profileNames)
-                        .AppendLine("  Active-profile intersection: " +
-                            (profiles == int.MaxValue || (profiles & activeProfiles) != 0
-                                ? "Yes (profile only; other restrictions unknown)"
-                                : "No (rule not active on the current network profile)"))
-                        .AppendLine("  Remote address scope: " + scope);
-                }
-                catch (Exception ex) when (ex is COMException or InvalidCastException or
-                                           Microsoft.CSharp.RuntimeBinder.RuntimeBinderException)
-                {
-                    lines.AppendLine("One RDP firewall rule could not be fully inspected (" +
-                        ex.GetType().Name + ").");
-                }
-            }
-        }
-        finally
-        {
-            if (Marshal.IsComObject(instance)) Marshal.FinalReleaseComObject(instance);
-        }
-        if (seen == 0)
-            lines.AppendLine("No built-in RDP inbound rule group matched. This is NOT proof that RDP is blocked or allowed.");
-        if (seen > 36) lines.AppendLine((seen - 36) + " additional RDP rules omitted for display safety.");
-        lines.AppendLine("Rule presence/Enabled is NOT proof of an effective firewall decision. " +
-                         "Active network profiles, GPO/MDM, other rules, IP scope, service binding, " +
-                         "third-party filters and remote reachability are not verified.");
-        return lines.ToString();
-    }
 
     internal static string DescribeProfiles(int flags)
     {

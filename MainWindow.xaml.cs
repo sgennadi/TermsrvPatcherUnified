@@ -1243,7 +1243,9 @@ public partial class MainWindow : Window
         latestRdpDoctorReport = null;
         DoctorFindingsGrid.ItemsSource = null;
         DoctorEventsGrid.ItemsSource = null;
-        DoctorBlockersText.Text = DoctorAttentionText.Text = DoctorUnknownText.Text = "--";
+        DoctorBlockersText.Text = DoctorAttentionText.Text = DoctorUnknownText.Text =
+            DoctorLocalEvidenceText.Text = DoctorUnavailableText.Text =
+            DoctorNotTestedText.Text = "--";
         DoctorVerdictText.Text = "Inspecting service, local policy, TCP listeners and Windows logs...";
         DoctorCheckedText.Text = "Local inspection in progress. No Windows configuration changes.";
         DoctorEventStatus.Text = "Checking recent RDP event channels...";
@@ -1262,6 +1264,9 @@ public partial class MainWindow : Window
             DoctorBlockersText.Text = report.Blockers.ToString(System.Globalization.CultureInfo.InvariantCulture);
             DoctorAttentionText.Text = report.AttentionCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
             DoctorUnknownText.Text = report.UnknownCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DoctorLocalEvidenceText.Text = report.LocalEvidenceCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DoctorUnavailableText.Text = report.UnavailableCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            DoctorNotTestedText.Text = report.NotTestedCount.ToString(System.Globalization.CultureInfo.InvariantCulture);
             DoctorVerdictText.Text = report.Verdict;
             DoctorCheckedText.Text = "Checked " +
                 report.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
@@ -1283,7 +1288,7 @@ public partial class MainWindow : Window
                 RdpGraphicsInspection.Text = details.Graphics;
                 RdpInspectionStatus.Text = "Detailed local evidence collected " +
                     details.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
-                    " UTC. Missing values remain UNKNOWN. Not included in copied reports.";
+                    " UTC. Incomplete sources are identified explicitly. Sensitive details remain local.";
             }
             else
             {
@@ -1292,17 +1297,20 @@ public partial class MainWindow : Window
             }
             RdpDoctorQuickStatus.Text = "Doctor: " + report.Blockers +
                 " blocker(s), " + report.AttentionCount + " attention, " +
-                report.UnknownCount + " unverified. Remote connection NOT tested.";
+                report.LocalEvidenceCount + " local evidence, " +
+                report.UnavailableCount + " unavailable, " +
+                report.UnknownCount + " incomplete. Remote RDP NOT tested.";
             CopyRdpDoctorButton.IsEnabled = true;
             FooterText.Text = "RDP Doctor completed. " + report.Blockers +
-                " local blocker(s). No services, registry values or system DLL changed.";
+                " local blocker(s), " + report.UnavailableCount +
+                " unavailable source(s). Windows Firewall and system DLL unchanged.";
         });
         if (latestRdpDoctorReport is null)
         {
-            DoctorVerdictText.Text = "RDP diagnostic did not complete; all results remain UNKNOWN.";
+            DoctorVerdictText.Text = "RDP diagnostic unavailable. No results are treated as verified.";
             RdpDoctorQuickStatus.Text = "Doctor: inspection unavailable. No changes made.";
             DoctorCheckedText.Text = "No completed scan available. Check Diagnostics for error details.";
-            RdpInspectionStatus.Text = "Technical evidence unavailable (UNKNOWN).";
+            RdpInspectionStatus.Text = "Technical evidence unavailable. No changes were made.";
         }
     }
 

@@ -1,6 +1,16 @@
 # Changelog
 
-## 1.0.6-preview.1 — 2026-11-11 (Preview candidate)
+## 1.0.6-preview.2 — 2026-11-11 (Preview candidate)
+
+1. Separate RDP Doctor **Verified locally**, **Observed locally**, **Attention**, **Unavailable**, **Incomplete**, and **Not tested** states instead of a blanket Unverified label.
+2. Inspect Windows Firewall COM inbound TCP rule candidates for the actual configured RDP port, active Domain/Private/Public profile, rule action, enabled state and remote scope — including explicitly matching custom rules.
+3. If Firewall COM fails, use read-only **CIM**, then a clearly limited registry snapshot; never treat fallback metadata as a confirmed effective firewall decision.
+4. Improve the compact dashboard with six colored summary counters, a readable evidence table and a local-only technical details panel. Safe clipboard reports exclude raw rule identities and address restrictions.
+5. Extend synthetic Firewall/RDP status regression tests and Windows WPF smoke tests. All inspection remains read-only; no remote TLS/sign-in test or Firewall policy change is made.
+
+**Boundary:** An enabled Allow rule is a local observation, **not** a confirmed remote connection or license. CI does not modify system DLLs or Windows Firewall. Stable 1.0.5 remains unchanged.
+
+## 1.0.6-preview.1 — 2026-11-11 (Preview released)
 
 1. Stage protected SYSTEM worker EXEs with new files inheriting SYSTEM/Administrators-only ACLs; verify the SHA-256 before use.
 2. Reject unexpected allow permissions on job executables, requests and status files.

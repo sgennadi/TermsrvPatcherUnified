@@ -92,6 +92,9 @@ internal static class UiSmokeTests
                     main.FindName("DoctorVerdictText") is not TextBlock ||
                     main.FindName("DoctorBlockersText") is not TextBlock ||
                     main.FindName("DoctorAttentionText") is not TextBlock ||
+                    main.FindName("DoctorLocalEvidenceText") is not TextBlock ||
+                    main.FindName("DoctorUnavailableText") is not TextBlock ||
+                    main.FindName("DoctorNotTestedText") is not TextBlock ||
                     main.FindName("DoctorUnknownText") is not TextBlock ||
                     main.FindName("DoctorFindingsGrid") is not DataGrid doctorFindings ||
                     !doctorFindings.IsReadOnly || doctorFindings.Columns.Count != 4 ||
