@@ -17,6 +17,7 @@ public partial class RdpLocalSettingEditWindow : Window
         if (RdpLocalAdvancedSettings.Find(selected.Setting) != selected)
             throw new InvalidDataException("Unsupported local RDP setting.");
         InitializeComponent();
+        Title = "Local RDP setting — " + UpdateIntegration.Version;
         SettingTitle.Text = spec.Setting;
         GuidanceText.Text = spec.Guidance;
         ImpactText.Text = (spec.ConsoleOnly

@@ -30,6 +30,8 @@ public partial class QuickApplyWindow : Window
     public QuickApplyWindow()
     {
         InitializeComponent();
+        Title = "TermsrvPatcherUnified " + UpdateIntegration.Version;
+        QuickVersionText.Text = UpdateIntegration.Version + "   •   Remote Desktop maintenance";
         autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,
             () => IsActive && !checking && !queued && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
