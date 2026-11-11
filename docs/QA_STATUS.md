@@ -1,3 +1,10 @@
+## Unified RDP post-Apply report recovery — 1.0.5-preview.3 candidate
+
+- A one-shot SYSTEM task now records a bounded, validated `SuccessfulFixMetadata` only after successful Apply and verified final DLL SHA-256. The UI reconstructs it after RDP disconnect and GUI restart without re-running Apply or guessing edited bytes.
+- Simple and Advanced independently verify the persisted job request, ID, state, original/result SHA-256, Windows/DLL build evidence and the current installed DLL SHA-256 before showing the report window. A durable once-per-job offer marker prevents repeated unsolicited prompts; a manual Share button remains available after dismissal.
+- The unattended Windows-Update Auto Reapply worker uses separate state and cannot trigger an interactive offer. Jobs from previous builds without validated evidence, failed tasks or AlreadyPatched are not offered.
+- Ordinary diagnostics closes after confirmed Google-to-GitHub delivery; no successful close on an unverified response. Synthetic .NET, Windows UI and published EXE checks are required; no actual protected DLL write or live reconnect is claimed.
+
 ## Unified and silent Auto Reapply report QA — feature branch
 
 - A combined manual report presents typed diagnostics and DLL compatibility in one read-only preview with one approval, while the receiver stores them in two independent public GitHub record classes.

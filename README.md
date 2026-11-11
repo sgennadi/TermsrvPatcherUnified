@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Preview candidate version:** `1.0.5-preview.2` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
+**Preview candidate version:** `1.0.5-preview.3` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
 
 **RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md). In the 1.0.5 candidate, it is integrated into **Advanced > Remote Desktop**; a single Run RDP Doctor button collects both the summary and expandable technical security evidence.
 
@@ -22,6 +22,8 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 ## Stable 1.0.4
 
 [Stable 1.0.4](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.4) was published on 2026-11-10. It adds the read-only RDP Doctor with prioritized local network/service/policy findings and bounded Windows RDP event metadata.
+
+**RDP-session report recovery (1.0.5-preview.3 candidate):** one-shot SYSTEM Apply records a bounded, verified report payload next to its protected job status. A reconnected GUI verifies the same approved request and the *current* installed DLL SHA-256 before offering the Unified Apply report once. Simple and Advanced keep a manual Share option if the first offer was dismissed. Old jobs without this evidence, failed jobs, AlreadyPatched, or unattended post-Windows-Update Auto Reapply never create an unverified popup. The ordinary Diagnostics dialog closes immediately after a confirmed GitHub Issue receipt; failed delivery remains visible. No real protected DLL changes are performed by CI.
 
 **Combined Apply report (in development):** a single post-Apply review includes strict Windows/DLL diagnostics and separate compatibility evidence, with one Send confirmation. An optional unchecked-by-default checkbox stores administrator-protected consent for future **silent** reports after newly successful verified Auto Reapply; Simple and Advanced provide a Stop automatic reports control. Failed/skipped/AlreadyPatched operations send nothing. Public GitHub records remain UNVERIFIED.
 

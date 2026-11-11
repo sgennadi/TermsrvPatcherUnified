@@ -139,11 +139,11 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            '1. Combined general diagnostics and DLL compatibility in one report.'
-            '2. Added optional silent reports after successful Auto Reapply.'
-            '3. Added a Stop automatic reports control in Simple and Advanced.'
-            '4. Unified RDP Doctor and Remote Desktop diagnostics.'
-            '5. Improved DLL compatibility evidence and Preview updates.'
+            '1. Fixed Unified Apply report after an RDP SYSTEM task completes.'
+            '2. Restored verified report evidence after reconnect, without reapplying.'
+            '3. Added one-time consent offer and manual Share report fallback.'
+            '4. Diagnostics closes automatically after confirmed GitHub delivery.'
+            '5. Kept post-Windows-Update Auto Reapply reporting silent and opt-in.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           if ($releaseExists) {
