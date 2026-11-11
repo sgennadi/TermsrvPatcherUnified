@@ -472,6 +472,7 @@ public partial class QuickApplyWindow : Window
             var metadata = SuccessfulFixMetadata.FromSuccessfulApply(os, completedPlan);
             if (new SuccessfulFixWindow(metadata) { Owner = this }.ShowDialog() == true)
                 QuickShareReportButton.Visibility = Visibility.Collapsed;
+            _ = RefreshAutoReapplyAsync(); // Update the consent badge immediately.
         }
         catch (Exception ex)
         {

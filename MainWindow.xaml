@@ -48,6 +48,7 @@
                     Content="Auto reapply after Windows Update" Margin="0,9,0,0"
                     Checked="AutoReapplyChanged" Unchecked="AutoReapplyChanged"/>
           <TextBlock x:Name="AdvancedAutoReapplyStatus"
+                     TextWrapping="Wrap"
                      Text="Scheduled task: checking..." Margin="20,4,0,0"
                      Foreground="{StaticResource MutedBrush}" FontSize="12"/>
           <CheckBox x:Name="AdvancedAutoUpdateCheck"

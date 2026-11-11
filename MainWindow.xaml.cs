@@ -520,6 +520,7 @@ public partial class MainWindow : Window
             var versions = SuccessfulFixMetadata.FromSuccessfulApply(
                 engine.EnvironmentInfo(), plan);
             new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
+            _ = RefreshAutoReapplyAsync(); // Update the consent badge immediately.
         }
         catch (Exception ex)
         {
