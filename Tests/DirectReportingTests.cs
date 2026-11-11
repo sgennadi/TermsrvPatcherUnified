@@ -330,6 +330,14 @@ internal static class DirectReportingTests
                    fix.PatchedSha256),
                "post-reconnect report requires exact one-shot ID, success, both hashes, and installed DLL");
 
+        // The original queued EXE (not the new reporting GUI version) must
+        // provide its authoritative informational ProductVersion.
+        string appModule = typeof(TermsrvEngine).Assembly.Location;
+        Verify(File.Exists(appModule) &&
+               IsolatedApplyExecutor.VersionFromStagedExecutable(appModule) ==
+                   UpdateIntegration.Version,
+               "original signed-file metadata yields exact app version for recovered reports");
+
         // Actual Windows version resources include the WinBuild suffix:
         // Preview.3 persisted "Succeeded" but omitted Report when its strictly
         // numeric DLL metadata validator rejected this valid resource text.
