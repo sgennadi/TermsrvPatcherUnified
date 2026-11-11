@@ -18,7 +18,7 @@ internal static class OfflineDllTests
         throw new Exception("Offline DLL QA did not reject: " + what);
     }
 
-    private static byte[] SyntheticDll(bool x64, int match = 0x220)
+    internal static byte[] SyntheticDll(bool x64, int match = 0x220)
     {
         var bytes = new byte[0x600];
         bytes[0] = (byte)'M';

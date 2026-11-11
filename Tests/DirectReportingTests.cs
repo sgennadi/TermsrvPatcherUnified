@@ -329,6 +329,99 @@ internal static class DirectReportingTests
                    completedRequest with { ExpectedPatchedSha256 = null! },
                    fix.PatchedSha256),
                "post-reconnect report requires exact one-shot ID, success, both hashes, and installed DLL");
+
+        // The original queued EXE (not the new reporting GUI version) must
+        // provide its authoritative informational ProductVersion.
+        string appModule = typeof(TermsrvEngine).Assembly.Location;
+        Verify(File.Exists(appModule) &&
+               IsolatedApplyExecutor.VersionFromStagedExecutable(appModule) ==
+                   UpdateIntegration.Version,
+               "original signed-file metadata yields exact app version for recovered reports");
+
+        // Actual Windows version resources include the WinBuild suffix:
+        // Preview.3 persisted "Succeeded" but omitted Report when its strictly
+        // numeric DLL metadata validator rejected this valid resource text.
+        const string rawVersion = "10.0.26100.8115 (WinBuild.160101.0800)";
+        const string numericVersion = "10.0.26100.8115";
+        Verify(SuccessfulFixMetadata.CanonicalDllVersion(rawVersion) == numericVersion &&
+               SuccessfulFixMetadata.CanonicalDllVersion(numericVersion) == numericVersion &&
+               SuccessfulFixMetadata.CanonicalDllVersion("10.0.26100.8115 (winbuild.160101.0800)") ==
+                   numericVersion &&
+               SuccessfulFixMetadata.CanonicalDllVersion("10.0.26100.8115 (unknown)") is null &&
+               SuccessfulFixMetadata.CanonicalDllVersion("not-a-version") is null &&
+               SuccessfulFixMetadata.CanonicalDllVersion("10.0.26100.8115<script>") is null,
+               "WinBuild resource suffix normalizes only to strict numeric DLL version");
+        var rawPlan = new PatchPlan(PatchState.Ready, "synthetic", "synthetic-approved-profile",
+            "C:\\Windows\\System32\\termsrv.dll", rawVersion,
+            new string('a', 64),
+            [new PatchEdit(0x220, [0x11, 0x22, 0x33, 0x44],
+                                  [0xAA, 0xBB, 0xCC, 0xDD])],
+            Enumerable.Repeat((byte)0x33, 1024).ToArray());
+        var rawOS = new WindowsDetails("Windows 11", "26H2", 26300, 9711,
+            "Client", true, "C:\\Windows\\System32\\termsrv.dll", rawVersion);
+        var normalizedFix = SuccessfulFixMetadata.FromSuccessfulApply(rawOS, rawPlan);
+        Verify(normalizedFix.DllVersion == numericVersion &&
+               normalizedFix.AsComment().Contains("dll=" + numericVersion, StringComparison.Ordinal) &&
+               !normalizedFix.AsComment().Contains("WinBuild", StringComparison.Ordinal),
+               "post-Apply Google compatibility report omits WinBuild resource suffix");
+
+        // Read-only recovery of a Preview.3 SYSTEM worker that wrote Succeeded
+        // without a report. The authenticated recovery-journal boundary itself
+        // is separately tested by RecoveryJournalStore; this test validates
+        // the exact request, original/replacement bytes and current checksum.
+        byte[] originalSynthetic = OfflineDllTests.SyntheticDll(x64: true);
+        byte[] patchedSynthetic = (byte[])originalSynthetic.Clone();
+        new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }.CopyTo(patchedSynthetic, 0x220);
+        var recoveryRequest = new IsolatedApplyExecutor.Request(
+            completedId, SystemInfo.Sha256(originalSynthetic),
+            SystemInfo.Sha256(patchedSynthetic), rawVersion,
+            "synthetic-approved-profile", new string('c', 64), true);
+        var recoveryStatus = new IsolatedApplyExecutor.Status(
+            completedId, "Succeeded",
+            "Protected write and RDP service recovery returned successfully.",
+            DateTimeOffset.UtcNow.ToString("O"), Report: null);
+        var recoveryJournal = new RecoveryJournalStore.Verified(
+            recoveryRequest.OriginalSha256, recoveryRequest.ExpectedPatchedSha256,
+            rawVersion, recoveryRequest.ProfileId, originalSynthetic,
+            [new RecoveryJournalStore.Change(0x220,
+                [0x11, 0x22, 0x33, 0x44], [0xAA, 0xBB, 0xCC, 0xDD])]);
+        var recoveredMetadata = IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+            recoveryStatus, recoveryRequest, rawOS, patchedSynthetic,
+            recoveryJournal, "1.0.5-preview.3");
+        Verify(recoveredMetadata is not null &&
+               recoveredMetadata.DllVersion == numericVersion &&
+               recoveredMetadata.ApplicationVersion == "1.0.5-preview.3" &&
+               recoveredMetadata.OriginalSha256 == recoveryRequest.OriginalSha256 &&
+               recoveredMetadata.PatchedSha256 == recoveryRequest.ExpectedPatchedSha256 &&
+               recoveredMetadata.Changes.Count == 1 &&
+               recoveredMetadata.Changes[0].Offset == 0x220 &&
+               recoveredMetadata.Changes[0].Before == "11223344" &&
+               recoveredMetadata.Changes[0].After == "AABBCCDD" &&
+               IsolatedApplyExecutor.VerifiedReportMatches(
+                   recoveryStatus with { Report = recoveredMetadata },
+                   recoveryRequest, recoveryRequest.ExpectedPatchedSha256),
+               "Preview.3 one-shot success safely reconstructs a reviewed report without another Apply");
+        var changedInstalled = (byte[])patchedSynthetic.Clone();
+        changedInstalled[0x220] ^= 1;
+        Verify(IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus, recoveryRequest, rawOS, changedInstalled,
+                   recoveryJournal, "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus with { State = "AlreadyPatched" }, recoveryRequest, rawOS,
+                   patchedSynthetic, recoveryJournal, "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus with { Id = Guid.NewGuid().ToString("N") },
+                   recoveryRequest, rawOS, patchedSynthetic, recoveryJournal,
+                   "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus, recoveryRequest with { OriginalSha256 = new string('d', 64) },
+                   rawOS, patchedSynthetic, recoveryJournal, "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus, recoveryRequest, rawOS, patchedSynthetic,
+                   recoveryJournal with { ProfileId = "unapproved" },
+                   "1.0.5-preview.3") is null,
+               "recovered reports reject drift, stale tasks and mismatching protected evidence");
+
         var offline = new OfflineFixMetadata("x64", "10.0.26100.9549",
             UpdateIntegration.Version, new string('a', 64), "1234ABCD",
             new string('b', 64), "AABBCCDD",

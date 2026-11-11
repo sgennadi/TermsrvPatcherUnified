@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5-preview.4 — candidate (not yet published)
+
+- **WinBuild version fix:** compatibility reports now normalize legitimate `(WinBuild.x.y)` suffixes in Windows DLL version resources without changing the raw version used by protected backups and recovery journals.
+- **Recover previously completed Apply:** a reconnected GUI can reconstruct missing Preview.3 report metadata solely from a completed one-shot SYSTEM request, the exact installed DLL checksum, the protected DPAPI recovery journal, verified byte changes and source EXE ProductVersion. No DLL write, service restart or Apply rerun.
+- **Consent flow:** Simple and Advanced offer the verified report once and retain manual Share after dismissal. Automatic post-Windows-Update jobs remain silent and require prior machine-wide consent.
+- **Safety QA:** synthetic regression covers WinBuild text, staged application versions, valid recovery, stale/mismatched job IDs, altered bytes and wrong signatures; public reports remain unverified until assessed.
+
 ## 1.0.5-preview.3 — candidate (not yet published)
 
 - **Report after RDP reconnect:** a successful independently executed SYSTEM Apply persists validated Windows/DLL metadata in its private job status. On reopening Simple or Advanced, the UI compares job ID, original and patched SHA-256, DLL version, verified result and the current installed DLL checksum before offering the Unified Apply report once; manual Share remains available after skipping it.

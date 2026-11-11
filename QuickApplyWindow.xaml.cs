@@ -24,6 +24,8 @@ public partial class QuickApplyWindow : Window
     private bool autoTaskChanging;
     private string? promptedJobId;
     private bool reportDialogOpen;
+    private bool reportRecoveryInProgress;
+    private string? unverifiedReportJobId;
     private bool autoUpdateLoading;
     private bool autoUpdateChanging;
     private readonly UpdateIntegration updates = new();
@@ -392,8 +394,13 @@ public partial class QuickApplyWindow : Window
         // A durable SYSTEM status is not sufficient on its own; the report
         // validator checks request identity, original SHA and CURRENT DLL SHA.
         bool verifiedOfferCandidate = status.State == "Succeeded" &&
-            !isRevert && status.Report is not null &&
+            !isRevert &&
+            !string.Equals(unverifiedReportJobId, status.Id,
+                StringComparison.OrdinalIgnoreCase) &&
             !IsolatedApplyExecutor.WasReportDelivered(status.Id);
+        // A Preview.3 one-shot task can have Report=null when WinBuild
+        // was present in the DLL resource version. The protected recovery
+        // journal is re-verified in the background before showing a report.
         QuickLastJobText.Text = status.State is
             ("Queued" or "Running" or "Succeeded" or "AlreadyPatched" or
              "Failed" or "Unconfirmed")
@@ -462,7 +469,8 @@ public partial class QuickApplyWindow : Window
 
     private async void OfferReportAfterSuccessfulApply(bool userRequested = false)
     {
-        if (!IsLoaded || reportDialogOpen) return;
+        if (!IsLoaded || reportDialogOpen || reportRecoveryInProgress) return;
+        reportRecoveryInProgress = true;
         try
         {
             // Console Apply keeps a local verified plan. Never infer a
@@ -497,7 +505,7 @@ public partial class QuickApplyWindow : Window
             // For RDP, even a new GUI process can reconstruct the report
             // from the protected, uniquely identified completed SYSTEM job.
             var status = IsolatedApplyExecutor.ReadLatestStatus();
-            if (status?.State != "Succeeded" || status.Report is null ||
+            if (status?.State != "Succeeded" ||
                 IsolatedApplyExecutor.WasReportDelivered(status.Id) ||
                 activeJobId is not null &&
                     !string.Equals(status.Id, activeJobId, StringComparison.OrdinalIgnoreCase))
@@ -511,9 +519,11 @@ public partial class QuickApplyWindow : Window
             if (!IsLoaded || reportDialogOpen) return;
             if (!recovered.valid || recovered.metadata is null)
             {
+                unverifiedReportJobId = status.Id;
                 QuickHelpText.Text =
-                    "The saved Apply result cannot be verified against the current DLL. " +
-                    "No compatibility report was generated.";
+                    "The protected Apply succeeded, but a compatibility report " +
+                    "cannot be reconstructed safely from this job and the current DLL. " +
+                    "No data was sent. Check Advanced diagnostics.";
                 QuickShareReportButton.Visibility = Visibility.Collapsed;
                 return;
             }
@@ -540,6 +550,7 @@ public partial class QuickApplyWindow : Window
             QuickHelpText.Text = "Could not prepare the combined report. " +
                                  "No information was uploaded automatically.";
         }
+        finally { reportRecoveryInProgress = false; }
     }
 
     private void ShareReport_Click(object sender, RoutedEventArgs e)

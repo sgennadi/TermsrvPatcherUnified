@@ -118,6 +118,15 @@ jobs:
           $report = Join-Path $PWD 'report.txt'
           [System.IO.File]::WriteAllBytes($sample, [byte[]](0x39,0x81,0x3C,0x06,0,0,0x0F,0x84,0x6F,0x66,0x01,0))
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $product = (Get-Item $exe).VersionInfo.ProductVersion
+          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+            throw "Published EXE ProductVersion cannot identify the original Apply version: '$product'."
+          }
+          $sourceVersion = ($product -split '\+')[0]
+          if ($sourceVersion -ne (Get-Content VERSION -Raw).Trim()) {
+            throw "EXE ProductVersion mismatch: '$sourceVersion'."
+          }
+          Write-Host "PASS: checked EXE ProductVersion $sourceVersion for protected report recovery."
           $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
           if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
           $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
@@ -139,11 +148,11 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            '1. Fixed Unified Apply report after an RDP SYSTEM task completes.'
-            '2. Restored verified report evidence after reconnect, without reapplying.'
-            '3. Added one-time consent offer and manual Share report fallback.'
-            '4. Diagnostics closes automatically after confirmed GitHub delivery.'
-            '5. Kept post-Windows-Update Auto Reapply reporting silent and opt-in.'
+            '1. Fixed missing Apply reports for DLL versions with WinBuild text.'
+            '2. Recovered verified Preview.3 reports without another Apply.'
+            '3. Restored the Share report option in Simple and Advanced.'
+            '4. Added strict original/patched SHA-256 and journal checks.'
+            '5. Kept scheduled Auto Reapply silent and consent-only.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           if ($releaseExists) {
