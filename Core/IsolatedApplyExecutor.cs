@@ -98,17 +98,15 @@ internal static class IsolatedApplyExecutor
             throw new InvalidOperationException("Independent Apply requires the packaged EXE.");
         string sourceSha = SystemInfo.Sha256(File.ReadAllBytes(sourceExe));
         string stagedExe = Path.Combine(dir, ExecutableName);
-        File.Copy(sourceExe, stagedExe, overwrite: false);
-        if (!SystemInfo.Sha256(File.ReadAllBytes(stagedExe))
-                .Equals(sourceSha, StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Staged protected executor failed SHA-256 verification.");
+        StageProtectedExecutable(sourceExe, stagedExe, sourceSha);
         // The worker ignores arbitrary paths and replacement data entirely.
         // Its request references only expected original SHA and exact profile.
         var request = new Request(id, fresh.OriginalSha256,
             SystemInfo.Sha256(fresh.PatchedBytes), fresh.FileVersion,
             fresh.ProfileId, sourceSha, createBackup);
-        File.WriteAllText(Path.Combine(dir, RequestName),
-            JsonSerializer.Serialize(request));
+        string requestPath = Path.Combine(dir, RequestName);
+        File.WriteAllText(requestPath, JsonSerializer.Serialize(request));
+        NsudoDevilModeScope.EnsurePrivateFile(requestPath);
         WriteStatus(dir, new Status(id, "Queued",
             createBackup ? "Approved Apply with full backup and recovery journal." :
             "Approved Apply without full backup; protected recovery journal mandatory.",
@@ -159,17 +157,15 @@ internal static class IsolatedApplyExecutor
             throw new InvalidOperationException("Independent Revert requires a standalone EXE.");
         string sha = SystemInfo.Sha256(File.ReadAllBytes(sourceExe));
         string staged = Path.Combine(dir, ExecutableName);
-        File.Copy(sourceExe, staged, overwrite: false);
-        if (!SystemInfo.Sha256(File.ReadAllBytes(staged))
-                .Equals(sha, StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Protected Revert executor SHA-256 mismatch.");
+        StageProtectedExecutable(sourceExe, staged, sha);
         // The request carries only expected hashes, version and profile.
         // The worker reconstructs the original bytes from trusted local storage.
         var req = new RevertRequest(id, approved.OriginalSha256,
             approved.InstalledSha256, approved.FileVersion, approved.ProfileId,
             approved.RecoverySource, sha);
-        File.WriteAllText(Path.Combine(dir, RevertRequestName),
-            JsonSerializer.Serialize(req));
+        string requestPath = Path.Combine(dir, RevertRequestName);
+        File.WriteAllText(requestPath, JsonSerializer.Serialize(req));
+        NsudoDevilModeScope.EnsurePrivateFile(requestPath);
         WriteStatus(dir, new Status(id, "Queued",
             "Revert queued independently of the RDP GUI.", DateTimeOffset.UtcNow.ToString("O")));
         try
@@ -207,11 +203,10 @@ internal static class IsolatedApplyExecutor
             throw new InvalidOperationException("Probe requires published Windows EXE.");
         var sha = SystemInfo.Sha256(File.ReadAllBytes(source));
         var staged = Path.Combine(directory, ExecutableName);
-        File.Copy(source, staged, overwrite: false);
-        if (!SystemInfo.Sha256(File.ReadAllBytes(staged)).Equals(sha, StringComparison.OrdinalIgnoreCase))
-            throw new IOException("Probe staging checksum mismatch.");
-        File.WriteAllText(Path.Combine(directory, "probe-request.json"),
-            JsonSerializer.Serialize(new ProbeRequest(id, sha)));
+        StageProtectedExecutable(source, staged, sha);
+        string probeRequest = Path.Combine(directory, "probe-request.json");
+        File.WriteAllText(probeRequest, JsonSerializer.Serialize(new ProbeRequest(id, sha)));
+        NsudoDevilModeScope.EnsurePrivateFile(probeRequest);
         WriteStatus(directory, new Status(id, "ProbeQueued", "Safe scheduler probe",
             DateTimeOffset.UtcNow.ToString("O")));
         RegisterAndStartTask(id, staged, ProbeWorkerArgument);
@@ -238,30 +233,46 @@ internal static class IsolatedApplyExecutor
         if (!IsSystemSessionZero()) return 3;
         var dir = JobDirectory(id);
         if (!Directory.Exists(dir)) return 4;
-        NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
-        NsudoDevilModeScope.EnsurePrivateDirectory(Root);
-        NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+        string stage = "verify-job-directory";
         try
         {
+            NsudoDevilModeScope.EnsurePrivateDirectory(Path.GetDirectoryName(Root)!);
+            NsudoDevilModeScope.EnsurePrivateDirectory(Root);
+            NsudoDevilModeScope.EnsurePrivateDirectory(dir);
+            stage = "acquire-job-lock";
             using var once = new FileStream(Path.Combine(dir, LockName),
                 FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            stage = "read-request";
+            string requestPath = Path.Combine(dir, "probe-request.json");
+            NsudoDevilModeScope.EnsurePrivateFile(requestPath);
             var request = JsonSerializer.Deserialize<ProbeRequest>(
-                File.ReadAllText(Path.Combine(dir, "probe-request.json")))
+                File.ReadAllText(requestPath))
                 ?? throw new InvalidDataException("Probe request missing.");
+            stage = "verify-staged-exe";
+            string stagedExe = Path.Combine(dir, ExecutableName);
+            NsudoDevilModeScope.EnsurePrivateFile(stagedExe);
             if (request.Id != id || request.ExeSha256 is null ||
                 request.ExeSha256.Length != 64 || !request.ExeSha256.All(Uri.IsHexDigit) ||
-                !SystemInfo.Sha256(File.ReadAllBytes(Path.Combine(dir, ExecutableName)))
+                !SystemInfo.Sha256(File.ReadAllBytes(stagedExe))
                     .Equals(request.ExeSha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("Probe executable or ID mismatch.");
+            stage = "write-success-status";
             WriteStatus(dir, new Status(id, "ProbeSucceeded", "SYSTEM Session 0 attested",
                 DateTimeOffset.UtcNow.ToString("O")));
             return 0;
         }
         catch (Exception e)
         {
-            AuditLog.Append("SYSTEM probe failed: " + e.GetType().Name);
-            WriteStatus(dir, new Status(id, "Failed", e.GetType().Name,
-                DateTimeOffset.UtcNow.ToString("O")));
+            // Only a fixed stage label and exception TYPE are persisted.
+            // Do not include Windows account names, file paths or exception messages.
+            string reason = "Stage=" + stage + "; " + e.GetType().Name;
+            AuditLog.Append("SYSTEM probe failed: " + reason);
+            try
+            {
+                WriteStatus(dir, new Status(id, "Failed", reason,
+                    DateTimeOffset.UtcNow.ToString("O")));
+            }
+            catch { /* Preserve the original failure; CI will fail closed. */ }
             return 5;
         }
         finally
@@ -834,6 +845,36 @@ internal static class IsolatedApplyExecutor
         return Path.Combine(Root, "job-" + normalized);
     }
 
+    /// <summary>
+    /// Create a fresh file under the protected destination directory, so file
+    /// permissions are INHERITED FROM THE JOB FOLDER, never copied from the
+    /// potentially user-writable source EXE. Refuse unexpected DACLs and SHA.
+    /// </summary>
+    private static void StageProtectedExecutable(string source, string destination,
+        string expectedSha256)
+    {
+        try
+        {
+            using (var input = new FileStream(source, FileMode.Open, FileAccess.Read,
+                       FileShare.Read))
+            using (var output = new FileStream(destination, FileMode.CreateNew,
+                       FileAccess.Write, FileShare.None, 65536, FileOptions.WriteThrough))
+            {
+                input.CopyTo(output);
+                output.Flush(flushToDisk: true);
+            }
+            NsudoDevilModeScope.EnsurePrivateFile(destination);
+            if (!SystemInfo.Sha256(File.ReadAllBytes(destination))
+                    .Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
+                throw new IOException("Protected executor SHA-256 mismatch.");
+        }
+        catch
+        {
+            try { if (File.Exists(destination)) File.Delete(destination); } catch { }
+            throw;
+        }
+    }
+
     private static void WriteStatus(string dir, Status status)
     {
         string final = Path.Combine(dir, StatusName);
@@ -841,7 +882,9 @@ internal static class IsolatedApplyExecutor
         try
         {
             File.WriteAllText(temp, JsonSerializer.Serialize(status));
+            NsudoDevilModeScope.EnsurePrivateFile(temp);
             File.Move(temp, final, overwrite: true);
+            NsudoDevilModeScope.EnsurePrivateFile(final);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
     }
