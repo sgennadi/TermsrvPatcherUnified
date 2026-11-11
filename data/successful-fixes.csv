@@ -1,1 +1,2 @@
 windows,release,build,ubr,file_name,dll_version,app_version,mode,original_sha256,patched_sha256,edits,first_seen_utc,last_seen_utc,report_count
+Windows 11,26H2,26300,9711,termsrv.dll,10.0.26100.8115,1.0.5-preview.4,automatic,e40261e4ee89f4dc9b4a3ea23b53631aac2868d533a3930b92a9c821a2bf9456,0cb6997eba95e27605a7bf4d5d79ee838876f70d57c4dcb9fb512827476d1e4a,0x000A6896:448B873C060000448B8F38060000453BC17514>41B9000100009044898F38060000909090EB14,2026-11-11T11:03:55Z,2026-11-11T11:03:55Z,1
