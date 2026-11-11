@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.5 — 2026-11-11 (Stable released)
+
+- **Unified Remote Desktop:** RDP Doctor and Remote Desktop settings share one Advanced tab; evidence remains read-only until a user authorizes an individual operation.
+- **DLL compatibility database:** exact version/SHA-256 observations and self-reported patch outcomes; no report alone authorizes a pattern or confirms a working RDP session.
+- **Verified reporting:** recover a completed SYSTEM Apply report after an RDP reconnect, normalize WinBuild DLL resource versions for public schema, and deliver general diagnostics plus exact DLL evidence to GitHub through Google Apps Script. A real combined submission was accepted into [Issue #46](https://github.com/sgennadi/TermsrvPatcherUnified/issues/46) and [Issue #1](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1), adding one [successful-fixes.csv](data/successful-fixes.csv) entry.
+- **Reporting UX:** Unified Apply report closes automatically only with all verified receipts; a partial success can retry only missing compatibility evidence while that dialog remains open. Auto Reapply reporting is silent and disabled without explicit consent.
+- **Stable/Preview isolation:** SemVer blocks any older Preview (including 1.0.5-preview.5) from replacing Stable 1.0.5, with independent GUI and protected-helper checks, regression matrix and manual installation/rollback.
+- **Validation limits:** GitHub CI covers synthetic/read-only safety and packaging. A live Windows Update triggering a scheduled Auto Reapply with silent reporting remains to be tested separately.
+
+
 ## 1.0.5-preview.5 — candidate (not yet published)
 
 - **Confirmed delivery closes the window:** Unified Apply closes automatically only after both the general diagnostic Issue and DLL compatibility comment have individually valid GitHub receipts; offline reports close after their sole validated comment. Failed, rejected or timed-out deliveries remain visible and never enable unattended reporting.
@@ -22,7 +32,7 @@
 - **Auto-close:** the Diagnostics window closes immediately after GitHub confirms the report. Unconfirmed delivery and cancelled sends leave it open. Unified Apply no longer requires a separate success-message dismissal.
 - **Validation:** Windows CI and WPF synthetic/report policy tests are required before Preview publication. No real RDP disconnection or protected system DLL write is claimed.
 
-## 1.0.5 — in development (not published)
+## 1.0.5 — development history (promoted to Stable above)
 
 - **Unified Apply report:** one reviewed window shows Windows/DLL diagnostic metadata and separate exact DLL compatibility evidence. The confirmed send submits two strictly typed public GitHub records, preserving their distinct trust levels.
 - **Silent Auto Reapply reporting (opt-in):** unchecked-by-default permission after first confirmed combined report allows successful verified post-Windows-Update SYSTEM work to send both sections without prompts. Failures, rechecks and offline DLL copies do not send. Revoke from Simple or Advanced; no upload without prior approval.
@@ -39,7 +49,7 @@
 - **Embedded signature evidence:** local byte-pattern result displayed separately from user reports; SHA/version drift invalidates stale evidence, never authorizes Apply.
 - **Trust boundaries:** no source in the compatibility index certifies an original Microsoft DLL, independent RDP functionality, licensing, or protected Apply/Revert authorization. Bundled CSVs are fixed at build time; invalid/missing sources show Unavailable.
 - **Copy evidence:** explicitly requested, local-only, privacy-restricted report; no automatic network contact. Synthetic CSV/parser and WPF UI safety checks added.
-- **Release gate:** independent Windows CI required before any version bump or Stable publication. The downloadable Stable remains 1.0.4.
+- **Release gate:** independent Windows CI is required before Stable publication; the 1.0.5 Stable release gate runs from main after the version update.
 
 ## 1.0.4 — 2026-11-10 (Stable released)
 

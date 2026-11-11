@@ -1,3 +1,10 @@
+## Stable 1.0.5 acceptance — 2026-11-11
+
+- **Real operator-approved reporting:** Windows 11 26H2 Apply metadata from Preview.4 was delivered through Google Apps Script into [general diagnostic Issue #46](https://github.com/sgennadi/TermsrvPatcherUnified/issues/46) and a [DLL compatibility Issue #1 comment](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1). The collector added one entry to `data/successful-fixes.csv`, without independently validating an RDP connection. The operator confirmed Unified Apply report closes after the successful send.
+- **Version downgrade guard:** tests cover installed Stable `1.0.5` vs `1.0.5-preview.5`, `1.0.5-preview.99`, older 1.0.4, equal 1.0.5 and explicitly approved newer versions. GUI staging and protected updater helper share the strict SemVer gate. Preview GitHub releases are always `--latest=false`.
+- **Final Stable gates:** Windows 2025 build, source/Google schema checks, WPF UI, DLL compatibility, offline DLL, backups, operation lock, RDP, EXE inspection and non-destructive SYSTEM execution run before publication; exactly 3 release assets are checked after publication.
+- **Not yet validated live:** unattended Auto Reapply after Windows Update, isolated physical RDP reconnection on all supported Windows builds and physical 200% DPI. Those require separate authorized machines and are not implied by public self-reports.
+
 ## Partial Google reporting and automatic close — 1.0.5-preview.5 candidate
 
 - **Reproduction:** Preview.4 posted the combined general diagnostics to Issue #43, but Google did not acknowledge an Issue #1 DLL compatibility comment. The UI correctly remained open and must not record automatic reporting consent on partial success.

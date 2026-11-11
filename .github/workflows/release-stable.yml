@@ -62,6 +62,10 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/verify_update_package.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_successful_fix.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/record_offline_fix.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile and execute synthetic tests
         if: env.PUBLISH_STABLE == 'true'
         shell: pwsh
@@ -84,8 +88,24 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --direct-report-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --dll-compatibility-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --offline-dll-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --dll-backup-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --operation-lock-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-node@v5
+        if: env.PUBLISH_STABLE == 'true'
+        with:
+          node-version: '24'
+      - name: Validate Google Apps Script gateway schemas and deduplication (offline)
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        run: node scripts/test_google_gateway.cjs
       - name: Publish self-contained x64 EXE
         if: env.PUBLISH_STABLE == 'true'
         shell: pwsh
@@ -129,16 +149,16 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
           $notes = @(
-            "TermsrvPatcherUnified $env:RELEASE_VERSION - Stable channel, unsigned Windows x64."
-            'Manually approved installation, exact-signature checks, verified backups and reversible updates. All deployment actions require admin approval.'
-            'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
-            'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
-            'Stable 1.0.0 adds the new responsive UI, a Stable/Preview update channel selector, source-aware RDP policy diagnostics and modern confirmation dialogs.'
-            'The approved Google Apps Script endpoint is embedded in the EXE. Reports create public GitHub Issues only after user confirmation.'
-            'Google reporting requires an explicit review and a verified GitHub Issue URL; no local save or account required. Live Google delivery was confirmed by public Issue #32; CI still uses simulated HTTP and does not validate OAuth sign-in or every Scheduler configuration.'
-            'Windows Server 2025 CI tests run in synthetic/read-only mode. Protected system DLL writes and RDP reconnect/restore still require an independent authorized Windows test VM.'
+            '1. Combine Remote Desktop and RDP Doctor in one Advanced tab.'
+            '2. Add a DLL compatibility index and verified Apply reporting.'
+            '3. Restore reviewed reports after RDP reconnect; close after confirmed delivery.'
+            '4. Send future verified Auto Reapply reports only after explicit opt-in.'
+            '5. Protect Stable from older Preview installs; retain backup and rollback.'
             ''
-            'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'
+            'TermsrvPatcherUnified 1.0.5 Stable - unsigned Windows x64. Installation is manual and administrator-approved.'
+            'Google-to-GitHub report delivery was confirmed in Issues #46 and #1; collected DLL evidence is self-reported, not an independent RDP validation.'
+            'CI checks compile, packaging, read-only inspection, updater and synthetic SYSTEM execution; actual Windows Update Auto Reapply and RDP recovery remain separate on-device tests.'
+            'Portable ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt. Update ZIP contains one EXE. SHA256SUMS.txt verifies both ZIP files.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Stable)" --notes-file release-notes.txt --latest
