@@ -10,6 +10,7 @@ public partial class SuccessfulFixWindow : Window
     private readonly CompatibilityRelaySubmission submission;
     private readonly UnifiedApplyReport? unified;
     private readonly DirectReportingSettings settings;
+    private readonly bool initialAutoConsent;
     private Uri? diagnosticsReceipt;
     private Uri? compatibilityReceipt;
     private bool sending;
@@ -29,8 +30,9 @@ public partial class SuccessfulFixWindow : Window
             "and a separate Issue #1 compatibility comment. Both remain UNVERIFIED: " +
             "successful patching is not proof that an external RDP connection works.";
         AutoSendConsentCheck.Visibility = Visibility.Visible;
-        AutoSendConsentCheck.IsChecked =
-            AutoCompatibilityReporting.IsEnabled(settings.GoogleAppsScriptUrl);
+        initialAutoConsent = AutoCompatibilityReporting.IsEnabled(
+            settings.GoogleAppsScriptUrl);
+        AutoSendConsentCheck.IsChecked = initialAutoConsent;
         AutoSendConsentCheck.IsEnabled = settings.HasGoogleScript;
         AutoConsentNote.Visibility = Visibility.Visible;
         InitializeAvailability();
@@ -70,16 +72,21 @@ public partial class SuccessfulFixWindow : Window
         SkipButton.IsEnabled = false;
         bool futureAutoReports = unified is not null &&
             AutoSendConsentCheck.IsChecked == true;
+        bool revokeAutoReports = unified is not null &&
+            initialAutoConsent && !futureAutoReports;
         try
         {
             string futureNotice = unified is null
                 ? "Offline reports never enable unattended sending."
                 : futureAutoReports
                     ? "You also grant machine-wide permission for future SUCCESSFUL " +
-                      "post-Windows-Update Auto Reapply runs to send compatibility-only " +
-                      "metadata silently. No routine errors or unverified attempts are sent. " +
+                      "post-Windows-Update Auto Reapply runs to send both typed " +
+                      "report sections silently. No routine errors or raw logs are sent. " +
                       "You can revoke this later in Simple or Advanced."
-                    : "Unattended reporting is NOT being enabled by this approval.";
+                    : revokeAutoReports
+                        ? "Existing permission for future unattended reports will be " +
+                          "REVOKED after this manual report is confirmed."
+                        : "Unattended reporting is NOT being enabled by this approval.";
             if (!ModernConfirmDialog.Ask(this,
                     unified is null ? "Share offline DLL observation?"
                                     : "Share combined Apply report?",
@@ -120,7 +127,7 @@ public partial class SuccessfulFixWindow : Window
                 {
                     AutoCompatibilityReporting.EnableAfterConfirmedReport(
                         settings.GoogleAppsScriptUrl);
-                    consentStatus = "\nFuture verified Auto Reapply compatibility reports: ON (silent).";
+                    consentStatus = "\nFuture verified Auto Reapply unified reports: ON (silent).";
                     AuditLog.Append("Administrator approved protected silent Auto Reapply compatibility reporting.");
                 }
                 catch (Exception ex)
@@ -128,6 +135,21 @@ public partial class SuccessfulFixWindow : Window
                     consentStatus = "\nFuture automatic reporting was NOT enabled (" +
                         ex.GetType().Name + ").";
                     AuditLog.Append("Auto compatibility consent could not be saved: " +
+                                    ex.GetType().Name);
+                }
+            }
+            if (revokeAutoReports)
+            {
+                try
+                {
+                    AutoCompatibilityReporting.Revoke();
+                    consentStatus = "\nFuture automatic reports: OFF (permission revoked).";
+                }
+                catch (Exception ex)
+                {
+                    consentStatus = "\nAutomatic report permission could NOT be revoked (" +
+                        ex.GetType().Name + "). Use Stop automatic reports.";
+                    AuditLog.Append("Automatic reporting revocation failed: " +
                                     ex.GetType().Name);
                 }
             }
