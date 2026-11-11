@@ -3,6 +3,7 @@ using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using UniversalUpdater;
+using TermsrvPatcherUnified.Core;
 
 internal static class UpdateTransactionSyntheticTests
 {
@@ -22,6 +23,29 @@ internal static class UpdateTransactionSyntheticTests
             GitHubReleaseClient.MatchesChannel(UpdateChannel.Prerelease, false, preview))
             throw new Exception("Stable/Preview channel isolation failed: only matching GitHub flag plus SemVer may pass.");
         Console.WriteLine("PASS: Preview and Stable channels reject cross-channel and incorrectly labelled releases.");
+
+        // Regression: an older Preview cannot replace installed newer Stable.
+        // This is the same version gate as the GUI staging and SYSTEM helper.
+        var versionCases = new (string Installed, string Offered, bool Allowed)[]
+        {
+            ("1.0.5", "1.0.5-preview.5", false),
+            ("1.0.5", "1.0.5-preview.99", false),
+            ("1.0.6", "1.0.5-preview.99", false),
+            ("1.0.5", "1.0.4", false),
+            ("1.0.5", "1.0.5", false),
+            ("1.0.5-preview.5", "1.0.5", true),
+            ("1.0.5-preview.4", "1.0.5-preview.5", true),
+            ("1.0.5", "1.0.6-preview.1", true) // explicit newer Preview only
+        };
+        foreach (var test in versionCases)
+        {
+            bool allowed = UpdateInstallBridge.IsUpgradeCandidate(
+                SemanticVersion.Parse(test.Offered), test.Installed);
+            if (allowed != test.Allowed)
+                throw new Exception("Update downgrade guard failed for " +
+                    test.Installed + " -> " + test.Offered);
+        }
+        Console.WriteLine("PASS: Stable downgrade guard and deliberate upgrade SemVer matrix.");
 
         RunOneCase(failHealthProbe: false);
         RunOneCase(failHealthProbe: true);

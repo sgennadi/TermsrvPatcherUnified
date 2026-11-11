@@ -17,6 +17,11 @@ internal static class UpdateInstallBridge
     internal const string ExecutableName = "TermsrvPatcherUnified.exe";
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
 
+    // Shared by GUI launcher and protected helper: never replace a newer Stable
+    // with an older Preview, or perform same-version/replay downgrades.
+    internal static bool IsUpgradeCandidate(SemanticVersion candidate, string installedVersion) =>
+        candidate > SemanticVersion.Parse(installedVersion);
+
     private sealed record Job(
         string TargetPath, string TargetSha256, int ParentProcessId,
         DateTimeOffset CreatedUtc, string CandidateVersion, string CandidateTag,
@@ -158,7 +163,7 @@ internal static class UpdateInstallBridge
             release.Rule.Kind != PackageKind.SingleExeZip ||
             release.Rule.AssetName != "TermsrvPatcherUnified-update-win-x64.zip" ||
             release.Rule.SingleExecutableName != ExecutableName ||
-            release.Version <= SemanticVersion.Parse(options.InstalledVersion))
+            !IsUpgradeCandidate(release.Version, options.InstalledVersion))
             throw new InvalidDataException("The live release does not match this updater.");
         if (new UpdateStateStore(options).Read().FailureHold)
             throw new InvalidOperationException("A previous failed update requires administrator review.");
@@ -264,7 +269,7 @@ internal static class UpdateInstallBridge
 
         var options = UpdateIntegration.Options(job.Channel);
         var next = SemanticVersion.Parse(job.CandidateVersion);
-        if (next <= SemanticVersion.Parse(options.InstalledVersion) ||
+        if (!IsUpgradeCandidate(next, options.InstalledVersion) ||
             (job.CandidateTag != "v" + job.CandidateVersion &&
              job.CandidateTag != job.CandidateVersion) ||
             job.CandidateAssetUrl !=
