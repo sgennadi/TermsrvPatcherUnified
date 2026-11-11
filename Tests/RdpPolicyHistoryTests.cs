@@ -42,7 +42,7 @@ internal static class RdpPolicyHistoryTests
                diagnosed.UnknownCount > 0 &&
                diagnosed.Verdict.Contains("NOT been tested", StringComparison.Ordinal) &&
                diagnosed.Findings.Any(x => x.Area == "Windows Firewall" &&
-                                          x.Level == RdpDoctorLevel.Unknown),
+                                          x.Level == RdpDoctorLevel.Unavailable),
                "Stopped service, disabled RDP and absent listener yield local blockers, not remote success");
         Verify(!diagnosed.AsText().Contains("C:\\Users\\", StringComparison.OrdinalIgnoreCase) &&
                diagnosed.AsText().Contains("No registry, service", StringComparison.Ordinal) &&
@@ -81,6 +81,78 @@ internal static class RdpPolicyHistoryTests
                RdpSecurityInspector.DescribeProfiles(int.MaxValue) == "All" &&
                RdpSecurityInspector.DescribeProfiles(0).StartsWith("Unknown", StringComparison.Ordinal),
                "firewall profile masks preserve unknown state");
+        // Pure firewall classification tests. No COM, WMI, port opening,
+        // firewall writes, service restart, or system DLL access.
+        Verify(RdpFirewallInspector.PortIncludes("3388-3390", 3389) &&
+               RdpFirewallInspector.PortIncludes("3389,3391", 3389) &&
+               RdpFirewallInspector.PortIncludes("Any", 3389) &&
+               !RdpFirewallInspector.PortIncludes("RPC", 3389) &&
+               !RdpFirewallInspector.PortIncludes("3390-3388", 3389) &&
+               !RdpFirewallInspector.PortIncludes("3389", 3390),
+               "firewall port parser handles exact, range, Any and malformed input");
+        var allow = new RdpFirewallRule("PRIVATE-RAW-RULE", "@FirewallAPI.dll,-28752",
+            "TermService", 1, 6, "3389", 1, true, true, "PRIVATE-IP-ADDRESS");
+        var localAllow = RdpFirewallInspector.Assess(3389, 1, [allow], partial: false);
+        Verify(localAllow.Level == RdpDoctorLevel.Ok &&
+               localAllow.Summary.Contains("active profile", StringComparison.Ordinal) &&
+               localAllow.Details.Contains("PRIVATE-RAW-RULE", StringComparison.Ordinal),
+               "exact inbound TCP Allow/profile/port is a local observation, not remote access");
+        Verify(RdpFirewallInspector.Assess(3390, 1, [allow], false).Level ==
+                   RdpDoctorLevel.Attention &&
+               RdpFirewallInspector.Assess(3389, 2, [allow], false).Level ==
+                   RdpDoctorLevel.Attention,
+               "wrong configured port and wrong active network profile do not count as Allow");
+        Verify(RdpFirewallInspector.Assess(3389, 1,
+                   [allow with { Enabled = false }], false).Level == RdpDoctorLevel.Attention &&
+               RdpFirewallInspector.Assess(3389, 1,
+                   [allow with { Protocol = 17 }], false).Level == RdpDoctorLevel.Attention,
+               "disabled rules and UDP-only rules never permit RDP TCP");
+        Verify(RdpFirewallInspector.Assess(3389, 1,
+                   [allow, allow with { Name = "block", Allow = false }],
+                   false).Level == RdpDoctorLevel.Attention,
+               "a matching Block candidate takes priority over local Allow metadata");
+        Verify(RdpFirewallInspector.Assess(3389, 1, [allow], true).Level ==
+                   RdpDoctorLevel.Unknown &&
+               RdpFirewallInspector.Assess(3389, 0, [allow], false).Level ==
+                   RdpDoctorLevel.Unknown &&
+               RdpFirewallInspector.Assess(null, 1, [allow], false).Level ==
+                   RdpDoctorLevel.Unknown,
+               "partial enumeration or unknown active port/profile is not verified");
+        var custom = allow with { Name = "Custom RDP port", Group = "",
+            Service = "", LocalPorts = "3399", Profiles = 2 };
+        Verify(RdpFirewallInspector.Assess(3399, 2, [custom], false).Level ==
+                   RdpDoctorLevel.Ok &&
+               RdpFirewallInspector.Assess(3389, 2, [custom], false).Level ==
+                   RdpDoctorLevel.Attention,
+               "custom, explicitly scoped TCP rules are supported without confusing ports");
+        var locallyInspected = new RdpSecurityInspection(DateTimeOffset.UtcNow,
+            localAllow.Details, "Local applied LSA user-right assignments (read-only).",
+            "Date window: Within validity dates", "RDP graphics ADMX computer policy registry")
+        { FirewallEvidence = localAllow };
+        var withEvidence = RdpDoctor.Analyze(new(doctorReady, locallyInspected, 3389,
+            RdpDoctorSocket.Listening, [new RdpDoctorEvent(DateTimeOffset.UtcNow,
+                "RdpCoreTS", 101, "Information")], []));
+        Verify(withEvidence.Findings.Any(x => x.Area == "Windows Firewall" &&
+                   x.Level == RdpDoctorLevel.Ok) &&
+               withEvidence.Findings.Any(x => x.Area == "Remote interactive logon rights" &&
+                   x.Level == RdpDoctorLevel.Observed) &&
+               withEvidence.Findings.Any(x => x.Area == "RDP TLS certificate" &&
+                   x.Level == RdpDoctorLevel.Observed) &&
+               withEvidence.Findings.Any(x => x.Area == "Graphics / codec policy" &&
+                   x.Level == RdpDoctorLevel.Observed) &&
+               withEvidence.Findings.Any(x => x.Area == "Windows RDP event logs" &&
+                   x.Level == RdpDoctorLevel.Observed) &&
+               withEvidence.Findings.Any(x => x.Area == "External client connection" &&
+                   x.Level == RdpDoctorLevel.NotTested) &&
+               withEvidence.LocalEvidenceCount >= 5 &&
+               withEvidence.NotTestedCount >= 1,
+               "successful local reads are not blanket Unverified, while external RDP is Not tested");
+        Verify(!withEvidence.AsText().Contains("PRIVATE-RAW-RULE", StringComparison.Ordinal) &&
+               !withEvidence.AsText().Contains("PRIVATE-IP-ADDRESS", StringComparison.Ordinal) &&
+               withEvidence.AsText().Contains("not tested", StringComparison.Ordinal) &&
+               !withEvidence.Verdict.Contains("Remote connectivity verified", StringComparison.Ordinal),
+               "publicly copyable diagnostics never leak raw firewall rule metadata or certify remote access");
+
         Verify(RdpSecurityInspector.NormalizeThumbprint(new string('a', 40)) ==
                new string('A', 40) &&
                RdpSecurityInspector.NormalizeThumbprint("NOT_A_VALID_THUMBPRINT") == "",
