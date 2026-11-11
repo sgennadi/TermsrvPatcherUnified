@@ -1,52 +1,85 @@
-# RDP Doctor — 1.0.4
+# RDP Doctor — local, read-only diagnostics (Preview 1.0.6-preview.2)
 
-RDP Doctor is a **read-only, local** diagnostic section in **Advanced > Remote Desktop**. It collects a bounded evidence snapshot and shows a conservative assessment, prioritized root-cause clues, and safe next steps.
+RDP Doctor is inside **Advanced → Remote Desktop**. Select **Run RDP Doctor** for a
+single scan of TermService, configuration, TCP listeners, Windows Firewall, LSA
+rights, TLS certificate metadata, graphics policy and bounded RDP event metadata.
+The scan **does not** modify Firewall settings, registry, services or system DLLs.
 
-## Run
+## Understanding the statuses
 
-Open **Advanced > Remote Desktop**, then select **Run RDP Doctor**. The header displays the number of local blockers, warnings and unverified areas. The grid displays the check, status, evidence and recommendation; the last 24-hour event table contains only UTC time, channel, event ID and numeric-level-derived severity.
+| Status | Meaning |
+|---|---|
+| **Verified locally** | A specific local fact was checked (for example a configured active port/rule match), **not** end-to-end RDP connectivity |
+| **Observed locally** | A source was read and its contents observed; the effective remote result (e.g. token, TLS handshake, codec) has **not** been evaluated |
+| **Attention** | Potential problem or security risk needing manual review, but not automatically proof of a blocked connection |
+| **Blocker** | A concrete local blocker (such as a stopped service or absent listening socket) |
+| **Unavailable** | Inspection failed or no usable source data was available |
+| **Incomplete** | Some useful metadata exists, but a needed element or enumeration is missing |
+| **Not tested** | Deliberately unperformed external TCP/TLS/authentication/interactive sign-in test |
 
-**Copy safe report** copies summarized evidence and sanitized event metadata to your clipboard, never sending it anywhere. Expand **Technical evidence** inside RDP Doctor to see detailed Firewall, LSA logon rights, TLS certificate and graphics metadata. Both panes are populated from one read-only scan. Local identity and certificate details are never included in the copied report. Nothing modifies Windows.
+The dashboard shows six compact counters: local blockers, attention, local evidence
+(combining Verified/Observed locally), unavailable, incomplete, and not tested.
+The exact status remains visible in every table row with a distinct background.
+The safe local clipboard report never includes raw account names, Firewall rule
+names, source IP address scopes, certificate subjects, event messages or paths.
 
-## Checks
+## Windows Firewall diagnosis
 
-| Check | Source | Interpretation |
-|---|---|---|
-| Service | Service Control Manager / TermService | Stopped/Paused is a local blocker; Running is not a connection guarantee |
-| Local RDP policy | Terminal Server registry and Policies registry | Disabled and contradictory values are shown; missing values are Unknown |
-| TCP listener | RDP-Tcp configured PortNumber and IPGlobalProperties.GetActiveTcpListeners | No local socket is a local blocker; loopback-only is a warning; listening does not prove ownership or external reachability |
-| NLA | RDP-Tcp UserAuthentication and matching policy | Not required is a security warning; missing is Unknown |
-| Policy conflicts | Read-only local/policy comparison | Detects mismatched or invalid values, not full winning RSoP/MDM |
-| Blank-password restriction | LSA LimitBlankPasswordUse | OFF is a security warning; ON is a local configuration observation; no remote authentication test |
-| Firewall | Existing HNetCfg.FwPolicy2 read-only RDP rule metadata | No built-in group is a warning; even Allow cannot establish effective reachability |
-| Logon rights | LSA enumerated Allow/Deny user-right assignments | Nested membership and actual token not computed; status remains Unknown |
-| TLS | RDP binding and certificate store metadata | Invalid validity dates flagged; TLS handshake/trust not verified |
-| Graphics | GPU, AVC/H.264/WDDM RDP GPO registry | Informational only; codec negotiation not detected |
-| Event logs | LocalSessionManager, RemoteConnectionManager, RdpCoreTS | 24-hour, max 45 records/channel and 120 total; errors are correlation clues, not proof of a root cause |
-| External client | Not probed by this version | Always Unverified; test from an independently authorized machine |
+The inspector first uses **HNetCfg.FwPolicy2** (read-only COM). It inspects
+inbound **TCP** candidates only, including known RDP rule groups, TermService
+rules and custom rules with **explicit local ports matching the configured
+RDP TCP port**. It reads:
 
-## Security and privacy
+- The configured RDP port instead of blindly assuming 3389
+- Current active Domain/Private/Public Firewall profiles and rule-profile intersection
+- Per-rule Enabled and Allow/Block action
+- Local port (including comma lists and numeric ranges) and remote address scope
 
-- **No writes** to termsrv.dll, the registry, GPO/MDM, Firewall, certificates, event logs, sessions, Windows services or Scheduled Tasks.
-- No remote hosts are contacted; there is **no** automatic RDP sign-in or credential validation.
-- Event messages, XML event properties, usernames, SIDs, addresses, machine names and certificate subjects are **not copied into RDP Doctor reports**. Only event channel, time, ID and severity metadata.
-- A missing or denied probe is **Unverified**, never OK. Local TCP listening is a useful clue but not proof of external access or Microsoft RDS licensing entitlement.
-- Event access may depend on permissions and OS SKU; unavailable channels are reported rather than skipped silently.
-- For production changes involving TermService, test only from an independent console or hypervisor, with a verified backup and an appropriate Windows license.
+An enabled matching Block candidate is **Attention**. Matching Allow rules
+can be marked **Verified locally** *only for that specific rule/profile/port
+metadata*, not for the effective Windows Filtering Platform decision, user
+authentication, network routing, NLA, GPO precedence or third-party filtering.
+A missing matching Allow candidate is Attention, **not** an assertion that
+Windows definitely blocks RDP.
 
-## Validation
+If COM is not available, the program tries the local read-only
+`root/StandardCimv2:MSFT_NetFirewallRule` provider. This reports only
+bounded RDP rule metadata; it does not join the separate port/address filters,
+so it remains **Incomplete**. If CIM is also unavailable, a very limited
+local registry snapshot is shown. Neither fallback is labelled as proof of
+an effective firewall rule. The Technical evidence panel includes the
+exception *type* from inaccessible sources, not credential or machine details.
 
-Synthetic tests verify blocked service, disabled policy, absent/loopback/all-interface TCP listeners, Unknown firewall/event channels, NLA warnings, and that the verdict cannot claim verified remote reachability. WPF offscreen smoke checks the single Remote Desktop tab, collapsed RDP Doctor panel and its read-only grids. GitHub CI does **not** exercise live Windows 11 RDP authentication, firewall reachability from another host or a real production failure.
+No automatic action disables Windows Firewall, modifies an inbound rule,
+restarts TermService, or opens an RDP port.
 
-Suggested future expansion: explicit operator-started **remote connectivity probe** from a separate authorized machine, and correlated client/server event timing (without collecting credentials). Do not enable automatic service restart or security downgrade as a troubleshooting shortcut.
+## Other checks
+
+- **TermService / RDP enablement / listener / NLA:** verified local facts can
+  be shown independently; external sign-in remains Not tested
+- **Remote interactive logon rights:** successful LSA enumeration becomes
+  Observed locally, not account authentication confirmation; nested group
+  memberships and effective user tokens are not evaluated
+- **RDP TLS certificate:** observed dates alone do not prove the active listener
+  handshake, certificate chain trust or private-key ACLs
+- **Graphics / codec:** registry values can be observed, but codec negotiation
+  is not performed
+- **Event logs:** sampled event records are local observations. No sampled
+  errors does not prove connectivity; missing channels are Incomplete
+
+## Verification and limitations
+
+Synthetic tests check port matching, custom rules, profile mismatch, disabled
+and UDP-only rules, potential Block precedence, partial source failure, and
+the privacy boundary of copied reports. WPF offscreen tests check the expanded
+status dashboard, color-coded rows and read-only details. Windows CI never
+runs an external RDP sign-in, changes Firewall or system DLLs, or validates a
+real Windows 11 RDP reconnection. Those require an authorized separate test
+computer and recovery access.
 
 ## Microsoft references
 
-- https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogreader
-- https://learn.microsoft.com/en-us/dotnet/api/system.net.networkinformation.ipglobalproperties.getactivetcplisteners
-- https://learn.microsoft.com/en-us/troubleshoot/windows-server/remote/remote-desktop-cannot-connect-remote-computer
 - https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwpolicy2
-
-## Unified workspace (1.0.5 candidate)
-
-There is no separate RDP Doctor tab or second Inspect four areas button. The single **Run RDP Doctor** action refreshes local configuration, security evidence and recent event metadata together. The prioritized findings and sanitized report remain visible in RDP Doctor; detailed security text stays local in its collapsed Technical evidence section. This is a UI/inspection consolidation only; no change to protected DLL operations.
+- https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwrule
+- https://learn.microsoft.com/en-us/powershell/module/netsecurity/get-netfirewallrule
+- https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.eventlogreader
