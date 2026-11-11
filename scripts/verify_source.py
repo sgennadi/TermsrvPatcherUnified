@@ -112,8 +112,8 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 release_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-check(bool(re.fullmatch(r"(?:0\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*|1\.[0-9]+\.[0-9]+)", release_version)),
-      "VERSION is an explicit Preview 0.x or Stable 1.x release identifier")
+check(bool(re.fullmatch(r"(?:[0-9]+\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*|1\.[0-9]+\.[0-9]+)", release_version)),
+      "VERSION is a semantic version (Preview or Stable 1.x)")
 for document in (project, main, readme):
     check(release_version in document, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),

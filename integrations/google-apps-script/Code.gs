@@ -108,6 +108,121 @@ function issueBody_(r) {
     '\n\nOnly reviewed typed metadata. No descriptions, logs, secrets, hostnames or account identifiers.\n';
 }
 
+
+const COMPATIBILITY_COMMENT_API = ISSUE_API + '/1/comments';
+const COMPATIBILITY_ISSUE_URL = 'https://github.com/' + REPORT_REPOSITORY + '/issues/1';
+const COMPATIBILITY_LIMIT_PER_UTC_DAY = 30;
+const COMPATIBILITY_FIELDS = Object.freeze([
+  'schema', 'id', 'timestamp_utc', 'project', 'kind', 'body'
+]);
+
+// The public gateway is not an authentication service. Parse precisely the
+// previously reviewed C# metadata grammar; never forward arbitrary comments,
+// Markdown, URLs, paths, filenames, or user text to GitHub.
+function parseCompatibilityBody_(body, kind) {
+  if (typeof body !== 'string' || body.length > 6144 ||
+      /[\r\u0000]/.test(body)) return false;
+  const fields = kind === 'successful_apply'
+    ? ['windows', 'release', 'build', 'ubr', 'file', 'dll', 'app',
+       'mode', 'original_sha256', 'patched_sha256', 'edits']
+    : ['architecture', 'file', 'dll', 'app', 'original_sha256',
+       'original_crc32', 'patched_sha256', 'patched_crc32', 'edits'];
+  const header = kind === 'successful_apply' ? 'termsrv-success/v2' : 'termsrv-offline/v1';
+  const lines = body.split('\n');
+  if (lines.length !== fields.length + 1 || lines[0] !== header) return false;
+  const r = {};
+  for (let i = 0; i < fields.length; i++) {
+    const prefix = fields[i] + '=';
+    if (!lines[i + 1].startsWith(prefix)) return false;
+    r[fields[i]] = lines[i + 1].slice(prefix.length);
+  }
+  if (r.file !== 'termsrv.dll' ||
+      !/^[0-9]{1,5}(?:\.[0-9]{1,8}){1,4}$/.test(r.dll) && r.dll !== 'Unknown' ||
+      !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/.test(r.app) ||
+      !/^[0-9a-f]{64}$/.test(r.original_sha256) ||
+      !/^[0-9a-f]{64}$/.test(r.patched_sha256) ||
+      r.original_sha256 === r.patched_sha256) return false;
+  if (kind === 'successful_apply') {
+    if (!['Windows 10', 'Windows 11'].includes(r.windows) ||
+        !/^[A-Za-z0-9._-]{1,20}$/.test(r.release) ||
+        !/^[0-9]{1,5}(?:\.[0-9]{1,8}){1,4}$/.test(r.dll) ||
+        !['automatic', 'manual'].includes(r.mode)) return false;
+    for (const [key, low, high] of [['build', 19041, 99999], ['ubr', 0, 999999]]) {
+      if (!/^[0-9]+$/.test(r[key])) return false;
+      const value = Number(r[key]);
+      if (!Number.isSafeInteger(value) || value < low || value > high) return false;
+    }
+  } else {
+    if (!['x86', 'x64'].includes(r.architecture) ||
+        !/^[0-9A-F]{8}$/.test(r.original_crc32) ||
+        !/^[0-9A-F]{8}$/.test(r.patched_crc32)) return false;
+  }
+  const edits = r.edits.split('|');
+  if (edits.length < 1 || edits.length > 16) return false;
+  let lastEnd = 0;
+  for (const edit of edits) {
+    const match = /^0x([0-9A-F]{8}):((?:[0-9A-F]{2}){1,64})>((?:[0-9A-F]{2}){1,64})$/.exec(edit);
+    if (!match) return false;
+    const offset = parseInt(match[1], 16);
+    const before = match[2], after = match[3];
+    if (offset < lastEnd || before.length !== after.length || before === after)
+      return false;
+    lastEnd = offset + before.length / 2;
+  }
+  return r;
+}
+
+function validCompatibility_(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== 1 ||
+      !Object.prototype.hasOwnProperty.call(input, 'event')) return false;
+  const r = input.event;
+  if (!r || typeof r !== 'object' || Array.isArray(r) ||
+      Object.keys(r).length !== COMPATIBILITY_FIELDS.length ||
+      Object.keys(r).some(k => !COMPATIBILITY_FIELDS.includes(k)) ||
+      r.schema !== 'termsrv-compatibility/v1' ||
+      r.project !== REPORT_REPOSITORY ||
+      !['successful_apply', 'offline_file'].includes(r.kind) ||
+      typeof r.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r.id) ||
+      typeof r.timestamp_utc !== 'string' ||
+      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/.test(r.timestamp_utc))
+    return false;
+  const seen = Date.parse(r.timestamp_utc), now = Date.now();
+  if (!Number.isFinite(seen) ||
+      seen > now + 5 * 60 * 1000 ||
+      seen < now - 90 * 24 * 3600 * 1000 ||
+      new Date(seen).toISOString().replace('.000Z', 'Z') !== r.timestamp_utc ||
+      !parseCompatibilityBody_(r.body, r.kind))
+    return false;
+  return r;
+}
+
+function publishCompatibility_(report, token) {
+  const response = UrlFetchApp.fetch(COMPATIBILITY_COMMENT_API, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({body: report.body}),
+    followRedirects: false,
+    muteHttpExceptions: true,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'TermsrvPatcherUnified-ReportGateway'
+    }
+  });
+  if (response.getResponseCode() !== 201)
+    return {ok: false, error: 'github_not_confirmed'};
+  let result;
+  try { result = JSON.parse(response.getContentText()); }
+  catch (_) { return {ok: false, error: 'github_receipt_invalid'}; }
+  const url = String(result.html_url || '');
+  if (!/^https:\/\/github\.com\/sgennadi\/TermsrvPatcherUnified\/issues\/1#issuecomment-[1-9][0-9]*$/.test(url))
+    return {ok: false, error: 'github_receipt_invalid'};
+  return {ok: true, issue_url: COMPATIBILITY_ISSUE_URL, comment_url: url};
+}
+
 function doPost(event) {
   try {
     if (!event || !event.postData ||
@@ -118,8 +233,9 @@ function doPost(event) {
     let input;
     try { input = JSON.parse(event.postData.contents); }
     catch (_) { return output_({ok: false, error: 'invalid_json'}); }
-    const report = validReport_(input);
-    if (!report) return output_({ok: false, error: 'invalid_evidence'});
+    const compatibility = validCompatibility_(input);
+    const report = compatibility ? null : validReport_(input);
+    if (!compatibility && !report) return output_({ok: false, error: 'invalid_evidence'});
 
     const properties = PropertiesService.getScriptProperties();
     const token = properties.getProperty('GITHUB_ISSUES_TOKEN');
@@ -130,15 +246,30 @@ function doPost(event) {
     if (!lock.tryLock(2500)) return output_({ok: false, error: 'busy'});
     try {
       const cache = CacheService.getScriptCache();
-      const dedupKey = 'udx_' + report.id;
+      const dedupKey = (compatibility ? 'cpx_' : 'udx_') +
+        (compatibility ? compatibility.id : report.id);
       const cached = cache.get(dedupKey);
-      if (cached) return output_({ok: true, issue_url: cached, duplicate: true});
+      if (cached) {
+        if (compatibility)
+          return output_({ok: true, issue_url: COMPATIBILITY_ISSUE_URL,
+            comment_url: cached, duplicate: true});
+        return output_({ok: true, issue_url: cached, duplicate: true});
+      }
 
       const day = Utilities.formatDate(new Date(), 'Etc/UTC', 'yyyyMMdd');
-      const countKey = 'issues_' + day;
+      const countKey = (compatibility ? 'comments_' : 'issues_') + day;
       const count = Number(properties.getProperty(countKey) || '0');
-      if (count >= ISSUE_LIMIT_PER_UTC_DAY)
+      const dayLimit = compatibility ? COMPATIBILITY_LIMIT_PER_UTC_DAY : ISSUE_LIMIT_PER_UTC_DAY;
+      if (count >= dayLimit)
         return output_({ok: false, error: 'daily_limit'});
+
+      if (compatibility) {
+        const receipt = publishCompatibility_(compatibility, token);
+        if (!receipt.ok) return output_(receipt);
+        properties.setProperty(countKey, String(count + 1));
+        cache.put(dedupKey, receipt.comment_url, 21600);
+        return output_(receipt);
+      }
 
       const payload = JSON.stringify({
         title: '[Diagnostics] TermsrvPatcherUnified ' + report.id.slice(0, 8),

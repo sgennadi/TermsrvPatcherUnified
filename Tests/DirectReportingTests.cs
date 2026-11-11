@@ -208,6 +208,69 @@ internal static class DirectReportingTests
                 "unconfirmed, malicious or invalid JSON response never marks report delivered");
         }
 
+
+        // Structured system and offline reports use the same Google transport,
+        // but require an explicitly verified GitHub Issue #1 comment receipt.
+        var fix = new SuccessfulFixMetadata(
+            "Windows 11", "26H2", 26300, 9711, "10.0.26100.9549",
+            UpdateIntegration.Version, "automatic",
+            new string('a', 64), new string('b', 64),
+            [new ChangedBytes(0x00000220, "11223344", "AABBCCDD")]);
+        var submission = CompatibilityRelaySubmission.Create(fix);
+        Verify(submission.Kind == "successful_apply" &&
+               submission.Json.Contains("termsrv-success/v2", StringComparison.Ordinal) &&
+               !submission.Json.Contains("PRIVATE", StringComparison.Ordinal),
+            "completed Apply produces exact bounded typed metadata without personal identifiers");
+
+        var offline = new OfflineFixMetadata("x64", "10.0.26100.9549",
+            UpdateIntegration.Version, new string('a', 64), "1234ABCD",
+            new string('b', 64), "AABBCCDD",
+            [new ChangedBytes(0x00000220, "11223344", "AABBCCDD")]);
+        var offlineSubmission = CompatibilityRelaySubmission.Create(offline);
+        Verify(offlineSubmission.Kind == "offline_file" &&
+               offlineSubmission.Json.Contains("termsrv-offline/v1", StringComparison.Ordinal) &&
+               !offlineSubmission.Json.Contains("termsrv-success/v2", StringComparison.Ordinal),
+            "offline result cannot be relabeled as verified installed Apply");
+
+        const string commentReceipt =
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"," +
+            "\"comment_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-1234\"}";
+        var compatibilityHandler = new FakeHandler((_, _) => Json(commentReceipt));
+        using (var http = new HttpClient(compatibilityHandler))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            Uri receiptUrl = client.SendCompatibilityAsync(
+                deployed, submission.Json, submission).GetAwaiter().GetResult();
+            Verify(receiptUrl.AbsoluteUri.EndsWith("#issuecomment-1234", StringComparison.Ordinal) &&
+                   compatibilityHandler.Count == 1 && !compatibilityHandler.Requests[0].HasAuth &&
+                   compatibilityHandler.Requests[0].Body == submission.Json,
+                "public compatibility report sent once without a GitHub token");
+            Throws<InvalidDataException>(() => client.SendCompatibilityAsync(
+                deployed, submission.Json + " ", submission).GetAwaiter().GetResult(),
+                "changed metadata cannot be sent after approval");
+            Verify(compatibilityHandler.Count == 1,
+                "mutated reviewed JSON never causes another request");
+            Uri offlineReceipt = client.SendCompatibilityAsync(
+                deployed, offlineSubmission.Json, offlineSubmission).GetAwaiter().GetResult();
+            Verify(offlineReceipt.AbsoluteUri.EndsWith("#issuecomment-1234", StringComparison.Ordinal) &&
+                   compatibilityHandler.Count == 2, "offline report uses identical consent-only endpoint");
+        }
+        foreach (var badReceipt in new[] {
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"}",
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"," +
+                "\"comment_url\":\"https://evil.example/issues/1#issuecomment-12\"}",
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/2\"," +
+                "\"comment_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-12\"}"
+        })
+        {
+            var fake = new FakeHandler((_, _) => Json(badReceipt));
+            using var http = new HttpClient(fake);
+            using var client = new GoogleAppsScriptReportClient(http);
+            Throws<InvalidDataException>(() => client.SendCompatibilityAsync(
+                deployed, submission.Json, submission).GetAwaiter().GetResult(),
+                "a generic Issue or an off-repository comment is not delivery confirmation");
+        }
+
         var github = new FakeHandler((request, _) => request.RequestUri!.AbsoluteUri switch
         {
             "https://github.com/login/device/code" =>

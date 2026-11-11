@@ -34,3 +34,13 @@ The existing **PatchCatalog**, protected Apply/Restore, manual patterns, automat
 Tests cover exact SHA/version matching, mismatch, self-reports and diagnostic reports kept unverified, first-seen limitations, invalid/missing CSV, invalid report count and path-free copy output. The Windows CI gate includes the new synthetic QA command and WPF offscreen control existence. Actual Windows 11 RDP connections, code signing/trust, and physical 200% scaling still require independent testing.
 
 Copied evidence normalizes unsafe registry and PE version labels to prevent local paths and identities from leaking into exported reports.
+
+## Collecting reports for future builds (1.0.5 candidate)
+
+After a **completed, locally verified** console Apply, or separately after a saved **offline DLL copy**, the optional report window shows the exact JSON. **Review and send** asks for a second explicit confirmation with destination and complete payload. The app uses the already configured Google Apps Script HTTPS receiver and **never requires a GitHub token on the client**. Send is disabled if the approved endpoint is unavailable. Declining changes nothing and sends nothing.
+
+The new `termsrv-compatibility/v1` envelope has exactly six fields: `schema`, random event `id`, `timestamp_utc`, `project`, `kind` and a strictly formatted `body`. The only accepted bodies are `termsrv-success/v2` and `termsrv-offline/v1`, each retaining the existing parser's exact schema. The gateway validates full byte-range and SHA/CRC data and forwards a public comment to GitHub Issue #1 using a server-side token. Only a validated GitHub comment receipt counts as delivery. An existing GitHub Actions collector writes to separate CSVs. **Both categories stay UNVERIFIED**; an offline observation is not a successful Windows Apply or a functional RDP connection.
+
+**Deployment:** the source change on GitHub does not update a running Apps Script deployment. The owner must save the new `integrations/google-apps-script/Code.gs` and choose **Deploy > Manage deployments > Edit > New version > Deploy** for the existing endpoint. The current deployed endpoint may still reject this new report schema until that is done. No live report or downstream CSV aggregation was performed by automated tests.
+
+A Session 0 Apply performed through the independent scheduled executor is not yet offered this new interactive confirmation automatically; this feature covers GUI-confirmed local-console Apply and offline copy only. The embedded index still refreshes only in a new EXE build.

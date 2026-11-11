@@ -52,3 +52,11 @@ The web app maps exactly the allowed \`universal-diagnostics/v1\` Windows/DLL fi
 - The existing \`diagnostic-observations.yml\` workflow parses those Issues into \`data/diagnostic-observations.csv\`, which is marked \`unverified\`. Unverified reports never become automatically trusted patch patterns.
 
 All code here is prepared for human deployment and local testing; Google project deployment, real requests and end-to-end receipt confirmation have **not** been performed by the repository maintainer's assistant.
+
+## Upgrade existing deployment for token-free fix reports (1.0.5 candidate)
+
+The same public `/exec` endpoint now accepts two **strictly separated** typed JSON schemas. `universal-diagnostics/v1` still creates a public diagnostic Issue and populates unverified observations; `termsrv-compatibility/v1` creates a comment on the already-open public [Issue #1](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1). The reply includes both `issue_url` and `comment_url`; the Windows client verifies the comment receipt before indicating success.
+
+Owner: copy the updated [Code.gs](Code.gs) into your existing Google Apps Script project, click **Save**, then **Deploy > Manage deployments > Edit (pencil) > Version: New version > Deploy**. Do **not** create a separate deployment when retaining the current configured endpoint. The pre-existing owner-only `GITHUB_ISSUES_TOKEN` must remain in Script Properties with Issues write rights. No end user needs GitHub credentials. The code does not add unattended uploads or automatic retries. This repo's CI tests do not deploy Apps Script or create live reports.
+
+The gateway accepts only complete original/patched SHA-256 and bounded edits; an offline report additionally requires CRC32/architecture. A 30-comment UTC-day limit, 6-hour event-id cache, strict metadata grammar and known Issue URL reduce abuse but do not authenticate the submitter. Every imported record remains **UNVERIFIED**; use it for diagnostics, never authorization, Microsoft provenance or automatic patch selection. Updating the embedded CSV index still requires publishing a new EXE.

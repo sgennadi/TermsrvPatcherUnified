@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.Net.Http;
+using System.Text.Json;
 using System.Windows;
 using TermsrvPatcherUnified.Core;
 
@@ -5,109 +8,103 @@ namespace TermsrvPatcherUnified;
 
 public partial class SuccessfulFixWindow : Window
 {
-    private readonly SuccessfulFixMetadata? metadata;
-    private readonly OfflineFixMetadata? offlineMetadata;
+    private readonly CompatibilityRelaySubmission submission;
+    private readonly DirectReportingSettings settings;
     private bool sending;
 
     internal SuccessfulFixWindow(SuccessfulFixMetadata metadata)
     {
         InitializeComponent();
-        this.metadata = metadata;
-        Preview.Text = metadata.AsComment();
-        Closed += (_, _) => TokenInput.Clear();
+        submission = CompatibilityRelaySubmission.Create(metadata);
+        settings = DirectReportingSettings.Load();
+        Title = "Successful operation — " + UpdateIntegration.Version;
+        Preview.Text = submission.Json;
+        InitializeAvailability();
     }
 
     internal SuccessfulFixWindow(OfflineFixMetadata report)
     {
         InitializeComponent();
-        offlineMetadata = report;
-        Preview.Text = report.AsComment();
+        submission = CompatibilityRelaySubmission.Create(report);
+        settings = DirectReportingSettings.Load();
+        Preview.Text = submission.Json;
         ReportHeading.Text = "Offline DLL copy saved";
         ReportHeading.Foreground = new System.Windows.Media.SolidColorBrush(
             System.Windows.Media.Color.FromRgb(11, 46, 90));
-        SimpleReportBox.Visibility = Visibility.Collapsed; // Offline patch is not verified live success.
-        ReportExplanation.Text = "The file was patched OFFLINE, not installed or tested for RDP functionality. " +
-            "The metadata below includes CRC32, SHA-256, DLL version, architecture and edited bytes. " +
-            "This report is PUBLIC if you choose Send; Skip sends nothing. No source DLL, paths, " +
-            "hostnames, usernames or tokens are included.";
+        ReportExplanation.Text =
+            "This DLL was modified OFFLINE and was not installed or tested in Remote Desktop. " +
+            "Its public report is an UNVERIFIED offline observation, not a successful RDP connection. " +
+            "Review the exact JSON below. No GitHub login or token is required.";
         Title = "Offline DLL report — " + UpdateIntegration.Version;
-        Closed += (_, _) => TokenInput.Clear();
+        InitializeAvailability();
     }
 
-    private void SimpleReport_Click(object sender, RoutedEventArgs e)
+    private void InitializeAvailability()
     {
-        if (offlineMetadata is not null || sending) return;
-        // This only opens a prefilled dialog. Google reporting still requires a
-        // separate explicit confirmation with the exact outgoing JSON.
-        try
-        {
-            new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
-                "Manual Apply", "VerifiedSuccess", "SUCCESS",
-                "The protected patch completed and was verified."))
-            { Owner = this }.ShowDialog();
-        }
-        catch (Exception ex)
-        {
-            DiagnosticsBridge.Remember("Optional compatibility report", ex);
-            Status.Text = "The reporting window could not open. The completed patch is unchanged.";
-        }
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
+        SendButton.IsEnabled = settings.HasGoogleScript;
+        Status.Text = settings.HasGoogleScript
+            ? "Preview only. No report sent. Sending requires your explicit approval."
+            : "The Google compatibility receiver is not configured. Sending is disabled.";
     }
 
     private async void Send_Click(object sender, RoutedEventArgs e)
     {
-        if (sending) return;
-        var token = TokenInput.Password;
-        TokenInput.Clear();
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            Status.Text = "Enter a temporary GitHub Issues write token or choose Skip.";
-            return;
-        }
-        if (ModernMessageDialog.Show(this,
-            offlineMetadata is null
-                ? "Send the displayed Windows versions, SHA-256 and changed byte ranges to " +
-                  "the PUBLIC GitHub compatibility issue? The token is used only for this request."
-                : "Send the OFFLINE file's architecture, DLL version, original and patched " +
-                  "CRC32/SHA-256 and changed bytes to PUBLIC GitHub? This does NOT confirm " +
-                  "the file will work in Windows. The token is not stored.",
-            "Confirm public version report", MessageBoxButton.YesNo,
-            MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
-            return;
-
+        if (sending || !settings.HasGoogleScript) return;
         sending = true;
         SendButton.IsEnabled = false;
         SkipButton.IsEnabled = false;
-        Status.Text = "Sending reviewed compatibility data (hashes and changed bytes)...";
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            using var reporter = new SuccessfulFixPublisher();
-            if (offlineMetadata is not null)
-                await reporter.PublishAsync(offlineMetadata, token, cts.Token);
-            else
-                await reporter.PublishAsync(metadata!, token, cts.Token);
-            AuditLog.Append(offlineMetadata is null
-                ? "Successful fix compatibility metadata was submitted to GitHub Issues."
-                : "Offline DLL compatibility metadata was submitted to GitHub Issues.");
-            Status.Text = "GitHub accepted the report. Repository aggregation is separate.";
-            ModernMessageDialog.Show(this, Status.Text, "Compatibility report", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            // A distinct confirmation shows the precise immutable JSON and URL.
+            // Declining never schedules a report, and does not affect the patch.
+            if (!ModernConfirmDialog.Ask(this,
+                    submission.Kind == "offline_file"
+                        ? "Share offline DLL observation?"
+                        : "Share completed Apply observation?",
+                    "Review the exact public metadata and destination. The report is " +
+                    "self-reported and does not prove that RDP connections work.",
+                    "Google Apps Script -> public GitHub Issue #1\n" +
+                    settings.GoogleAppsScriptUrl,
+                    submission.Json,
+                    "Send report",
+                    "GitHub publishes the supplied byte changes and SHA-256. " +
+                    "Google may process your IP address. No personal account, DLL file, " +
+                    "username or password is included.",
+                    diagnosticReport: true))
+            {
+                Status.Text = "Cancelled. No information was transmitted.";
+                return;
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            using var client = new GoogleAppsScriptReportClient();
+            Uri receipt = await client.SendCompatibilityAsync(
+                settings.GoogleAppsScriptUrl, submission.Json, submission, timeout.Token);
+            Status.Text = "GitHub accepted the public report: " + receipt.AbsoluteUri +
+                "\nCSV aggregation runs separately; this does not prove RDP works.";
+            AuditLog.Append("Explicit compatibility submission confirmed by GitHub.");
+            ModernMessageDialog.Show(this,
+                "Compatibility report accepted by GitHub. The database will be updated " +
+                "by a separate GitHub workflow after format validation.",
+                "Report received", MessageBoxButton.OK, MessageBoxImage.Information);
             DialogResult = true;
             Close();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or
+                                   InvalidOperationException or OperationCanceledException or
+                                   JsonException or ArgumentException or IOException)
         {
             DiagnosticsBridge.Remember("Compatibility reporting", ex);
-            Status.Text = "Report not confirmed (" + ex.GetType().Name +
-                "). The successful local fix remains unchanged.";
+            Status.Text = "Delivery not confirmed (" + ex.GetType().Name +
+                "). Check GitHub Issue #1 before sending again. The local DLL operation is unchanged.";
         }
         finally
         {
-            token = string.Empty;
             sending = false;
             if (IsLoaded)
             {
-                SendButton.IsEnabled = true;
+                SendButton.IsEnabled = settings.HasGoogleScript;
                 SkipButton.IsEnabled = true;
             }
         }

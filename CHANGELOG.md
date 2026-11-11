@@ -2,6 +2,11 @@
 
 ## 1.0.5 — in development (not published)
 
+- **Token-free compatibility reporting (candidate):** after successful local console Apply, or saving an offline DLL copy, show the exact structured report and require explicit confirmation before sending to the existing Google gateway. No end-user GitHub token or automatic background telemetry.
+- **Separate report classes:** `termsrv-success/v2` self-reported system Apply and `termsrv-offline/v1` offline observations post as strictly validated comments to public GitHub Issue #1. Existing `issue_comment` workflow aggregates into separate CSVs. Reports are UNVERIFIED, not connectivity tests or DLL write authorization.
+- **Gateway hardening:** exact JSON field allowlist, byte-edit range parsing, SHA-256/CRC32 validation, 30 compatibility comments per UTC day, event-id cache, strict GitHub response receipt. Anonymous diagnostic Issue reporting remains backward-compatible.
+- **Deployment limitation:** owner must redeploy the updated Apps Script as a new version for the already configured URL; repository/EXE updates do not change Google-hosted code. Windows and mock-server CI do not send live reports.
+
 - **One Remote Desktop workspace:** the standalone RDP Doctor tab and duplicated Connection diagnostics action are removed; one **Run RDP Doctor** button collects prioritized findings, event metadata and detailed Firewall/LSA/TLS/graphics evidence in the same scan.
 - **Technical evidence:** now a collapsed panel inside RDP Doctor; raw identities/certificate metadata stay local and never enter the sanitized Copy safe report. All checks remain read-only.
 

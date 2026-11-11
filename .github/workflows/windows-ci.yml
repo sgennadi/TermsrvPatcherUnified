@@ -40,6 +40,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Verify Google compatibility gateway schemas and dedup (offline)
+        shell: pwsh
+        run: |
+          node scripts/test_google_gateway.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore source and tests
         run: |
           dotnet restore TermsrvPatcher.Unified.csproj

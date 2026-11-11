@@ -1,3 +1,11 @@
+## Compatibility Google relay QA — 1.0.5 candidate
+
+- New synthetic .NET fake-HTTP checks: exact approved JSON, no client token, explicit GitHub Issue #1 comment receipt, edited/mismatched JSON refusal and rejection of unrelated/malicious comment URLs.
+- New offline Node 24 Apps Script VM checks: strict schema and SHA/edit validation, public comment delivery, event-id dedup, existing diagnostic Issue backward compatibility, missing server token failure. No external network calls.
+- New WPF offscreen checks: consent-only report UI for console Apply and offline copy has no GitHub token field; the output remains read-only.
+- GitHub Actions aggregators separately run their Python self-tests before accepting public comment events. No live Google deployment, public Issue comment, functional Windows 11 RDP or physical 200% DPI is asserted.
+- **Owner must redeploy Google Apps Script** as a new version to enable this path; the current EXE does not update the hosted code.
+
 ## Unified Remote Desktop / RDP Doctor — 1.0.5 candidate
 
 - The standalone RDP Doctor tab was merged into Remote Desktop; only one Run RDP Doctor scan button exists.

@@ -490,7 +490,7 @@ public partial class MainWindow : Window
             if (consoleSuccess)
             {
                 FooterText.Text = "Local console Apply completed and verified.";
-                OfferSimpleCompatibilityReport("Verified automatic Apply");
+                OfferStructuredCompatibilityReport(plan);
             }
             return;
         }
@@ -507,48 +507,25 @@ public partial class MainWindow : Window
         }, "Apply");
         await CheckAsync();
         if (applied)
-        {
-            try
-            {
-                var versions = SuccessfulFixMetadata.FromSuccessfulApply(
-                    engine.EnvironmentInfo(), plan);
-                new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                // Reporting never determines the outcome of the local operation.
-                DiagnosticsBridge.Remember("Compatibility reporting", ex);
-                AuditLog.Append("Optional compatibility dialog was unavailable: " +
-                    ex.GetType().Name);
-            }
-        }
+            OfferStructuredCompatibilityReport(plan);
     }
 
-    private void OfferSimpleCompatibilityReport(string context)
+    private void OfferStructuredCompatibilityReport(PatchPlan plan)
     {
-        // Report offer is UI-only and cannot affect the completed protected
-        // operation. No report is generated or sent when declined.
+        // This UI offer follows the completed protected Apply; it can never
+        // authorize, affect or roll back the DLL operation.
         if (!IsLoaded) return;
-        if (ModernMessageDialog.Show(this,
-                "The operation completed successfully.\n\n" +
-                "Would you like to share a short compatibility report? " +
-                "It can help improve support for this Windows build.\n\n" +
-                "You will review the details before sending. " +
-                "No account, local save or automatic upload is needed.",
-                "Share compatibility information?", MessageBoxButton.YesNo,
-                MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
-            return;
         try
         {
-            new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
-                context, "VerifiedSuccess", "SUCCESS",
-                "Protected Apply completed and verified."))
-            { Owner = this }.ShowDialog();
+            var versions = SuccessfulFixMetadata.FromSuccessfulApply(
+                engine.EnvironmentInfo(), plan);
+            new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
         }
         catch (Exception ex)
         {
-            DiagnosticsBridge.Remember("Optional compatibility report", ex);
-            AuditLog.Append("Optional reporting dialog unavailable: " + ex.GetType().Name);
+            DiagnosticsBridge.Remember("Compatibility reporting", ex);
+            AuditLog.Append("Optional compatibility dialog unavailable: " +
+                ex.GetType().Name);
         }
     }
 

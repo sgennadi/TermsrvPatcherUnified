@@ -330,14 +330,25 @@ internal static class UiSmokeTests
                     throw new Exception("Cleanup preview must warn about recovery loss and excluded system logs.");
 
                 var successReport = new SuccessfulFixWindow(record);
-                if (successReport.FindName("SimpleReportButton") is not Button simpleShare ||
-                    !simpleShare.IsEnabled ||
-                    successReport.FindName("SimpleReportBox") is not Border easyReportBox ||
-                    easyReportBox.Visibility != Visibility.Visible ||
-                    successReport.FindName("SendButton") is not Button ||
-                    successReport.FindName("TokenInput") is not PasswordBox ||
+                if (successReport.FindName("SendButton") is not Button share ||
+                    share.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
+                    successReport.FindName("Preview") is not TextBox publicPreview ||
+                    !publicPreview.IsReadOnly ||
+                    !publicPreview.Text.Contains("termsrv-compatibility/v1", StringComparison.Ordinal) ||
+                    !publicPreview.Text.Contains("termsrv-success/v2", StringComparison.Ordinal) ||
+                    successReport.FindName("TokenInput") is not null ||
                     successReport.FindName("SkipButton") is not Button)
-                    throw new Exception("Successful Apply must offer friendly optional sharing without removing advanced GitHub reporting.");
+                    throw new Exception("Completed Apply must offer read-only, token-free Google compatibility review.");
+                var offlineReport = new OfflineFixMetadata("x64", "10.0.26100.1234",
+                    UpdateIntegration.Version, new string('a', 64), "1234ABCD",
+                    new string('b', 64), "FFFFFFFF",
+                    [new ChangedBytes(40, "11223344", "AABBCCDD")]);
+                var offlineShare = new SuccessfulFixWindow(offlineReport);
+                if (offlineShare.FindName("Preview") is not TextBox offlinePreview ||
+                    !offlinePreview.Text.Contains("termsrv-offline/v1", StringComparison.Ordinal) ||
+                    offlinePreview.IsReadOnly != true ||
+                    offlineShare.FindName("SendButton") is not Button)
+                    throw new Exception("Offline DLL copy must have separate, clearly unverified token-free review.");
                 var confirm = new ModernConfirmDialog();
                 if (confirm.FindName("DetailsText") is not TextBox reportDetails ||
                     !reportDetails.IsReadOnly ||
