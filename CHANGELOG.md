@@ -2,7 +2,10 @@
 
 ## 1.0.5 — in development (not published)
 
-- **Token-free compatibility reporting (candidate):** after successful local console Apply, or saving an offline DLL copy, show the exact structured report and require explicit confirmation before sending to the existing Google gateway. No end-user GitHub token or automatic background telemetry.
+- **Unified Apply report:** one reviewed window shows Windows/DLL diagnostic metadata and separate exact DLL compatibility evidence. The confirmed send submits two strictly typed public GitHub records, preserving their distinct trust levels.
+- **Silent Auto Reapply reporting (opt-in):** unchecked-by-default permission after first confirmed combined report allows successful verified post-Windows-Update SYSTEM work to send both sections without prompts. Failures, rechecks and offline DLL copies do not send. Revoke from Simple or Advanced; no upload without prior approval.
+
+- **Token-free compatibility reporting (candidate):** after successful local console Apply, or saving an offline DLL copy, show the exact structured report and require explicit confirmation before sending to the existing Google gateway. No end-user GitHub token; future silent Auto Reapply reports require the separate opt-in described above.
 - **Separate report classes:** `termsrv-success/v2` self-reported system Apply and `termsrv-offline/v1` offline observations post as strictly validated comments to public GitHub Issue #1. Existing `issue_comment` workflow aggregates into separate CSVs. Reports are UNVERIFIED, not connectivity tests or DLL write authorization.
 - **Gateway hardening:** exact JSON field allowlist, byte-edit range parsing, SHA-256/CRC32 validation, 30 compatibility comments per UTC day, event-id cache, strict GitHub response receipt. Anonymous diagnostic Issue reporting remains backward-compatible.
 - **Deployment limitation:** owner must redeploy the updated Apps Script as a new version for the already configured URL; repository/EXE updates do not change Google-hosted code. Windows and mock-server CI do not send live reports.

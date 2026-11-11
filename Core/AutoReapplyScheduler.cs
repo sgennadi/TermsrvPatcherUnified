@@ -332,6 +332,8 @@ internal static class AutoReapplyScheduler
                 SaveWorkerState(new WorkerState(Schema, verified, "Applied verified automatic profile",
                     DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
                 AuditLog.Append("Auto reapply after DLL change succeeded. Profile=" + plan.ProfileId);
+                // Headless, opt-in and best effort; network errors never change Apply success.
+                AutoCompatibilityReporting.TrySendAfterVerifiedAutoReapply(os, plan, verified);
                 return 0;
             }
             // Unknown/ambiguous/unsupported files are never changed.

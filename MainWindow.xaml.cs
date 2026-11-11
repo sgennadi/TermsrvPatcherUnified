@@ -520,6 +520,7 @@ public partial class MainWindow : Window
             var versions = SuccessfulFixMetadata.FromSuccessfulApply(
                 engine.EnvironmentInfo(), plan);
             new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
+            _ = RefreshAutoReapplyAsync(); // Update the consent badge immediately.
         }
         catch (Exception ex)
         {
@@ -1917,13 +1918,40 @@ public partial class MainWindow : Window
             AdvancedAutoReapplyCheck.IsChecked = task.Trusted && task.Enabled;
             AdvancedAutoReapplyCheck.IsEnabled = !busy &&
                 (!task.Installed || task.Trusted);
-            AdvancedAutoReapplyStatus.Text = task.Message;
+            bool autoReportApproved = AutoCompatibilityReporting.IsEnabled(
+                DirectReportingSettings.Load().GoogleAppsScriptUrl);
+            AdvancedAutoReapplyStatus.Text = task.Message +
+                (autoReportApproved
+                    ? " Silent unified reports: consent ON."
+                    : " Silent unified reports: OFF.");
+            AdvancedRevokeAutoReportsButton.Visibility = autoReportApproved
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedRevokeAutoReportsButton.IsEnabled =
+                autoReportApproved && SystemInfo.IsAdministrator() && !busy;
             AdvancedRepairTaskButton.Visibility = task.Repairable
                 ? Visibility.Visible : Visibility.Collapsed;
             AdvancedRepairTaskButton.IsEnabled = task.Repairable && !busy &&
                 SystemInfo.IsAdministrator() && !autoTaskChanging;
         }
         finally { autoTaskLoading = false; }
+    }
+
+    private async void RevokeAutoReports_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || autoTaskChanging || !SystemInfo.IsAdministrator()) return;
+        if (ModernMessageDialog.Show(this,
+                "Remove permission for future silent diagnostic and compatibility reports? " +
+                "The Auto Reapply task, installed DLL and backups remain unchanged.",
+                "Disable automatic reports", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        try { await Task.Run(AutoCompatibilityReporting.Revoke); }
+        catch (Exception ex)
+        {
+            FooterText.Text = "Could not revoke reporting permission: " +
+                              ex.GetType().Name;
+        }
+        await RefreshAutoReapplyAsync();
     }
 
     private async void RepairAutoReapply_Click(object sender, RoutedEventArgs e)

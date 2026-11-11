@@ -1,3 +1,9 @@
+## Unified and silent Auto Reapply report QA — feature branch
+
+- A combined manual report presents typed diagnostics and DLL compatibility in one read-only preview with one approval, while the receiver stores them in two independent public GitHub record classes.
+- The unchecked-by-default consent is saved only after both manual receipts succeed; consent is protected, endpoint-bound, revocable, and checked by the SYSTEM worker after a successful SHA-256-verified Apply. No progress or failure dialogs appear in Session 0.
+- Synthetic tests cover absent/invalid/disabled consent, endpoint mismatch, non-SYSTEM context, manual/AlreadyPatched/failed checksums, read-only preview, and revocation controls. Windows GitHub Actions must pass before publishing or merging; no actual patch or live Google auto-send is asserted.
+
 ## Compatibility Google relay QA — 1.0.5 candidate
 
 - New synthetic .NET fake-HTTP checks: exact approved JSON, no client token, explicit GitHub Issue #1 comment receipt, edited/mismatched JSON refusal and rejection of unrelated/malicious comment URLs.

@@ -1,6 +1,6 @@
 # TermsrvPatcherUnified
 
-**Preview candidate version:** `1.0.5-preview.1` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
+**Preview candidate version:** `1.0.5-preview.2` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
 
 **RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md). In the 1.0.5 candidate, it is integrated into **Advanced > Remote Desktop**; a single Run RDP Doctor button collects both the summary and expandable technical security evidence.
 
@@ -23,8 +23,10 @@ TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operat
 
 [Stable 1.0.4](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.4) was published on 2026-11-10. It adds the read-only RDP Doctor with prioritized local network/service/policy findings and bounded Windows RDP event metadata.
 
+**Combined Apply report (in development):** a single post-Apply review includes strict Windows/DLL diagnostics and separate compatibility evidence, with one Send confirmation. An optional unchecked-by-default checkbox stores administrator-protected consent for future **silent** reports after newly successful verified Auto Reapply; Simple and Advanced provide a Stop automatic reports control. Failed/skipped/AlreadyPatched operations send nothing. Public GitHub records remain UNVERIFIED.
+
 **Next feature (1.0.5, not yet published):** [DLL compatibility index](docs/DLL_COMPATIBILITY_INDEX.md) compares local DLL version and SHA-256 with bundled anonymous observations and self-reported fix data. All submissions remain UNVERIFIED. The index does not authorize DLL modification.
-**1.0.5 candidate reporting:** the completed local-console Apply and offline DLL copy dialogs can now preview/send strict compatibility reports through the already configured Google Apps Script endpoint, without GitHub credentials on the user's PC. With explicit consent, Google posts a public GitHub Issue #1 comment; [compatibility-report.yml](.github/workflows/compatibility-report.yml) collects validated self-reports into [successful-fixes.csv](data/successful-fixes.csv) and separately [offline-fixes.csv](data/offline-fixes.csv). No upload occurs without confirmation. **The owner must deploy the updated [Code.gs](integrations/google-apps-script/Code.gs) as a new Apps Script version before this new route can work.** Existing Stable 1.0.4 is unchanged; reports do not authorize Apply or imply working RDP connections.
+**1.0.5 candidate reporting:** the completed local-console Apply and offline DLL copy dialogs can now preview/send strict compatibility reports through the already configured Google Apps Script endpoint, without GitHub credentials on the user's PC. With explicit consent, Google posts a public GitHub Issue #1 comment; [compatibility-report.yml](.github/workflows/compatibility-report.yml) collects validated self-reports into [successful-fixes.csv](data/successful-fixes.csv) and separately [offline-fixes.csv](data/offline-fixes.csv). The first upload always requires confirmation; future verified Auto Reapply may report silently only after a separately approved, revocable machine-wide opt-in. **The owner must deploy the updated [Code.gs](integrations/google-apps-script/Code.gs) as a new Apps Script version before this new route can work.** Existing Stable 1.0.4 is unchanged; reports do not authorize Apply or imply working RDP connections.
 
 ## Stable 1.0.3
 
