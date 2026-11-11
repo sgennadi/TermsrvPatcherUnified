@@ -14,6 +14,7 @@ namespace TermsrvPatcherUnified;
 public partial class QuickApplyWindow : Window
 {
     private PatchPlan? plan;
+    private PatchPlan? completedAppliedPlan;
     private AutomaticRevertPlan? revertPlan;
     private readonly DispatcherTimer statusTimer;
     private bool checking;
@@ -213,6 +214,7 @@ public partial class QuickApplyWindow : Window
                         throw new InvalidOperationException("DLL changed since check. Run Check again.");
                     engine.Apply(fresh, createBackup: createFullBackup);
                 });
+                completedAppliedPlan = approvedPlan;
                 plan = null;
                 QuickStatusText.Text = "Apply completed and verified";
                 QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
@@ -225,6 +227,7 @@ public partial class QuickApplyWindow : Window
 
             QuickStatusText.Text = "Starting the protected SYSTEM task...";
             string id = await Task.Run(() => IsolatedApplyExecutor.Queue(plan, createFullBackup));
+            completedAppliedPlan = plan;
             activeJobId = id;
             queued = true;
             QuickStatusText.Text = "Queued independently of RDP";
@@ -397,7 +400,8 @@ public partial class QuickApplyWindow : Window
             : status.State == "Failed"
                 ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
                 : new SolidColorBrush(Color.FromRgb(100, 116, 139));
-        QuickShareReportButton.Visibility = status.State == "Succeeded" && !isRevert
+        QuickShareReportButton.Visibility = status.State == "Succeeded" && !isRevert &&
+            completedAppliedPlan is not null
             ? Visibility.Visible : Visibility.Collapsed;
         if (status.State is "Queued" or "Running")
         {
@@ -445,27 +449,38 @@ public partial class QuickApplyWindow : Window
 
     private void OfferReportAfterSuccessfulApply()
     {
-        if (!IsLoaded) return;
-        if (ModernMessageDialog.Show(this,
-                "The operation completed successfully. Would you like to share " +
-                "a short compatibility report to help improve future versions?\n\n" +
-                "You will see the information before sending. No passwords, " +
-                "computer name or DLL file will be shared.",
-                "Share compatibility information?", MessageBoxButton.YesNo,
-                MessageBoxImage.Information, MessageBoxResult.No) == MessageBoxResult.Yes)
-            OpenSuccessfulReport();
-    }
-
-    private void OpenSuccessfulReport()
-    {
-        new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
-            "Protected Apply", "VerifiedSuccess", "SUCCESS",
-            "Protected Apply completed and verified."))
-        { Owner = this }.ShowDialog();
+        if (!IsLoaded || completedAppliedPlan is not
+            { State: PatchState.Ready, PatchedBytes: not null } completedPlan)
+            return;
+        try
+        {
+            // A previous successful job is not proof that the same DLL remains
+            // installed; compare the complete hash before offering its report.
+            using var engine = new TermsrvEngine(null);
+            var os = engine.EnvironmentInfo();
+            string actualHash = SystemInfo.Sha256(File.ReadAllBytes(os.DllPath));
+            if (!string.Equals(actualHash, SystemInfo.Sha256(completedPlan.PatchedBytes),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                QuickHelpText.Text = "DLL changed since Apply; report unavailable.";
+                QuickShareReportButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+            var metadata = SuccessfulFixMetadata.FromSuccessfulApply(os, completedPlan);
+            if (new SuccessfulFixWindow(metadata) { Owner = this }.ShowDialog() == true)
+                QuickShareReportButton.Visibility = Visibility.Collapsed;
+        }
+        catch (Exception ex)
+        {
+            AuditLog.Append("Unified completed-Apply report unavailable: " +
+                            ex.GetType().Name);
+            QuickHelpText.Text = "Could not prepare the combined report. " +
+                                 "No information was uploaded automatically.";
+        }
     }
 
     private void ShareReport_Click(object sender, RoutedEventArgs e)
-        => OpenSuccessfulReport();
+        => OfferReportAfterSuccessfulApply();
 
     private async void Check_Click(object sender, RoutedEventArgs e) => await CheckAsync();
 
@@ -480,15 +495,42 @@ public partial class QuickApplyWindow : Window
             QuickAutoReapplyCheck.IsChecked = state.Installed && state.Trusted && state.Enabled;
             QuickAutoReapplyCheck.IsEnabled = !checking && !queued &&
                 (!state.Installed || state.Trusted);
+            bool autoReportApproved = AutoCompatibilityReporting.IsEnabled(
+                DirectReportingSettings.Load().GoogleAppsScriptUrl);
             QuickAutoReapplyStatus.Text = state.Message +
                 (state.Installed && !state.Trusted && !state.Repairable
-                    ? " Open Task Scheduler for manual review." : "");
+                    ? " Open Task Scheduler for manual review." : "") +
+                (autoReportApproved
+                    ? " Silent unified reports: consent ON."
+                    : " Silent unified reports: OFF.");
+            QuickRevokeAutoReportsButton.Visibility = autoReportApproved
+                ? Visibility.Visible : Visibility.Collapsed;
+            QuickRevokeAutoReportsButton.IsEnabled =
+                autoReportApproved && SystemInfo.IsAdministrator() && !queued;
             QuickRepairTaskButton.Visibility = state.Repairable
                 ? Visibility.Visible : Visibility.Collapsed;
             QuickRepairTaskButton.IsEnabled = state.Repairable && !checking && !queued &&
                 SystemInfo.IsAdministrator() && !autoTaskChanging;
         }
         finally { autoTaskLoading = false; }
+    }
+
+    private async void RevokeAutoReports_Click(object sender, RoutedEventArgs e)
+    {
+        if (checking || queued || !SystemInfo.IsAdministrator()) return;
+        if (ModernMessageDialog.Show(this,
+                "Stop all future silent diagnostic and compatibility reports? " +
+                "Auto Reapply stays enabled. No DLL or backups are changed.",
+                "Disable automatic reports", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        try { await Task.Run(AutoCompatibilityReporting.Revoke); }
+        catch (Exception ex)
+        {
+            QuickAutoReapplyStatus.Text = "Cannot revoke automatic reporting (" +
+                ex.GetType().Name + ").";
+        }
+        await RefreshAutoReapplyAsync();
     }
 
     private async void RepairAutoReapply_Click(object sender, RoutedEventArgs e)
