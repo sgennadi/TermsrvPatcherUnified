@@ -79,9 +79,14 @@ internal static class UiSmokeTests
                     compatibilityCopy.IsEnabled)
                     throw new Exception(
                         "Compatibility index must be read-only with explicit local scan and disabled copy until scanned.");
-                if (tabs.Items.OfType<TabItem>().Count(tab =>
-                        tab.Header as string == "RDP Doctor") != 1 ||
-                    main.FindName("RunRdpDoctorButton") is not Button ||
+                if (tabs.Items.OfType<TabItem>().Any(tab =>
+                        tab.Header as string == "RDP Doctor") ||
+                    main.FindName("RdpDoctorPanel") is not Expander doctorPanel ||
+                    doctorPanel.IsExpanded ||
+                    main.FindName("RunRdpDoctorButton") is not Button doctorScan ||
+                    doctorScan.Content is not string scanLabel ||
+                    scanLabel != "Run RDP Doctor" ||
+                    main.FindName("RdpDoctorQuickStatus") is not TextBlock ||
                     main.FindName("CopyRdpDoctorButton") is not Button copyDoctor ||
                     copyDoctor.IsEnabled ||
                     main.FindName("DoctorVerdictText") is not TextBlock ||
@@ -93,7 +98,7 @@ internal static class UiSmokeTests
                     main.FindName("DoctorEventsGrid") is not DataGrid doctorEvents ||
                     !doctorEvents.IsReadOnly || doctorEvents.Columns.Count != 4 ||
                     main.FindName("DoctorEventStatus") is not TextBlock)
-                    throw new Exception("RDP Doctor must open read-only with separate findings, event metadata and disabled export.");
+                    throw new Exception("RDP Doctor must be nested in Remote Desktop, read-only, with disabled export before the one scan.");
 
                 if (main.FindName("RdpTechnicalAdvanced") is not Expander technicalRdp ||
                     technicalRdp.IsExpanded ||
@@ -141,7 +146,8 @@ internal static class UiSmokeTests
                     throw new Exception("Advanced Auto Reapply and Cleanup controls are missing.");
                 if (main.FindName("RdpExtendedDiagnostics") is not Expander extended ||
                     extended.IsExpanded ||
-                    main.FindName("InspectRdpSecurityButton") is not Button ||
+                    (extended.Header as string)?.StartsWith("Technical evidence", StringComparison.Ordinal) != true ||
+                    main.FindName("InspectRdpSecurityButton") is not null ||
                     main.FindName("RdpInspectionStatus") is not TextBlock ||
                     main.FindName("RdpFirewallInspection") is not TextBox firewallEvidence ||
                     !firewallEvidence.IsReadOnly ||
@@ -151,7 +157,7 @@ internal static class UiSmokeTests
                     !certEvidence.IsReadOnly ||
                     main.FindName("RdpGraphicsInspection") is not TextBox graphicsEvidence ||
                     !graphicsEvidence.IsReadOnly)
-                    throw new Exception("Four read-only RDP security inspection panels must start collapsed.");
+                    throw new Exception("Four read-only RDP security evidence panels must be inside Doctor without a second scan button.");
                 if (main.FindName("AdvancedAutoUpdateCheck") is not CheckBox autoCheck ||
                     autoCheck.IsChecked != false ||
                     main.FindName("AdvancedAutoUpdateStatus") is not TextBlock)

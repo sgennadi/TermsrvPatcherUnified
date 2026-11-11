@@ -2,6 +2,9 @@
 
 ## 1.0.5 — in development (not published)
 
+- **One Remote Desktop workspace:** the standalone RDP Doctor tab and duplicated Connection diagnostics action are removed; one **Run RDP Doctor** button collects prioritized findings, event metadata and detailed Firewall/LSA/TLS/graphics evidence in the same scan.
+- **Technical evidence:** now a collapsed panel inside RDP Doctor; raw identities/certificate metadata stay local and never enter the sanitized Copy safe report. All checks remain read-only.
+
 - **DLL compatibility evidence:** a read-only System Health table differentiates local first-seen/user baselines, exact SHA-256/version matches in bundled anonymous diagnostic observations, and opt-in self-reported successful-fix records.
 - **Embedded signature evidence:** local byte-pattern result displayed separately from user reports; SHA/version drift invalidates stale evidence, never authorizes Apply.
 - **Trust boundaries:** no source in the compatibility index certifies an original Microsoft DLL, independent RDP functionality, licensing, or protected Apply/Revert authorization. Bundled CSVs are fixed at build time; invalid/missing sources show Unavailable.

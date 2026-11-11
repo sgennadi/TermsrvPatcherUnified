@@ -2,7 +2,7 @@
 
 **Source version:** 1.0.4 Stable released (2026-11-10). The 1.0.5 compatibility-evidence index is under development on a feature branch, not published.
 
-**RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md).
+**RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md). In the 1.0.5 candidate, it is integrated into **Advanced > Remote Desktop**; a single Run RDP Doctor button collects both the summary and expandable technical security evidence.
 
 
 **RDP security inspections:** [RDP Firewall, local logon rights, TLS certificate and graphics](docs/RDP_SECURITY_INSPECTION.md). **Auto-update settings:** [Auto-update Stable, recurring check, SYSTEM task restrictions and manual EXE approval](docs/AUTO_UPDATE_POLICY.md).

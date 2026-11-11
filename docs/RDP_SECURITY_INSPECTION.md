@@ -29,3 +29,7 @@ Never lower NLA or encryption just because this read-only report is incomplete.
 - https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwpolicy2
 - https://learn.microsoft.com/en-us/windows/win32/termserv/win32-tsgeneralsetting
 - https://learn.microsoft.com/en-us/windows/client-management/mdm/policy-csp-admx-terminalserver
+
+## Unified Doctor UI (1.0.5 candidate)
+
+Run **Advanced > Remote Desktop > Run RDP Doctor** once, then expand **RDP Doctor > Technical evidence** for detailed Firewall, local LSA logon rights, TLS and graphics metadata. This is the same read-only security inspection the RDP Doctor summary uses. Raw local account and certificate data stay visible only in the GUI; they are never included in the sanitized copied report.

@@ -1156,6 +1156,10 @@ public partial class MainWindow : Window
     private async void RunRdpDoctor_Click(object sender, RoutedEventArgs e)
     {
         if (busy) return;
+        // One entry point in Remote Desktop: summary + technical details are
+        // collected by the SAME read-only RDP Doctor scan.
+        RdpDoctorPanel.IsExpanded = true;
+        RdpDoctorPanel.BringIntoView();
         latestRdpDoctorReport = null;
         DoctorFindingsGrid.ItemsSource = null;
         DoctorEventsGrid.ItemsSource = null;
@@ -1163,6 +1167,11 @@ public partial class MainWindow : Window
         DoctorVerdictText.Text = "Inspecting service, local policy, TCP listeners and Windows logs...";
         DoctorCheckedText.Text = "Local inspection in progress. No Windows configuration changes.";
         DoctorEventStatus.Text = "Checking recent RDP event channels...";
+        RdpDoctorQuickStatus.Text = "Doctor: inspecting local RDP evidence...";
+        RdpInspectionStatus.Text = "Collecting local security evidence in the same scan...";
+        RdpFirewallInspection.Text = RdpRightsInspection.Text =
+            RdpCertificateInspection.Text = RdpGraphicsInspection.Text =
+            "Not yet inspected. Status UNKNOWN.";
         CopyRdpDoctorButton.IsEnabled = false;
         await RunBusy(async () =>
         {
@@ -1182,10 +1191,39 @@ public partial class MainWindow : Window
                 (report.EventWarnings.Count == 0
                     ? ""
                     : Environment.NewLine + string.Join(Environment.NewLine, report.EventWarnings));
+
+            // This raw security text may contain local identities or certificate
+            // details. It is displayed ONLY in the collapsed local technical panel;
+            // RdpDoctorReport.AsText() deliberately excludes it.
+            if (report.LocalSecurityDetails is { } details)
+            {
+                RdpFirewallInspection.Text = details.Firewall;
+                RdpRightsInspection.Text = details.LogonRights;
+                RdpCertificateInspection.Text = details.Certificate;
+                RdpGraphicsInspection.Text = details.Graphics;
+                RdpInspectionStatus.Text = "Detailed local evidence collected " +
+                    details.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
+                    " UTC. Missing values remain UNKNOWN. Not included in copied reports.";
+            }
+            else
+            {
+                RdpInspectionStatus.Text = "Security inspection unavailable (UNKNOWN). " +
+                    "No valid technical detail was collected.";
+            }
+            RdpDoctorQuickStatus.Text = "Doctor: " + report.Blockers +
+                " blocker(s), " + report.AttentionCount + " attention, " +
+                report.UnknownCount + " unverified. Remote connection NOT tested.";
             CopyRdpDoctorButton.IsEnabled = true;
             FooterText.Text = "RDP Doctor completed. " + report.Blockers +
                 " local blocker(s). No services, registry values or system DLL changed.";
         });
+        if (latestRdpDoctorReport is null)
+        {
+            DoctorVerdictText.Text = "RDP diagnostic did not complete; all results remain UNKNOWN.";
+            RdpDoctorQuickStatus.Text = "Doctor: inspection unavailable. No changes made.";
+            DoctorCheckedText.Text = "No completed scan available. Check Diagnostics for error details.";
+            RdpInspectionStatus.Text = "Technical evidence unavailable (UNKNOWN).";
+        }
     }
 
     private void CopyRdpDoctor_Click(object sender, RoutedEventArgs e)
@@ -1202,32 +1240,6 @@ public partial class MainWindow : Window
             ModernMessageDialog.Show(this, "Windows clipboard is not available: " +
                 error.GetType().Name, "RDP Doctor", MessageBoxButton.OK, MessageBoxImage.Information);
         }
-    }
-
-    private void OpenRdpSettingsFromDoctor_Click(object sender, RoutedEventArgs e)
-    {
-        var rdpTab = MainTabs.Items.OfType<System.Windows.Controls.TabItem>()
-            .FirstOrDefault(x => x.Header as string == "Remote Desktop");
-        if (rdpTab is not null) MainTabs.SelectedItem = rdpTab;
-    }
-
-    private async void InspectRdpSecurity_Click(object sender, RoutedEventArgs e)
-    {
-        if (busy) return;
-        RdpInspectionStatus.Text = "Inspecting local Windows APIs... No registry or policy writes.";
-        await RunBusy(async () =>
-        {
-            var report = await Task.Run(RdpSecurityInspector.ReadLocal);
-            RdpFirewallInspection.Text = report.Firewall;
-            RdpRightsInspection.Text = report.LogonRights;
-            RdpCertificateInspection.Text = report.Certificate;
-            RdpGraphicsInspection.Text = report.Graphics;
-            RdpInspectionStatus.Text = "Inspected " +
-                report.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
-                " UTC (read-only). Missing evidence remains Unknown.";
-            FooterText.Text = "RDP firewall / logon rights / certificate / graphics inspected locally. " +
-                "No changes or diagnostic uploads.";
-        });
     }
 
     private async void RefreshRdpSessions_Click(object sender, RoutedEventArgs e)

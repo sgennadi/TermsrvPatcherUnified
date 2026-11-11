@@ -48,6 +48,16 @@ internal static class RdpPolicyHistoryTests
                diagnosed.AsText().Contains("No registry, service", StringComparison.Ordinal) &&
                diagnosed.Events.Count == 0,
                "Read-only Doctor export is an informational report with no identity or event payload");
+        var localOnlyDetails = diagnosed with
+        {
+            LocalSecurityDetails = new RdpSecurityInspection(DateTimeOffset.UtcNow,
+                "Internal firewall rules", "PRIVATE-ACCOUNT-LOCAL-ONLY",
+                "PRIVATE-CERTIFICATE-LOCAL-ONLY", "Local graphics")
+        };
+        Verify(localOnlyDetails.LocalSecurityDetails is not null &&
+               !localOnlyDetails.AsText().Contains("PRIVATE-ACCOUNT-LOCAL-ONLY", StringComparison.Ordinal) &&
+               !localOnlyDetails.AsText().Contains("PRIVATE-CERTIFICATE-LOCAL-ONLY", StringComparison.Ordinal),
+            "Unified Doctor keeps raw LSA/certificate details local and out of copied reports");
         var doctorReady = new RdpConfigurationReport(DateTimeOffset.UtcNow,
             [RdpPolicyDiagnostics.Evaluate("Remote Desktop", 0, null, 0, 1,
                 v => v == 0 ? "Enabled (0)" : "Disabled (1)"),

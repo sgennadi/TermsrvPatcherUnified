@@ -1,3 +1,10 @@
+## Unified Remote Desktop / RDP Doctor — 1.0.5 candidate
+
+- The standalone RDP Doctor tab was merged into Remote Desktop; only one Run RDP Doctor scan button exists.
+- The prioritized findings, local event metadata and detailed Firewall, logon rights, TLS certificate and graphics boxes are populated from the same read-only inspection; the old separate Inspect button was removed.
+- WPF smoke checks single-tab topology, default-collapsed panels, read-only grids and no duplicate inspector button. Synthetic Doctor report checks local identity/certificate details remain excluded from text export.
+- Windows CI must pass at final PR head before merging; this does not validate live Windows 11 remote connections or real 200% DPI hardware.
+
 # DLL compatibility-index QA (1.0.5 feature branch; NOT RELEASED)
 
 The offline, non-destructive compatibility-index test command `--dll-compatibility-qa` validates exact version/SHA matching, missing/malformed data, self-report trust boundaries and path-free exports. Windows CI is required before publishing. The approved Stable release is 1.0.4. Real RDP sessions, Windows servicing and 200% physical DPI are not validated by the offline test.

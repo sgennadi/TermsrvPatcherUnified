@@ -1,12 +1,12 @@
 # RDP Doctor — 1.0.4
 
-RDP Doctor is a **read-only, local** Remote Desktop diagnostic page in Advanced mode. It collects a bounded evidence snapshot and shows a conservative assessment, prioritized root-cause clues, and safe next steps.
+RDP Doctor is a **read-only, local** diagnostic section in **Advanced > Remote Desktop**. It collects a bounded evidence snapshot and shows a conservative assessment, prioritized root-cause clues, and safe next steps.
 
 ## Run
 
-Open **Advanced > RDP Doctor > Run diagnostic**. The header displays the number of local blockers, warnings and unverified areas. The grid displays the check, status, evidence and recommendation; the last 24-hour event table contains only UTC time, channel, event ID and numeric-level-derived severity.
+Open **Advanced > Remote Desktop**, then select **Run RDP Doctor**. The header displays the number of local blockers, warnings and unverified areas. The grid displays the check, status, evidence and recommendation; the last 24-hour event table contains only UTC time, channel, event ID and numeric-level-derived severity.
 
-**Copy safe report** copies the summarized evidence and sanitized event metadata to your clipboard, never sending it anywhere. **RDP settings / GPO** takes you to the separate Remote Desktop tab for policy inspection. Neither action modifies the system.
+**Copy safe report** copies summarized evidence and sanitized event metadata to your clipboard, never sending it anywhere. Expand **Technical evidence** inside RDP Doctor to see detailed Firewall, LSA logon rights, TLS certificate and graphics metadata. Both panes are populated from one read-only scan. Local identity and certificate details are never included in the copied report. Nothing modifies Windows.
 
 ## Checks
 
@@ -36,7 +36,7 @@ Open **Advanced > RDP Doctor > Run diagnostic**. The header displays the number 
 
 ## Validation
 
-Synthetic tests verify blocked service, disabled policy, absent/loopback/all-interface TCP listeners, Unknown firewall/event channels, NLA warnings, and that the verdict cannot claim verified remote reachability. WPF offscreen smoke checks the new tab and read-only grids. GitHub CI does **not** exercise live Windows 11 RDP authentication, firewall reachability from another host or a real production failure.
+Synthetic tests verify blocked service, disabled policy, absent/loopback/all-interface TCP listeners, Unknown firewall/event channels, NLA warnings, and that the verdict cannot claim verified remote reachability. WPF offscreen smoke checks the single Remote Desktop tab, collapsed RDP Doctor panel and its read-only grids. GitHub CI does **not** exercise live Windows 11 RDP authentication, firewall reachability from another host or a real production failure.
 
 Suggested future expansion: explicit operator-started **remote connectivity probe** from a separate authorized machine, and correlated client/server event timing (without collecting credentials). Do not enable automatic service restart or security downgrade as a troubleshooting shortcut.
 
@@ -46,3 +46,7 @@ Suggested future expansion: explicit operator-started **remote connectivity prob
 - https://learn.microsoft.com/en-us/dotnet/api/system.net.networkinformation.ipglobalproperties.getactivetcplisteners
 - https://learn.microsoft.com/en-us/troubleshoot/windows-server/remote/remote-desktop-cannot-connect-remote-computer
 - https://learn.microsoft.com/en-us/windows/win32/api/netfw/nn-netfw-inetfwpolicy2
+
+## Unified workspace (1.0.5 candidate)
+
+There is no separate RDP Doctor tab or second Inspect four areas button. The single **Run RDP Doctor** action refreshes local configuration, security evidence and recent event metadata together. The prioritized findings and sanitized report remain visible in RDP Doctor; detailed security text stays local in its collapsed Technical evidence section. This is a UI/inspection consolidation only; no change to protected DLL operations.
