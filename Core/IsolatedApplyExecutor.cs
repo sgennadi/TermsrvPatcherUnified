@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using System.Security.Principal;
 using System.Text.Json;
 
@@ -554,7 +555,8 @@ internal static class IsolatedApplyExecutor
                 StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(record.PatchedSha256, request.ExpectedPatchedSha256,
                 StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(record.DllVersion, request.FileVersion,
+            !string.Equals(record.DllVersion,
+                SuccessfulFixMetadata.CanonicalDllVersion(request.FileVersion),
                 StringComparison.Ordinal) ||
             record.Mode != "automatic" ||
             !string.Equals(status.Id, request.Id, StringComparison.OrdinalIgnoreCase))
@@ -574,7 +576,7 @@ internal static class IsolatedApplyExecutor
     {
         report = null;
         if (!SystemInfo.IsAdministrator() ||
-            status?.State != "Succeeded" || status.Report is null ||
+            status?.State != "Succeeded" ||
             !TryNormalizeId(status.Id, out var id))
             return false;
         try
@@ -595,31 +597,168 @@ internal static class IsolatedApplyExecutor
                 new FileInfo(statusFile).Length > 10000 ||
                 new FileInfo(requestFile).Length > 3000)
                 return false;
+
             var persisted = JsonSerializer.Deserialize<Status>(File.ReadAllText(statusFile));
             var request = JsonSerializer.Deserialize<Request>(File.ReadAllText(requestFile));
             if (persisted is null || request is null || persisted.Id != id ||
+                persisted.State != "Succeeded" ||
                 !string.Equals(status.Utc, persisted.Utc, StringComparison.Ordinal))
                 return false;
 
             var os = SystemInfo.Read();
-            if (!os.Supported || os.DllVersion != persisted.Report?.DllVersion ||
-                os.Name != persisted.Report.WindowsName ||
-                os.DisplayVersion != persisted.Report.WindowsRelease ||
-                os.Build != persisted.Report.WindowsBuild ||
-                os.Ubr != persisted.Report.Ubr)
+            if (!os.Supported ||
+                !string.Equals(os.DllVersion, request.FileVersion,
+                    StringComparison.Ordinal))
+                return false;
+            byte[] installed = File.ReadAllBytes(os.DllPath);
+            string installedHash = SystemInfo.Sha256(installed);
+
+            // Current workers include pre-reviewed metadata; validate it
+            // independently against the one-shot request and installed DLL.
+            if (persisted.Report is not null)
+            {
+                if (!string.Equals(SuccessfulFixMetadata.CanonicalDllVersion(os.DllVersion),
+                        persisted.Report.DllVersion, StringComparison.Ordinal) ||
+                    os.Name != persisted.Report.WindowsName ||
+                    os.DisplayVersion != persisted.Report.WindowsRelease ||
+                    os.Build != persisted.Report.WindowsBuild ||
+                    os.Ubr != persisted.Report.Ubr ||
+                    !VerifiedReportMatches(persisted, request, installedHash))
+                    return false;
+                report = persisted.Report;
+                return true;
+            }
+
+            // Preview.3 wrote a successful one-shot status WITHOUT Report when
+            // FileVersionInfo included "(WinBuild...)". Do not patch again:
+            // verify the original authorized request AND the machine-protected,
+            // DPAPI-authenticated journal containing the exact changed spans.
+            if (string.IsNullOrWhiteSpace(request.ExeSha256) ||
+                request.ExeSha256.Length != 64 ||
+                !request.ExeSha256.All(Uri.IsHexDigit))
+                return false;
+            string stagedExe = Path.Combine(dir, ExecutableName);
+            if (!File.Exists(stagedExe) ||
+                (File.GetAttributes(stagedExe) & FileAttributes.ReparsePoint) != 0 ||
+                new FileInfo(stagedExe).Length is < 1024 or > 250_000_000 ||
+                !string.Equals(SystemInfo.Sha256(File.ReadAllBytes(stagedExe)),
+                    request.ExeSha256, StringComparison.OrdinalIgnoreCase))
+                return false;
+            string? sourceVersion = VersionFromStagedExecutable(stagedExe);
+            if (sourceVersion is null)
                 return false;
 
-            string installedHash = SystemInfo.Sha256(File.ReadAllBytes(os.DllPath));
-            if (!VerifiedReportMatches(persisted, request, installedHash))
+            var verifiedJournal = RecoveryJournalStore.LoadExact(
+                installed, request.FileVersion);
+            if (verifiedJournal is null)
                 return false;
-            report = persisted.Report;
-            return true;
+
+            report = RecoverFromVerifiedJournal(persisted, request, os,
+                installed, verifiedJournal, sourceVersion);
+            return report is not null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or
                                    JsonException or InvalidDataException or ArgumentException or
-                                   InvalidOperationException or System.Security.SecurityException)
+                                   InvalidOperationException or System.Security.SecurityException or
+                                   System.Security.Cryptography.CryptographicException or
+                                   OverflowException)
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Version provenance for a reconnected GUI: trust the checked, immutable
+    /// staged EXE instead of labeling a Preview.3 Apply as current Preview.4.
+    /// </summary>
+    internal static string? VersionFromStagedExecutable(string path)
+    {
+        string? product = FileVersionInfo.GetVersionInfo(path).ProductVersion;
+        if (product is null) return null;
+        var match = Regex.Match(product,
+            @"\A(?<version>[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?)(?:\+[0-9A-Za-z.-]+)?\z",
+            RegexOptions.CultureInvariant);
+        return match.Success ? match.Groups["version"].Value : null;
+    }
+
+    /// <summary>
+    /// PURE verification of previously saved, encrypted recovery evidence.
+    /// Status, original request, original bytes, and CURRENT installed bytes
+    /// must all reconcile exactly. This never performs an Apply or a network
+    /// request. Caller must obtain journal from RecoveryJournalStore.LoadExact.
+    /// </summary>
+    internal static SuccessfulFixMetadata? RecoverFromVerifiedJournal(
+        Status? status, Request? request, WindowsDetails? os,
+        byte[]? installed, RecoveryJournalStore.Verified? journal,
+        string? originalAppVersion)
+    {
+        if (status?.State != "Succeeded" || status.Report is not null ||
+            request is null || os is null || installed is null || journal is null ||
+            !os.Supported || !TryNormalizeId(status.Id, out var id) ||
+            !string.Equals(request.Id, id, StringComparison.OrdinalIgnoreCase) ||
+            request.OriginalSha256 is not { Length: 64 } ||
+            !request.OriginalSha256.All(Uri.IsHexDigit) ||
+            request.ExpectedPatchedSha256 is not { Length: 64 } ||
+            !request.ExpectedPatchedSha256.All(Uri.IsHexDigit) ||
+            request.FileVersion is null ||
+            !string.Equals(request.FileVersion, journal.FileVersion, StringComparison.Ordinal) ||
+            !string.Equals(request.FileVersion, os.DllVersion, StringComparison.Ordinal) ||
+            !string.Equals(request.ProfileId, journal.ProfileId, StringComparison.Ordinal) ||
+            !string.Equals(request.OriginalSha256, journal.OriginalSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(request.ExpectedPatchedSha256, journal.PatchedSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(SystemInfo.Sha256(installed), request.ExpectedPatchedSha256,
+                StringComparison.OrdinalIgnoreCase) ||
+            journal.OriginalBytes is null ||
+            journal.OriginalBytes.Length != installed.Length ||
+            !string.Equals(SystemInfo.Sha256(journal.OriginalBytes),
+                request.OriginalSha256, StringComparison.OrdinalIgnoreCase) ||
+            journal.Changes is not { Count: >= 1 and <= 16 } ||
+            string.IsNullOrWhiteSpace(originalAppVersion))
+            return null;
+
+        try
+        {
+            var original = journal.OriginalBytes;
+            var replay = (byte[])original.Clone();
+            var edits = new List<PatchEdit>(journal.Changes.Count);
+            int previousEnd = 0;
+            foreach (var change in journal.Changes.OrderBy(c => c.Offset))
+            {
+                if (change.Original is null || change.Replacement is null ||
+                    change.Original.Length is < 1 or > 64 ||
+                    change.Original.Length != change.Replacement.Length ||
+                    change.Offset < previousEnd || change.Offset < 0 ||
+                    change.Offset > original.Length - change.Original.Length ||
+                    !original.AsSpan(change.Offset, change.Original.Length)
+                        .SequenceEqual(change.Original) ||
+                    change.Original.AsSpan().SequenceEqual(change.Replacement))
+                    return null;
+                change.Replacement.CopyTo(replay, change.Offset);
+                edits.Add(new PatchEdit(change.Offset,
+                    (byte[])change.Original.Clone(), (byte[])change.Replacement.Clone()));
+                previousEnd = checked(change.Offset + change.Original.Length);
+            }
+            if (!replay.AsSpan().SequenceEqual(installed))
+                return null;
+            // Recheck the PE code-section boundary before labelling this
+            // recovery journal as an observed successful executable edit.
+            PeSafety.RequireExecutableEdits(original, edits);
+            var plan = new PatchPlan(PatchState.Ready,
+                "Read-only verified one-shot recovery evidence",
+                journal.ProfileId, os.DllPath, request.FileVersion,
+                request.OriginalSha256, edits, replay);
+            var report = SuccessfulFixMetadata.FromSuccessfulApply(os, plan)
+                with { ApplicationVersion = originalAppVersion };
+            report.Validate();
+            return report;
+        }
+        catch (Exception ex) when (ex is InvalidDataException or
+                                   ArgumentException or InvalidOperationException or
+                                   OverflowException)
+        {
+            return null;
         }
     }
 
