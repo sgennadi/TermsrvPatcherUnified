@@ -229,29 +229,39 @@ internal static class DirectReportingTests
         var unified = new UnifiedApplyReport(fix);
         Verify(unified.DiagnosticJson.Contains("universal-diagnostics/v1",
                     StringComparison.Ordinal) &&
-               unified.Compatibility.Json == submission.Json &&
+               unified.Compatibility.Kind == submission.Kind &&
+               unified.Compatibility.Body == submission.Body &&
                unified.ReviewedText.Contains("1. GENERAL DIAGNOSTICS", StringComparison.Ordinal) &&
                unified.ReviewedText.Contains("2. DLL COMPATIBILITY", StringComparison.Ordinal) &&
                !unified.ReviewedText.Contains("PRIVATE", StringComparison.Ordinal),
                "one reviewed report holds two independent, validated public sections");
-        var sent = new FakeHandler((request, _) =>
-            Json(request.Method == HttpMethod.Post &&
-                 request.Headers.Authorization is null &&
-                 request.RequestUri!.Host == "script.google.com"
-                ? (request.Content!.Headers.ContentType!.MediaType == "application/json"
-                    ? (request.RequestUri.AbsolutePath.EndsWith("/exec", StringComparison.Ordinal)
-                        ? (request.Headers.UserAgent.Count > 0
-                            ? "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/987\"}"
-                            : "{}") : "{}") : "{}") : "{}"));
+        const string generalReceipt =
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/987\"}";
+        const string fixReceipt =
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"," +
+            "\"comment_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-6789\"}";
+        var sent = new FakeHandler((request, payload) =>
+        {
+            if (request.Method != HttpMethod.Post ||
+                request.RequestUri!.AbsoluteUri != deployed ||
+                request.Headers.Authorization is not null)
+                return Json("{\"ok\":false,\"error\":\"invalid_request\"}");
+            return Json(payload.Contains("universal-diagnostics/v1", StringComparison.Ordinal)
+                ? generalReceipt : fixReceipt);
+        });
         using (var http = new HttpClient(sent))
         using (var client = new GoogleAppsScriptReportClient(http))
         {
-            // Individual receipt types are deliberately different: diagnostics
-            // must NOT be accepted as proof of compatibility comment delivery.
-            Uri u = client.SendAsync(deployed, unified.DiagnosticJson,
+            Uri diagnosticsUrl = client.SendAsync(deployed, unified.DiagnosticJson,
                 unified.Diagnostics).GetAwaiter().GetResult();
-            Verify(u.AbsoluteUri.EndsWith("/987", StringComparison.Ordinal) &&
-                   sent.Count == 1, "general diagnostic is a separately acknowledged Issue");
+            Uri compatibilityUrl = client.SendCompatibilityAsync(deployed,
+                unified.Compatibility.Json, unified.Compatibility).GetAwaiter().GetResult();
+            Verify(diagnosticsUrl.AbsoluteUri.EndsWith("/987", StringComparison.Ordinal) &&
+                   compatibilityUrl.AbsoluteUri.EndsWith("#issuecomment-6789", StringComparison.Ordinal) &&
+                   sent.Count == 2 && sent.Requests.All(r => !r.HasAuth) &&
+                   sent.Requests[0].Body == unified.DiagnosticJson &&
+                   sent.Requests[1].Body == unified.Compatibility.Json,
+                "one approved unified review can submit exactly two separately acknowledged typed records");
         }
         const string consentSchema = "termsrv-auto-compatibility-consent/v1";
         var consentJson = JsonSerializer.Serialize(new {
