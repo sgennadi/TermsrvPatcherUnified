@@ -7,7 +7,7 @@ namespace TermsrvPatcherUnified.Core;
 internal sealed class UpdateIntegration : IDisposable
 {
     public const string Repository = "sgennadi/TermsrvPatcherUnified";
-    public const string Version = "1.0.5-preview.5";
+    public const string Version = "1.0.5";
     private readonly Dictionary<UpdateChannel, UpdateNotificationController> controllers = new();
 
     public UpdateIntegration()
