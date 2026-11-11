@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using UniversalDiagnostics.Transport;
+using TermsrvPatcherUnified;
 using TermsrvPatcherUnified.Core;
 
 internal static class DirectReportingTests
