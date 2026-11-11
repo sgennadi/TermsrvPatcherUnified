@@ -280,7 +280,15 @@ print("PASS: self-update integration source guards.")
 
 check((ROOT / "scripts/record_successful_fix.py").exists(), "version-only compatibility CSV aggregation script exists")
 check("SuccessfulFixMetadata.FromSuccessfulApply" in (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8"), "compatibility report is offered after successful protected apply")
-check("SuccessfulFixPublisher" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8"), "user-confirmed GitHub Issues compatibility reporting is wired")
+check("SendCompatibilityAsync" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8") and
+      "CompatibilityRelaySubmission.Create" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8") and
+      "ModernConfirmDialog.Ask" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8") and
+      "TokenInput" not in (ROOT / "SuccessfulFixWindow.xaml").read_text(encoding="utf-8"),
+      "optional successful/ offline compatibility reports require review and no end-user GitHub token")
+check("parseCompatibilityBody_" in (ROOT / "integrations/google-apps-script/Code.gs").read_text(encoding="utf-8") and
+      "publishCompatibility_" in (ROOT / "integrations/google-apps-script/Code.gs").read_text(encoding="utf-8") and
+      "scripts/test_google_gateway.cjs" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),
+      "Google Issue #1 compatibility gateway is schema-gated and tested without network requests")
 check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").read_text(encoding="utf-8"), "GitHub event handler updates compatibility CSV")
 check((ROOT / "data/successful-fixes.csv").exists(), "compatibility CSV exists")
 check("original_sha256,patched_sha256,edits" in (ROOT / "data/successful-fixes.csv").read_text(encoding="utf-8"), "CSV contains v2 hashes and edits")
