@@ -34,6 +34,22 @@ internal sealed record SuccessfulFixMetadata(
         @"\A(?:[0-9A-F]{2}){1,64}\z",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
+    /// <summary>
+    /// FileVersionInfo.FileVersion often contains an additional OS resource
+    /// description such as "10.0.26100.8115 (WinBuild.160101.0800)".
+    /// Keep that raw value for protected backup/journal identity, but publish
+    /// only the strict, numeric version required by the Google schema.
+    /// Reject unknown suffixes rather than silently stripping arbitrary text.
+    /// </summary>
+    internal static string? CanonicalDllVersion(string? version)
+    {
+        if (string.IsNullOrEmpty(version)) return null;
+        var match = Regex.Match(version,
+            @"\A(?<numeric>[0-9]{1,5}(?:\.[0-9]{1,8}){1,4})(?: \(WinBuild\.[0-9]+(?:\.[0-9]+){1,3}\))?\z",
+            RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups["numeric"].Value : null;
+    }
+
     internal static SuccessfulFixMetadata FromSuccessfulApply(WindowsDetails details, PatchPlan plan)
     {
         ArgumentNullException.ThrowIfNull(details);
@@ -43,7 +59,9 @@ internal sealed record SuccessfulFixMetadata(
             throw new InvalidOperationException("Only a verified successful Apply can be reported.");
         var record = new SuccessfulFixMetadata(
             details.Name, details.DisplayVersion, details.Build, details.Ubr,
-            plan.FileVersion, UpdateIntegration.Version, plan.IsManual ? "manual" : "automatic",
+            CanonicalDllVersion(plan.FileVersion) ??
+                throw new InvalidDataException("DLL version contains unsupported resource metadata."),
+            UpdateIntegration.Version, plan.IsManual ? "manual" : "automatic",
             plan.OriginalSha256.ToLowerInvariant(), SystemInfo.Sha256(plan.PatchedBytes),
             plan.Edits.Select(edit => new ChangedBytes(edit.Offset,
                 Convert.ToHexString(edit.Expected), Convert.ToHexString(edit.Replacement)))
