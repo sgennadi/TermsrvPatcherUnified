@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.RdpLocalSettingEditWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Local RDP setting — 1.0.4"
+        Title="Local RDP setting — 1.0.5-preview.5"
         Width="900" Height="665" MinWidth="670" MinHeight="490"
         WindowStartupLocation="CenterOwner" ResizeMode="CanResize"
         FontFamily="Segoe UI" FontSize="13"

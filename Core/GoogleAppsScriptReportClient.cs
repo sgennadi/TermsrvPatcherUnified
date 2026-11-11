@@ -68,13 +68,32 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
         uri.AbsolutePath.Equals("/macros/echo", StringComparison.Ordinal) &&
         uri.Fragment.Length == 0 && uri.AbsoluteUri.Length <= 4096;
 
-    internal async Task<Uri> SendAsync(string endpoint, string reviewedJson,
+    internal Task<Uri> SendAsync(string endpoint, string reviewedJson,
         AnonymousDiagnosticPayload payload, CancellationToken cancellationToken = default)
+    {
+        if (reviewedJson != BuildSubmission(payload))
+            throw new InvalidDataException("Report changed after confirmation.");
+        return SendApprovedJsonAsync(endpoint, reviewedJson, requireCommentReceipt: false,
+            cancellationToken);
+    }
+
+    internal Task<Uri> SendCompatibilityAsync(string endpoint, string reviewedJson,
+        CompatibilityRelaySubmission submission,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(submission);
+        submission.Validate();
+        if (!string.Equals(reviewedJson, submission.Json, StringComparison.Ordinal))
+            throw new InvalidDataException("Compatibility metadata changed after confirmation.");
+        return SendApprovedJsonAsync(endpoint, reviewedJson, requireCommentReceipt: true,
+            cancellationToken);
+    }
+
+    private async Task<Uri> SendApprovedJsonAsync(string endpoint, string reviewedJson,
+        bool requireCommentReceipt, CancellationToken cancellationToken)
     {
         if (!IsApprovedEndpoint(endpoint))
             throw new ArgumentException("Unrecognized Google Apps Script deployment address.");
-        if (reviewedJson != BuildSubmission(payload))
-            throw new InvalidDataException("Report changed after confirmation.");
         using var post = new HttpRequestMessage(HttpMethod.Post, endpoint);
         post.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         post.Headers.UserAgent.Add(new ProductInfoHeaderValue("TermsrvPatcherUnified", "0.1"));
@@ -99,13 +118,13 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
                 HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (receipt.RequestMessage?.RequestUri?.AbsoluteUri != location!.AbsoluteUri)
                 throw new InvalidDataException("Google confirmation changed destination.");
-            return await ParseReceiptAsync(receipt, cancellationToken);
+            return await ParseReceiptAsync(receipt, cancellationToken, requireCommentReceipt);
         }
-        return await ParseReceiptAsync(first, cancellationToken);
+        return await ParseReceiptAsync(first, cancellationToken, requireCommentReceipt);
     }
 
     internal static async Task<Uri> ParseReceiptAsync(HttpResponseMessage response,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool requireCommentReceipt = false)
     {
         if (response.StatusCode != HttpStatusCode.OK)
             throw new InvalidOperationException(
@@ -138,9 +157,17 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
             {
                 "daily_limit" => "The public report limit for today was reached.",
                 "busy" => "The reporting service is busy.",
-                "invalid_evidence" => "The service rejected incomplete or invalid Windows details.",
+                "invalid_evidence" => requireCommentReceipt
+                    ? "The Google receiver rejected the DLL compatibility payload. " +
+                      "Its published Apps Script deployment may be outdated: " +
+                      "Deploy > Manage deployments > Edit > New version. " +
+                      "If already updated, inspect the compatibility schema and permissions."
+                    : "The service rejected incomplete or invalid Windows details.",
                 "not_configured" => "The Google reporting bridge needs an owner-side GitHub token.",
-                "github_not_confirmed" => "GitHub did not confirm issue creation.",
+                "github_not_confirmed" => requireCommentReceipt
+                    ? "GitHub did not confirm the Issue #1 compatibility comment. " +
+                      "Verify that the Google-side GitHub token can write issue comments."
+                    : "GitHub did not confirm issue creation.",
                 "github_receipt_invalid" => "GitHub returned an unexpected issue receipt.",
                 "temporarily_unavailable" => "The reporting service is temporarily unavailable.",
                 _ => "The reporting service could not confirm receipt."
@@ -155,6 +182,20 @@ internal sealed class GoogleAppsScriptReportClient : IDisposable
             !GitHubIssuePublisher.IsApprovedIssueUri(issueUri))
             throw new InvalidDataException(
                 "Reporting service returned an invalid GitHub issue address. Check Issues before retrying.");
+        if (requireCommentReceipt)
+        {
+            if (!root.TryGetProperty("comment_url", out var comment) ||
+                comment.ValueKind != JsonValueKind.String ||
+                !Uri.TryCreate(comment.GetString(), UriKind.Absolute, out var commentUri) ||
+                !Regex.IsMatch(commentUri.AbsoluteUri,
+                    @"\Ahttps://github\.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-[1-9][0-9]*\z",
+                    RegexOptions.CultureInvariant) ||
+                issueUri.AbsoluteUri !=
+                    "https://github.com/sgennadi/TermsrvPatcherUnified/issues/1")
+                throw new InvalidDataException(
+                    "Google did not confirm a compatibility comment in the approved repository.");
+            return commentUri;
+        }
         return issueUri;
     }
 

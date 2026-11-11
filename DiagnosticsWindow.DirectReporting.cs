@@ -133,6 +133,7 @@ public partial class DiagnosticsWindow
             !reportingSettings.HasGoogleScript || IncludeWindowsEvidenceCheck.IsChecked != true)
             return;
         publishing = true;
+        Uri? confirmedIssueToClose = null;
         GoogleButton.IsEnabled = false;
         PreviewDirectButton.IsEnabled = false;
         SaveButton.IsEnabled = false;
@@ -166,6 +167,7 @@ public partial class DiagnosticsWindow
             GoogleStatus.Text = "Thank you — your report was received and added to GitHub.";
             Status.Text = "Confirmed public GitHub Issue: " + issue.AbsoluteUri;
             AuditLog.Append("User-approved Google diagnostics submission acknowledged by GitHub.");
+            confirmedIssueToClose = issue;
         }
         catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or
                                    InvalidOperationException or OperationCanceledException or
@@ -190,6 +192,9 @@ public partial class DiagnosticsWindow
             AnonymousButton.IsEnabled = relayEndpoint is not null && anonymousPayload is not null &&
                 submittedIssue is null && !googleConfirmed;
         }
+        // No second acknowledgement or button click after GitHub confirms receipt.
+        if (confirmedIssueToClose is not null)
+            CloseAfterConfirmedDelivery(confirmedIssueToClose);
     }
 
     private void OpenConfirmedIssue_Click(object sender, RoutedEventArgs e)

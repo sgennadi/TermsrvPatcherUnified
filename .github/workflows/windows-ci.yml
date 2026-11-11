@@ -40,6 +40,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - name: Verify Google compatibility gateway schemas and dedup (offline)
+        shell: pwsh
+        run: |
+          node scripts/test_google_gateway.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Restore source and tests
         run: |
           dotnet restore TermsrvPatcher.Unified.csproj
@@ -71,6 +79,11 @@ jobs:
         run: |
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --rdp-health-qa
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Bundled DLL compatibility index metadata and safety (read-only)
+        shell: pwsh
+        run: |
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-restore -- --dll-compatibility-qa
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: RDP policy registry and privacy-safe history regression (read-only)
         shell: pwsh
         run: |
@@ -100,6 +113,15 @@ jobs:
           $reportFile = Join-Path $PWD 'scan-smoke.txt'
           [System.IO.File]::WriteAllBytes($inputFile, [byte[]](0x39,0x81,0x3C,0x06,0x00,0x00,0x0F,0x84,0x6F,0x66,0x01,0x00))
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $product = (Get-Item $exe).VersionInfo.ProductVersion
+          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+            throw "Published EXE ProductVersion cannot identify the original Apply version: '$product'."
+          }
+          $sourceVersion = ($product -split '\+')[0]
+          if ($sourceVersion -ne (Get-Content VERSION -Raw).Trim()) {
+            throw "EXE ProductVersion mismatch: '$sourceVersion'."
+          }
+          Write-Host "PASS: checked EXE ProductVersion $sourceVersion for protected report recovery."
           $arguments = '--inspect-file "{0}" --report "{1}"' -f $inputFile, $reportFile
           $process = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }

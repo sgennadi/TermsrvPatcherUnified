@@ -14,6 +14,7 @@ namespace TermsrvPatcherUnified;
 public partial class QuickApplyWindow : Window
 {
     private PatchPlan? plan;
+    private PatchPlan? completedAppliedPlan;
     private AutomaticRevertPlan? revertPlan;
     private readonly DispatcherTimer statusTimer;
     private bool checking;
@@ -22,6 +23,9 @@ public partial class QuickApplyWindow : Window
     private bool autoTaskLoading;
     private bool autoTaskChanging;
     private string? promptedJobId;
+    private bool reportDialogOpen;
+    private bool reportRecoveryInProgress;
+    private string? unverifiedReportJobId;
     private bool autoUpdateLoading;
     private bool autoUpdateChanging;
     private readonly UpdateIntegration updates = new();
@@ -30,6 +34,8 @@ public partial class QuickApplyWindow : Window
     public QuickApplyWindow()
     {
         InitializeComponent();
+        Title = "TermsrvPatcherUnified " + UpdateIntegration.Version;
+        QuickVersionText.Text = UpdateIntegration.Version + "   •   Remote Desktop maintenance";
         autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,
             () => IsActive && !checking && !queued && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
@@ -211,18 +217,20 @@ public partial class QuickApplyWindow : Window
                         throw new InvalidOperationException("DLL changed since check. Run Check again.");
                     engine.Apply(fresh, createBackup: createFullBackup);
                 });
+                completedAppliedPlan = approvedPlan;
                 plan = null;
                 QuickStatusText.Text = "Apply completed and verified";
                 QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
                 QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
                 QuickShareReportButton.Visibility = Visibility.Visible;
                 QuickCancelButton.Content = "Close";
-                Dispatcher.BeginInvoke(new Action(OfferReportAfterSuccessfulApply));
+                Dispatcher.BeginInvoke(new Action(() => OfferReportAfterSuccessfulApply()));
                 return;
             }
 
             QuickStatusText.Text = "Starting the protected SYSTEM task...";
             string id = await Task.Run(() => IsolatedApplyExecutor.Queue(plan, createFullBackup));
+            completedAppliedPlan = null; // Only SYSTEM's persisted verified result can authorize a report.
             activeJobId = id;
             queued = true;
             QuickStatusText.Text = "Queued independently of RDP";
@@ -375,15 +383,24 @@ public partial class QuickApplyWindow : Window
 
     private void RefreshJobStatus()
     {
-        if (checking) return;
+        if (checking || reportDialogOpen) return;
         var status = IsolatedApplyExecutor.ReadLatestStatus();
+        if (activeJobId is null && completedAppliedPlan is not null && !queued)
+            return; // Preserve local console Apply's report option.
         if (status is null || activeJobId is not null &&
             !status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase)) return;
-        // Only a persistent terminal record authorizes claiming success.
+
         bool isRevert = status.Details.Contains("Revert", StringComparison.OrdinalIgnoreCase);
-        // This is an audit/status record, not proof of current DLL health.
-        // Reopening the GUI after RDP logoff still displays the most recent
-        // SYSTEM worker result, even when no in-memory queued flag survives.
+        // A durable SYSTEM status is not sufficient on its own; the report
+        // validator checks request identity, original SHA and CURRENT DLL SHA.
+        bool verifiedOfferCandidate = status.State == "Succeeded" &&
+            !isRevert &&
+            !string.Equals(unverifiedReportJobId, status.Id,
+                StringComparison.OrdinalIgnoreCase) &&
+            !IsolatedApplyExecutor.WasReportDelivered(status.Id);
+        // A Preview.3 one-shot task can have Report=null when WinBuild
+        // was present in the DLL resource version. The protected recovery
+        // journal is re-verified in the background before showing a report.
         QuickLastJobText.Text = status.State is
             ("Queued" or "Running" or "Succeeded" or "AlreadyPatched" or
              "Failed" or "Unconfirmed")
@@ -395,8 +412,9 @@ public partial class QuickApplyWindow : Window
             : status.State == "Failed"
                 ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
                 : new SolidColorBrush(Color.FromRgb(100, 116, 139));
-        QuickShareReportButton.Visibility = status.State == "Succeeded" && !isRevert
+        QuickShareReportButton.Visibility = verifiedOfferCandidate
             ? Visibility.Visible : Visibility.Collapsed;
+
         if (status.State is "Queued" or "Running")
         {
             queued = true;
@@ -408,62 +426,135 @@ public partial class QuickApplyWindow : Window
             QuickStatusText.Text = status.State == "Running"
                 ? (isRevert ? "SYSTEM Revert is running" : "SYSTEM Apply is running")
                 : (isRevert ? "Revert queued" : "Apply queued");
-            QuickHelpText.Text = "You may disconnect RDP. Reopen the application to see the final result.";
+            QuickHelpText.Text =
+                "You may disconnect RDP. Reopen the application to see the final result.";
             return;
         }
-        if (!queued) return;
-        queued = false;
-        QuickCheckButton.IsEnabled = true;
-        QuickNoBackupCheck.IsEnabled = true;
-        QuickStatusText.Text = status.State switch
+
+        if (queued)
         {
-            "Succeeded" => isRevert ? "Revert completed and verified" : "Apply completed and verified",
-            "AlreadyPatched" => "Already patched",
-            "Failed" => isRevert ? "Revert failed" : "Apply failed",
-            _ => "Check job status in Advanced"
-        };
-        QuickHelpText.Text = status.State == "Failed"
-            ? "Local failure type: " + status.Details + ". Check operations.log and RDP health."
-            : status.Details;
-        QuickStatusText.Foreground = status.State == "Succeeded"
-            ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
-            : status.State == "Failed"
-                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
-        QuickCancelButton.Content = "Close";
-        if (status.State == "Succeeded" && !isRevert &&
-            activeJobId is not null &&
-            status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase) &&
+            queued = false;
+            QuickCheckButton.IsEnabled = true;
+            QuickNoBackupCheck.IsEnabled = true;
+            QuickStatusText.Text = status.State switch
+            {
+                "Succeeded" => isRevert ? "Revert completed and verified" :
+                    "Apply completed and verified",
+                "AlreadyPatched" => "Already patched",
+                "Failed" => isRevert ? "Revert failed" : "Apply failed",
+                _ => "Check job status in Advanced"
+            };
+            QuickHelpText.Text = status.State == "Failed"
+                ? "Local failure type: " + status.Details +
+                  ". Check operations.log and RDP health."
+                : status.Details;
+            QuickStatusText.Foreground = status.State == "Succeeded"
+                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+                : status.State == "Failed"
+                    ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
+                    : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            QuickCancelButton.Content = "Close";
+        }
+
+        // This also runs on startup AFTER reconnect, when the in-memory plan
+        // and activeJobId were lost. The SYSTEM worker persists exact metadata.
+        if (verifiedOfferCandidate &&
             !string.Equals(promptedJobId, status.Id, StringComparison.OrdinalIgnoreCase))
         {
-            promptedJobId = status.Id;
-            Dispatcher.BeginInvoke(new Action(OfferReportAfterSuccessfulApply));
+            promptedJobId = status.Id; // Do not show repeatedly during polling.
+            Dispatcher.BeginInvoke(new Action(() =>
+                OfferReportAfterSuccessfulApply()));
         }
     }
 
-    private void OfferReportAfterSuccessfulApply()
+    private async void OfferReportAfterSuccessfulApply(bool userRequested = false)
     {
-        if (!IsLoaded) return;
-        if (ModernMessageDialog.Show(this,
-                "The operation completed successfully. Would you like to share " +
-                "a short compatibility report to help improve future versions?\n\n" +
-                "You will see the information before sending. No passwords, " +
-                "computer name or DLL file will be shared.",
-                "Share compatibility information?", MessageBoxButton.YesNo,
-                MessageBoxImage.Information, MessageBoxResult.No) == MessageBoxResult.Yes)
-            OpenSuccessfulReport();
-    }
+        if (!IsLoaded || reportDialogOpen || reportRecoveryInProgress) return;
+        reportRecoveryInProgress = true;
+        try
+        {
+            // Console Apply keeps a local verified plan. Never infer a
+            // successful Apply from a recheck that merely says AlreadyPatched.
+            if (activeJobId is null && completedAppliedPlan is
+                { State: PatchState.Ready, PatchedBytes: not null } completedPlan)
+            {
+                using var engine = new TermsrvEngine(null);
+                var os = engine.EnvironmentInfo();
+                string actualHash = await Task.Run(() =>
+                    SystemInfo.Sha256(File.ReadAllBytes(os.DllPath)));
+                if (!string.Equals(actualHash,
+                        SystemInfo.Sha256(completedPlan.PatchedBytes),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    QuickHelpText.Text = "DLL changed since Apply; report unavailable.";
+                    QuickShareReportButton.Visibility = Visibility.Collapsed;
+                    return;
+                }
+                reportDialogOpen = true;
+                try
+                {
+                    var metadata = SuccessfulFixMetadata.FromSuccessfulApply(os, completedPlan);
+                    if (new SuccessfulFixWindow(metadata) { Owner = this }.ShowDialog() == true)
+                        QuickShareReportButton.Visibility = Visibility.Collapsed;
+                    _ = RefreshAutoReapplyAsync();
+                }
+                finally { reportDialogOpen = false; }
+                return;
+            }
 
-    private void OpenSuccessfulReport()
-    {
-        new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
-            "Protected Apply", "VerifiedSuccess", "SUCCESS",
-            "Protected Apply completed and verified."))
-        { Owner = this }.ShowDialog();
+            // For RDP, even a new GUI process can reconstruct the report
+            // from the protected, uniquely identified completed SYSTEM job.
+            var status = IsolatedApplyExecutor.ReadLatestStatus();
+            if (status?.State != "Succeeded" ||
+                IsolatedApplyExecutor.WasReportDelivered(status.Id) ||
+                activeJobId is not null &&
+                    !string.Equals(status.Id, activeJobId, StringComparison.OrdinalIgnoreCase))
+                return;
+            var recovered = await Task.Run(() =>
+            {
+                bool valid = IsolatedApplyExecutor.TryReadVerifiedReport(status,
+                    out var metadata);
+                return (valid, metadata);
+            });
+            if (!IsLoaded || reportDialogOpen) return;
+            if (!recovered.valid || recovered.metadata is null)
+            {
+                unverifiedReportJobId = status.Id;
+                QuickHelpText.Text =
+                    "The protected Apply succeeded, but a compatibility report " +
+                    "cannot be reconstructed safely from this job and the current DLL. " +
+                    "No data was sent. Check Advanced diagnostics.";
+                QuickShareReportButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+            if (!userRequested && !IsolatedApplyExecutor.TryClaimReportOffer(status.Id))
+                return; // Another GUI already displayed the one-time offer.
+            reportDialogOpen = true;
+            try
+            {
+                bool sent = new SuccessfulFixWindow(recovered.metadata)
+                    { Owner = this }.ShowDialog() == true;
+                if (sent)
+                {
+                    IsolatedApplyExecutor.TryMarkReportDelivered(status.Id);
+                    QuickShareReportButton.Visibility = Visibility.Collapsed;
+                }
+                _ = RefreshAutoReapplyAsync();
+            }
+            finally { reportDialogOpen = false; }
+        }
+        catch (Exception ex)
+        {
+            AuditLog.Append("Unified completed-Apply report unavailable: " +
+                            ex.GetType().Name);
+            QuickHelpText.Text = "Could not prepare the combined report. " +
+                                 "No information was uploaded automatically.";
+        }
+        finally { reportRecoveryInProgress = false; }
     }
 
     private void ShareReport_Click(object sender, RoutedEventArgs e)
-        => OpenSuccessfulReport();
+        => OfferReportAfterSuccessfulApply(userRequested: true);
 
     private async void Check_Click(object sender, RoutedEventArgs e) => await CheckAsync();
 
@@ -478,15 +569,42 @@ public partial class QuickApplyWindow : Window
             QuickAutoReapplyCheck.IsChecked = state.Installed && state.Trusted && state.Enabled;
             QuickAutoReapplyCheck.IsEnabled = !checking && !queued &&
                 (!state.Installed || state.Trusted);
+            bool autoReportApproved = AutoCompatibilityReporting.IsEnabled(
+                DirectReportingSettings.Load().GoogleAppsScriptUrl);
             QuickAutoReapplyStatus.Text = state.Message +
                 (state.Installed && !state.Trusted && !state.Repairable
-                    ? " Open Task Scheduler for manual review." : "");
+                    ? " Open Task Scheduler for manual review." : "") +
+                (autoReportApproved
+                    ? " Silent unified reports: consent ON."
+                    : " Silent unified reports: OFF.");
+            QuickRevokeAutoReportsButton.Visibility = autoReportApproved
+                ? Visibility.Visible : Visibility.Collapsed;
+            QuickRevokeAutoReportsButton.IsEnabled =
+                autoReportApproved && SystemInfo.IsAdministrator() && !queued;
             QuickRepairTaskButton.Visibility = state.Repairable
                 ? Visibility.Visible : Visibility.Collapsed;
             QuickRepairTaskButton.IsEnabled = state.Repairable && !checking && !queued &&
                 SystemInfo.IsAdministrator() && !autoTaskChanging;
         }
         finally { autoTaskLoading = false; }
+    }
+
+    private async void RevokeAutoReports_Click(object sender, RoutedEventArgs e)
+    {
+        if (checking || queued || !SystemInfo.IsAdministrator()) return;
+        if (ModernMessageDialog.Show(this,
+                "Stop all future silent diagnostic and compatibility reports? " +
+                "Auto Reapply stays enabled. No DLL or backups are changed.",
+                "Disable automatic reports", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        try { await Task.Run(AutoCompatibilityReporting.Revoke); }
+        catch (Exception ex)
+        {
+            QuickAutoReapplyStatus.Text = "Cannot revoke automatic reporting (" +
+                ex.GetType().Name + ").";
+        }
+        await RefreshAutoReapplyAsync();
     }
 
     private async void RepairAutoReapply_Click(object sender, RoutedEventArgs e)

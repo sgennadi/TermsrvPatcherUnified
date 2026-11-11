@@ -112,8 +112,8 @@ project = (ROOT / "TermsrvPatcher.Unified.csproj").read_text(encoding="utf-8")
 main = (ROOT / "MainWindow.xaml").read_text(encoding="utf-8")
 readme = (ROOT / "README.md").read_text(encoding="utf-8")
 release_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-check(bool(re.fullmatch(r"(?:0\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*|1\.[0-9]+\.[0-9]+)", release_version)),
-      "VERSION is an explicit Preview 0.x or Stable 1.x release identifier")
+check(bool(re.fullmatch(r"(?:[0-9]+\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*|1\.[0-9]+\.[0-9]+)", release_version)),
+      "VERSION is a semantic version (Preview or Stable 1.x)")
 for document in (project, main, readme):
     check(release_version in document, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
@@ -202,6 +202,15 @@ packager = (ROOT / 'scripts/package_preview.ps1').read_text(encoding="utf-8")
 workflow = (ROOT / '.github/workflows/windows-ci.yml').read_text(encoding="utf-8")
 release = (ROOT / '.github/workflows/release-preview.yml').read_text(encoding="utf-8")
 example = (ROOT / 'Example.txt').read_text(encoding="utf-8")
+# Exercise the publisher's actual version gate to catch silent Preview skips.
+preview_gate = re.search(r"if \(\$version -notmatch '([^']+)'\)", release).group(1)
+for candidate in ("0.1.0-preview.28", "1.0.5-preview.1", "1.12.3-preview.42"):
+    check(bool(re.fullmatch(preview_gate, candidate)), "Preview publisher accepts " + candidate)
+for candidate in ("1.0.4", "1.0.5", "1.0.5-rc.1", "1.0.5-preview.0",
+                  "1.0.5-preview.01", "1.0.5-preview.1extra", "v1.0.5-preview.1"):
+    check(not re.fullmatch(preview_gate, candidate), "Preview publisher rejects " + candidate)
+check("--prerelease --latest=false" in release, "Preview cannot replace the latest Stable release")
+
 check(all(p in packager for p in ('Example.txt', 'LICENSE', 'NOTICE.md',
       'licenses/NSudo-MIT.txt', 'licenses/fabianosrc-MIT.txt')),
       "portable Example.txt includes complete GPLv3, notices and MIT texts")
@@ -280,7 +289,15 @@ print("PASS: self-update integration source guards.")
 
 check((ROOT / "scripts/record_successful_fix.py").exists(), "version-only compatibility CSV aggregation script exists")
 check("SuccessfulFixMetadata.FromSuccessfulApply" in (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8"), "compatibility report is offered after successful protected apply")
-check("SuccessfulFixPublisher" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8"), "user-confirmed GitHub Issues compatibility reporting is wired")
+check("SendCompatibilityAsync" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8") and
+      "CompatibilityRelaySubmission.Create" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8") and
+      "ModernConfirmDialog.Ask" in (ROOT / "SuccessfulFixWindow.xaml.cs").read_text(encoding="utf-8") and
+      "TokenInput" not in (ROOT / "SuccessfulFixWindow.xaml").read_text(encoding="utf-8"),
+      "optional successful/ offline compatibility reports require review and no end-user GitHub token")
+check("parseCompatibilityBody_" in (ROOT / "integrations/google-apps-script/Code.gs").read_text(encoding="utf-8") and
+      "publishCompatibility_" in (ROOT / "integrations/google-apps-script/Code.gs").read_text(encoding="utf-8") and
+      "scripts/test_google_gateway.cjs" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"),
+      "Google Issue #1 compatibility gateway is schema-gated and tested without network requests")
 check("issue_comment" in (ROOT / ".github/workflows/compatibility-report.yml").read_text(encoding="utf-8"), "GitHub event handler updates compatibility CSV")
 check((ROOT / "data/successful-fixes.csv").exists(), "compatibility CSV exists")
 check("original_sha256,patched_sha256,edits" in (ROOT / "data/successful-fixes.csv").read_text(encoding="utf-8"), "CSV contains v2 hashes and edits")

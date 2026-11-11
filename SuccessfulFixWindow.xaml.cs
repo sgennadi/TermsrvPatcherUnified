@@ -1,3 +1,5 @@
+using System.Net.Http;
+using System.Text.Json;
 using System.Windows;
 using TermsrvPatcherUnified.Core;
 
@@ -5,109 +7,227 @@ namespace TermsrvPatcherUnified;
 
 public partial class SuccessfulFixWindow : Window
 {
-    private readonly SuccessfulFixMetadata? metadata;
-    private readonly OfflineFixMetadata? offlineMetadata;
+    private readonly CompatibilityRelaySubmission submission;
+    private readonly UnifiedApplyReport? unified;
+    private readonly DirectReportingSettings settings;
+    private readonly bool initialAutoConsent;
+    private Uri? diagnosticsReceipt;
+    private Uri? compatibilityReceipt;
     private bool sending;
 
     internal SuccessfulFixWindow(SuccessfulFixMetadata metadata)
     {
         InitializeComponent();
-        this.metadata = metadata;
-        Preview.Text = metadata.AsComment();
-        Closed += (_, _) => TokenInput.Clear();
+        unified = new UnifiedApplyReport(metadata);
+        submission = unified.Compatibility;
+        settings = DirectReportingSettings.Load();
+        Title = "Unified Apply report - " + UpdateIntegration.Version;
+        Preview.Text = unified.ReviewedText;
+        ReportHeading.Text = "Apply completed - unified report";
+        ReportExplanation.Text =
+            "One review and one confirmation for Windows/DLL diagnostics and the " +
+            "self-reported compatibility result. Google publishes a diagnostic Issue " +
+            "and a separate Issue #1 compatibility comment. Both remain UNVERIFIED: " +
+            "successful patching is not proof that an external RDP connection works.";
+        AutoSendConsentCheck.Visibility = Visibility.Visible;
+        initialAutoConsent = AutoCompatibilityReporting.IsEnabled(
+            settings.GoogleAppsScriptUrl);
+        AutoSendConsentCheck.IsChecked = initialAutoConsent;
+        AutoSendConsentCheck.IsEnabled = settings.HasGoogleScript;
+        AutoConsentNote.Visibility = Visibility.Visible;
+        InitializeAvailability();
     }
 
     internal SuccessfulFixWindow(OfflineFixMetadata report)
     {
         InitializeComponent();
-        offlineMetadata = report;
-        Preview.Text = report.AsComment();
+        submission = CompatibilityRelaySubmission.Create(report);
+        settings = DirectReportingSettings.Load();
+        Preview.Text = submission.Json;
         ReportHeading.Text = "Offline DLL copy saved";
         ReportHeading.Foreground = new System.Windows.Media.SolidColorBrush(
             System.Windows.Media.Color.FromRgb(11, 46, 90));
-        SimpleReportBox.Visibility = Visibility.Collapsed; // Offline patch is not verified live success.
-        ReportExplanation.Text = "The file was patched OFFLINE, not installed or tested for RDP functionality. " +
-            "The metadata below includes CRC32, SHA-256, DLL version, architecture and edited bytes. " +
-            "This report is PUBLIC if you choose Send; Skip sends nothing. No source DLL, paths, " +
-            "hostnames, usernames or tokens are included.";
-        Title = "Offline DLL report — " + UpdateIntegration.Version;
-        Closed += (_, _) => TokenInput.Clear();
+        ReportExplanation.Text =
+            "This DLL was changed OFFLINE and was not installed or tested in Remote Desktop. " +
+            "Only the offline compatibility observation is shared. It is UNVERIFIED. " +
+            "There is no consent option for unattended reports from offline copies.";
+        Title = "Offline DLL report - " + UpdateIntegration.Version;
+        InitializeAvailability();
     }
 
-    private void SimpleReport_Click(object sender, RoutedEventArgs e)
+    private void RefreshRemainingDeliveryUi()
     {
-        if (offlineMetadata is not null || sending) return;
-        // This only opens a prefilled dialog. Google reporting still requires a
-        // separate explicit confirmation with the exact outgoing JSON.
-        try
+        bool retryCompatibilityOnly = unified is not null &&
+            diagnosticsReceipt is not null && compatibilityReceipt is null;
+        SendButton.Content = retryCompatibilityOnly
+            ? "Retry DLL compatibility only" : "Review and send";
+        if (retryCompatibilityOnly)
         {
-            new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
-                "Manual Apply", "VerifiedSuccess", "SUCCESS",
-                "The protected patch completed and was verified."))
-            { Owner = this }.ShowDialog();
+            // The review must show only what the next POST can actually publish.
+            Preview.Text = submission.Json;
+            ReportExplanation.Text =
+                "General diagnostics were already confirmed by GitHub (" +
+                diagnosticsReceipt!.AbsoluteUri +
+                "). They will NOT be uploaded again from this window. " +
+                "Only the remaining DLL compatibility comment to Issue #1 will be sent " +
+                "after your confirmation. The evidence remains UNVERIFIED.";
         }
-        catch (Exception ex)
-        {
-            DiagnosticsBridge.Remember("Optional compatibility report", ex);
-            Status.Text = "The reporting window could not open. The completed patch is unchanged.";
-        }
+    }
+
+    private void InitializeAvailability()
+    {
+        Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
+        SendButton.IsEnabled = settings.HasGoogleScript;
+        Status.Text = settings.HasGoogleScript
+            ? "Preview only. No report sent. One review and confirmation are required."
+            : "The Google reporting receiver is not configured. Sending is disabled.";
     }
 
     private async void Send_Click(object sender, RoutedEventArgs e)
     {
-        if (sending) return;
-        var token = TokenInput.Password;
-        TokenInput.Clear();
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            Status.Text = "Enter a temporary GitHub Issues write token or choose Skip.";
-            return;
-        }
-        if (ModernMessageDialog.Show(this,
-            offlineMetadata is null
-                ? "Send the displayed Windows versions, SHA-256 and changed byte ranges to " +
-                  "the PUBLIC GitHub compatibility issue? The token is used only for this request."
-                : "Send the OFFLINE file's architecture, DLL version, original and patched " +
-                  "CRC32/SHA-256 and changed bytes to PUBLIC GitHub? This does NOT confirm " +
-                  "the file will work in Windows. The token is not stored.",
-            "Confirm public version report", MessageBoxButton.YesNo,
-            MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
-            return;
-
+        if (sending || !settings.HasGoogleScript) return;
         sending = true;
         SendButton.IsEnabled = false;
         SkipButton.IsEnabled = false;
-        Status.Text = "Sending reviewed compatibility data (hashes and changed bytes)...";
+        bool futureAutoReports = unified is not null &&
+            AutoSendConsentCheck.IsChecked == true;
+        bool revokeAutoReports = unified is not null &&
+            initialAutoConsent && !futureAutoReports;
+        bool retryCompatibilityOnly = unified is not null &&
+            diagnosticsReceipt is not null && compatibilityReceipt is null;
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
-            using var reporter = new SuccessfulFixPublisher();
-            if (offlineMetadata is not null)
-                await reporter.PublishAsync(offlineMetadata, token, cts.Token);
-            else
-                await reporter.PublishAsync(metadata!, token, cts.Token);
-            AuditLog.Append(offlineMetadata is null
-                ? "Successful fix compatibility metadata was submitted to GitHub Issues."
-                : "Offline DLL compatibility metadata was submitted to GitHub Issues.");
-            Status.Text = "GitHub accepted the report. Repository aggregation is separate.";
-            ModernMessageDialog.Show(this, Status.Text, "Compatibility report", MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            string futureNotice = unified is null
+                ? "Offline reports never enable unattended sending."
+                : futureAutoReports
+                    ? "You also grant machine-wide permission for future SUCCESSFUL " +
+                      "post-Windows-Update Auto Reapply runs to send both typed " +
+                      "report sections silently. No routine errors or raw logs are sent. " +
+                      "You can revoke this later in Simple or Advanced."
+                    : revokeAutoReports
+                        ? "Existing permission for future unattended reports will be " +
+                          "REVOKED after this manual report is confirmed."
+                        : "Unattended reporting is NOT being enabled by this approval.";
+            if (!ModernConfirmDialog.Ask(this,
+                    unified is null ? "Share offline DLL observation?"
+                                    : retryCompatibilityOnly
+                                        ? "Send remaining DLL compatibility?"
+                                        : "Share combined Apply report?",
+                    "The exact public metadata appears below. Reports are self-reported; " +
+                    "no remote RDP connectivity was tested.",
+                    "Google Apps Script -> public GitHub Issues\n" +
+                    settings.GoogleAppsScriptUrl,
+                    Preview.Text,
+                    "Send report",
+                    "A single confirmation sends " +
+                    (unified is null ? "one compatibility comment." :
+                        retryCompatibilityOnly
+                            ? "ONLY the remaining compatibility comment. The previous " +
+                              "diagnostic Issue will NOT be sent again."
+                            : "two distinct public records (diagnostic Issue + compatibility comment). ") +
+                    " Google may process your IP address. No DLL file, credentials, " +
+                    "computer name or account identifiers are included. " + futureNotice,
+                    diagnosticReport: true))
+            {
+                Status.Text = diagnosticsReceipt is null
+                    ? "Cancelled. No new report was sent."
+                    : "Cancelled. The previously confirmed diagnostic Issue remains " +
+                      "published; DLL compatibility has not been confirmed.";
+                return;
+            }
+
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            using var client = new GoogleAppsScriptReportClient();
+            if (unified is not null && diagnosticsReceipt is null)
+            {
+                diagnosticsReceipt = await client.SendAsync(
+                    settings.GoogleAppsScriptUrl, unified.DiagnosticJson,
+                    unified.Diagnostics, timeout.Token);
+                Status.Text = "General diagnostics confirmed by GitHub. Sending DLL compatibility...";
+                RefreshRemainingDeliveryUi();
+            }
+            if (compatibilityReceipt is null)
+                compatibilityReceipt = await client.SendCompatibilityAsync(
+                    settings.GoogleAppsScriptUrl, submission.Json, submission, timeout.Token);
+
+            string consentStatus = "";
+            if (futureAutoReports)
+            {
+                try
+                {
+                    AutoCompatibilityReporting.EnableAfterConfirmedReport(
+                        settings.GoogleAppsScriptUrl);
+                    consentStatus = "\nFuture verified Auto Reapply unified reports: ON (silent).";
+                    AuditLog.Append("Administrator approved protected silent Auto Reapply compatibility reporting.");
+                }
+                catch (Exception ex)
+                {
+                    consentStatus = "\nFuture automatic reporting was NOT enabled (" +
+                        ex.GetType().Name + ").";
+                    AuditLog.Append("Auto compatibility consent could not be saved: " +
+                                    ex.GetType().Name);
+                }
+            }
+            if (revokeAutoReports)
+            {
+                try
+                {
+                    AutoCompatibilityReporting.Revoke();
+                    consentStatus = "\nFuture automatic reports: OFF (permission revoked).";
+                }
+                catch (Exception ex)
+                {
+                    consentStatus = "\nAutomatic report permission could NOT be revoked (" +
+                        ex.GetType().Name + "). Use Stop automatic reports.";
+                    AuditLog.Append("Automatic reporting revocation failed: " +
+                                    ex.GetType().Name);
+                }
+            }
+            Status.Text = "Confirmed public report: " + compatibilityReceipt.AbsoluteUri +
+                (diagnosticsReceipt is null ? "" :
+                    "\nGeneral diagnostics: " + diagnosticsReceipt.AbsoluteUri) +
+                consentStatus + "\nThis does not certify external RDP connectivity.";
+            if (!UnifiedReportDeliveryState.IsComplete(
+                    unified is not null, diagnosticsReceipt, compatibilityReceipt))
+                throw new InvalidOperationException(
+                    "Both required GitHub receipts have not been confirmed.");
+            AuditLog.Append("Explicit unified/compatibility Google report confirmed by GitHub.");
+            // For ShowDialog(), setting DialogResult closes the WPF window.
+            // Do not call Close() a second time after the modal has closed.
             DialogResult = true;
-            Close();
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is HttpRequestException or InvalidDataException or
+                                   InvalidOperationException or OperationCanceledException or
+                                   JsonException or ArgumentException or IOException)
         {
             DiagnosticsBridge.Remember("Compatibility reporting", ex);
-            Status.Text = "Report not confirmed (" + ex.GetType().Name +
-                "). The successful local fix remains unchanged.";
+            RefreshRemainingDeliveryUi();
+            string details = ex switch
+            {
+                InvalidOperationException or InvalidDataException or ArgumentException
+                    => ex.Message,
+                OperationCanceledException => "The reporting request timed out; " +
+                    "the result may be uncertain.",
+                HttpRequestException => "Network or HTTPS request failed; " +
+                    "the compatibility delivery was not confirmed.",
+                _ => "The receiver did not confirm the remaining report."
+            };
+            Status.Text = "Delivery NOT fully confirmed. " +
+                (diagnosticsReceipt is null ? "" :
+                    "General diagnostics WERE delivered: " +
+                    diagnosticsReceipt.AbsoluteUri + ". ") +
+                "DLL compatibility: " + details + " " +
+                (diagnosticsReceipt is null
+                    ? "Check GitHub Issues before retrying."
+                    : "Use 'Retry DLL compatibility only' to avoid another diagnostic Issue.") +
+                " The DLL operation is unchanged; no new automatic consent was granted.";
         }
         finally
         {
-            token = string.Empty;
             sending = false;
             if (IsLoaded)
             {
-                SendButton.IsEnabled = true;
+                SendButton.IsEnabled = settings.HasGoogleScript;
                 SkipButton.IsEnabled = true;
             }
         }
@@ -115,7 +235,20 @@ public partial class SuccessfulFixWindow : Window
 
     private void Skip_Click(object sender, RoutedEventArgs e)
     {
+        // ShowDialog() closes as soon as DialogResult is set.
         DialogResult = false;
-        Close();
     }
+}
+
+/// <summary>
+/// Only two independently verified receipts can close a unified report.
+/// The diagnostic Issue alone must never count as a completed upload.
+/// </summary>
+internal static class UnifiedReportDeliveryState
+{
+    internal static bool IsComplete(bool unified, Uri? diagnostics, Uri? compatibility) =>
+        compatibility is not null && (!unified || diagnostics is not null);
+
+    internal static bool RetryCompatibilityOnly(bool unified, Uri? diagnostics,
+        Uri? compatibility) => unified && diagnostics is not null && compatibility is null;
 }

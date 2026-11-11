@@ -18,7 +18,7 @@ jobs:
       github.event_name == 'issue_comment' &&
       github.event.issue.number == 1 &&
       github.event.comment.user.type != 'Bot'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       issues: read
@@ -28,6 +28,10 @@ jobs:
           ref: main
           fetch-depth: 0
           persist-credentials: true
+      - name: Validate strict compatibility aggregation (synthetic inputs)
+        run: |
+          python3 scripts/record_successful_fix.py --self-test
+          python3 scripts/record_offline_fix.py --self-test
       - name: Validate system-fix and offline-generated DLL events
         run: |
           python3 scripts/record_successful_fix.py "$GITHUB_EVENT_PATH" data/successful-fixes.csv

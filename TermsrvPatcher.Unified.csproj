@@ -9,7 +9,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>TermsrvPatcherUnified</AssemblyName>
     <RootNamespace>TermsrvPatcherUnified</RootNamespace>
-    <Version>1.0.4</Version>
+    <Version>1.0.5-preview.5</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64</Platforms>
     <PlatformTarget>x64</PlatformTarget>
@@ -25,6 +25,8 @@
   </Target>
   <ItemGroup>
     <EmbeddedResource Include="Patterns/AutomaticPatterns.txt" LogicalName="TermsrvPatcherUnified.Patterns.AutomaticPatterns.txt" />
+    <EmbeddedResource Include="data/diagnostic-observations.csv" LogicalName="TermsrvPatcherUnified.Data.DiagnosticObservations.csv" />
+    <EmbeddedResource Include="data/successful-fixes.csv" LogicalName="TermsrvPatcherUnified.Data.SuccessfulFixes.csv" />
     <EmbeddedResource Include=".build/reporting.json" LogicalName="TermsrvPatcherUnified.ReportingProviders" Condition="Exists('.build/reporting.json')" />
     <!-- Local builds also preconfigure the operator-provided public Google reporting URL. -->
     <EmbeddedResource Include="config/reporting-defaults.json" LogicalName="TermsrvPatcherUnified.ReportingProviders" Condition="!Exists('.build/reporting.json')" />

@@ -1,6 +1,47 @@
 # Changelog
 
-## 1.0.4 — RDP Doctor (candidate; not yet published)
+## 1.0.5-preview.5 — candidate (not yet published)
+
+- **Confirmed delivery closes the window:** Unified Apply closes automatically only after both the general diagnostic Issue and DLL compatibility comment have individually valid GitHub receipts; offline reports close after their sole validated comment. Failed, rejected or timed-out deliveries remain visible and never enable unattended reporting.
+- **Partial success is recoverable in the current window:** If diagnostics were already accepted but compatibility failed, show **Retry DLL compatibility only**, replace the read-only preview with just the remaining payload, and require a new explicit confirmation. Do not create a duplicate diagnostic Issue.
+- **Actionable receiver errors:** Display the actual safe Google error explanation, distinguishing an outdated/incompatible deployment from GitHub Issue #1 comment authorization or temporary failures.
+- **Read-only receiver health:** Google Apps Script GET now advertises `gateway_schema_version: 2` and both accepted schemas. A previously deployed Apps Script URL must be redeployed with the updated code by its owner to expose this marker; updating the Windows EXE alone cannot update Google's hosted script.
+- **Release verification:** Synthetic failure/retry/dedup tests and Windows/UI/packaging CI; no live public report or protected system DLL modification is performed by CI.
+
+## 1.0.5-preview.4 — candidate (not yet published)
+
+- **WinBuild version fix:** compatibility reports now normalize legitimate `(WinBuild.x.y)` suffixes in Windows DLL version resources without changing the raw version used by protected backups and recovery journals.
+- **Recover previously completed Apply:** a reconnected GUI can reconstruct missing Preview.3 report metadata solely from a completed one-shot SYSTEM request, the exact installed DLL checksum, the protected DPAPI recovery journal, verified byte changes and source EXE ProductVersion. No DLL write, service restart or Apply rerun.
+- **Consent flow:** Simple and Advanced offer the verified report once and retain manual Share after dismissal. Automatic post-Windows-Update jobs remain silent and require prior machine-wide consent.
+- **Safety QA:** synthetic regression covers WinBuild text, staged application versions, valid recovery, stale/mismatched job IDs, altered bytes and wrong signatures; public reports remain unverified until assessed.
+
+## 1.0.5-preview.3 — candidate (not yet published)
+
+- **Report after RDP reconnect:** a successful independently executed SYSTEM Apply persists validated Windows/DLL metadata in its private job status. On reopening Simple or Advanced, the UI compares job ID, original and patched SHA-256, DLL version, verified result and the current installed DLL checksum before offering the Unified Apply report once; manual Share remains available after skipping it.
+- **No false success:** skipped, failed, AlreadyPatched and legacy status records without verification do not trigger report offers. Windows Update Auto Reapply remains silent and only sends with the prior protected opt-in.
+- **Auto-close:** the Diagnostics window closes immediately after GitHub confirms the report. Unconfirmed delivery and cancelled sends leave it open. Unified Apply no longer requires a separate success-message dismissal.
+- **Validation:** Windows CI and WPF synthetic/report policy tests are required before Preview publication. No real RDP disconnection or protected system DLL write is claimed.
+
+## 1.0.5 — in development (not published)
+
+- **Unified Apply report:** one reviewed window shows Windows/DLL diagnostic metadata and separate exact DLL compatibility evidence. The confirmed send submits two strictly typed public GitHub records, preserving their distinct trust levels.
+- **Silent Auto Reapply reporting (opt-in):** unchecked-by-default permission after first confirmed combined report allows successful verified post-Windows-Update SYSTEM work to send both sections without prompts. Failures, rechecks and offline DLL copies do not send. Revoke from Simple or Advanced; no upload without prior approval.
+
+- **Token-free compatibility reporting (candidate):** after successful local console Apply, or saving an offline DLL copy, show the exact structured report and require explicit confirmation before sending to the existing Google gateway. No end-user GitHub token; future silent Auto Reapply reports require the separate opt-in described above.
+- **Separate report classes:** `termsrv-success/v2` self-reported system Apply and `termsrv-offline/v1` offline observations post as strictly validated comments to public GitHub Issue #1. Existing `issue_comment` workflow aggregates into separate CSVs. Reports are UNVERIFIED, not connectivity tests or DLL write authorization.
+- **Gateway hardening:** exact JSON field allowlist, byte-edit range parsing, SHA-256/CRC32 validation, 30 compatibility comments per UTC day, event-id cache, strict GitHub response receipt. Anonymous diagnostic Issue reporting remains backward-compatible.
+- **Deployment limitation:** owner must redeploy the updated Apps Script as a new version for the already configured URL; repository/EXE updates do not change Google-hosted code. Windows and mock-server CI do not send live reports.
+
+- **One Remote Desktop workspace:** the standalone RDP Doctor tab and duplicated Connection diagnostics action are removed; one **Run RDP Doctor** button collects prioritized findings, event metadata and detailed Firewall/LSA/TLS/graphics evidence in the same scan.
+- **Technical evidence:** now a collapsed panel inside RDP Doctor; raw identities/certificate metadata stay local and never enter the sanitized Copy safe report. All checks remain read-only.
+
+- **DLL compatibility evidence:** a read-only System Health table differentiates local first-seen/user baselines, exact SHA-256/version matches in bundled anonymous diagnostic observations, and opt-in self-reported successful-fix records.
+- **Embedded signature evidence:** local byte-pattern result displayed separately from user reports; SHA/version drift invalidates stale evidence, never authorizes Apply.
+- **Trust boundaries:** no source in the compatibility index certifies an original Microsoft DLL, independent RDP functionality, licensing, or protected Apply/Revert authorization. Bundled CSVs are fixed at build time; invalid/missing sources show Unavailable.
+- **Copy evidence:** explicitly requested, local-only, privacy-restricted report; no automatic network contact. Synthetic CSV/parser and WPF UI safety checks added.
+- **Release gate:** independent Windows CI required before any version bump or Stable publication. The downloadable Stable remains 1.0.4.
+
+## 1.0.4 — 2026-11-10 (Stable released)
 
 - **RDP Doctor:** new dedicated Advanced tab with one-click read-only local diagnostic, a priority-sorted evidence grid, clear blocker/attention/unknown counts and recommended operator next steps. Separate RDP settings shortcut and local-only copy of a privacy-reviewed diagnostic report.
 - **Connectivity evidence:** inspect TermService status, local RDP enable/NLA settings and GPO conflicts, configured TCP port, local TCP listening/loopback bindings, blank-password restriction, existing Firewall rule metadata, LSA logon-rights metadata and RDP certificate status.

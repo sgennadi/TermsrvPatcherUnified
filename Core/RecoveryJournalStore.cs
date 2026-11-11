@@ -25,7 +25,8 @@ internal static class RecoveryJournalStore
         string PatchedSha256, string FileVersion, string ProfileId,
         int Length, Change[] Changes);
     internal sealed record Verified(string OriginalSha256, string PatchedSha256,
-        string FileVersion, string ProfileId, byte[] OriginalBytes);
+        string FileVersion, string ProfileId, byte[] OriginalBytes,
+        IReadOnlyList<Change> Changes);
 
     private static bool IsSha(string? value) =>
         value is { Length: 64 } && value.All(Uri.IsHexDigit);
@@ -158,6 +159,6 @@ internal static class RecoveryJournalStore
             throw new InvalidDataException("Recovery journal cannot reconstruct the original SHA-256.");
         PeSafety.ReadAmd64DllSections(restored);
         return new Verified(record.OriginalSha256, currentSha,
-            record.FileVersion, record.ProfileId, restored);
+            record.FileVersion, record.ProfileId, restored, record.Changes);
     }
 }

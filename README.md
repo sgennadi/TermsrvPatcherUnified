@@ -1,8 +1,8 @@
 # TermsrvPatcherUnified
 
-**Source version:** 1.0.4 candidate (unpublished). Latest downloadable Stable release remains 1.0.3 until Windows CI and release gates pass.
+**Preview candidate version:** `1.0.5-preview.5` on the development branch, pending GitHub Preview release and CI validation. **Latest Stable:** `1.0.4` (2026-11-10). Preview is separate from Stable; installing always requires operator approval.
 
-**RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md).
+**RDP Doctor:** [read-only connectivity diagnosis, Windows events, prioritized evidence and next steps](docs/RDP_DOCTOR.md). In the 1.0.5 candidate, it is integrated into **Advanced > Remote Desktop**; a single Run RDP Doctor button collects both the summary and expandable technical security evidence.
 
 
 **RDP security inspections:** [RDP Firewall, local logon rights, TLS certificate and graphics](docs/RDP_SECURITY_INSPECTION.md). **Auto-update settings:** [Auto-update Stable, recurring check, SYSTEM task restrictions and manual EXE approval](docs/AUTO_UPDATE_POLICY.md).
@@ -11,13 +11,26 @@
 **RDP settings audit:** [local/GPO registry map, inline security editor and future features](docs/RDP_SETTINGS_AUDIT.md).
 
 
-**Latest Stable release:** [`1.0.3`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.3) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
+**Latest Stable release:** [`1.0.4`](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.4) · **Published:** 2026-11-10 · **Platform:** Windows x64, .NET 10 WPF · **Publisher signing:** unsigned
 
 TermsrvPatcherUnified is a Windows Remote Desktop inspection and manually operated `termsrv.dll` maintenance utility. It combines exact signature inspection, manual patterns, separate offline DLL processing, protected backup/Restore, read-only system health, RDP settings and an integrated updater.
 
 **[Releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Version history](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 **Google reporting verified:** [direct Google-to-GitHub diagnostics](docs/DIRECT_REPORTING.md) replaced Formspree in Preview.28. A real user-authorized submission from Preview.28 was accepted as [GitHub Issue #32](https://github.com/sgennadi/TermsrvPatcherUnified/issues/32), and its reviewed Windows/DLL metadata appears in [the observations CSV](data/diagnostic-observations.csv) with `verification=unverified`. This proves receipt of that report, **not** that a patch worked or that all deployments will succeed. Sending is opt-in, requires a preview of the exact typed metadata, creates a **public** GitHub Issue only after explicit approval, and requires no end-user token, login, or local file. The former public Formspree ID remains solely in source archive documentation.
+
+## Stable 1.0.4
+
+[Stable 1.0.4](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.4) was published on 2026-11-10. It adds the read-only RDP Doctor with prioritized local network/service/policy findings and bounded Windows RDP event metadata.
+
+**DLL version and retrospective report recovery (1.0.5-preview.4):** Windows DLL resources can display a numeric version followed by `(WinBuild.160101.0800)`; Preview.3 rejected that string during public report validation even though its protected Apply succeeded. Preview.4 retains the full raw version for protected backup/journal matching and exports only the normalized numeric version to the strict Google schema. If a successful Preview.3 one-shot SYSTEM job has no report metadata, Preview.4 can recover the exact changed spans from the machine-protected DPAPI journal after independently checking the immutable job request, original and installed DLL SHA-256, and executable-section bounds. This uses **read-only reconstruction** and never repeats Apply. A prior receipt, incompatible/missing journal, Failed or AlreadyPatched will not create a new report. The original staged EXE is checksum-verified to preserve the actual Preview.3 application version. This remains a **user-reviewed public submission**; no data is sent merely by showing the dialog.
+
+**RDP-session report recovery (1.0.5-preview.3):** one-shot SYSTEM Apply records a bounded, verified report payload next to its protected job status. A reconnected GUI verifies the same approved request and the *current* installed DLL SHA-256 before offering the Unified Apply report once. Simple and Advanced keep a manual Share option if the first offer was dismissed. Old jobs without this evidence, failed jobs, AlreadyPatched, or unattended post-Windows-Update Auto Reapply never create an unverified popup. The ordinary Diagnostics dialog closes immediately after a confirmed GitHub Issue receipt; failed delivery remains visible. No real protected DLL changes are performed by CI.
+
+**Combined Apply report (in development):** a single post-Apply review includes strict Windows/DLL diagnostics and separate compatibility evidence, with one Send confirmation. An optional unchecked-by-default checkbox stores administrator-protected consent for future **silent** reports after newly successful verified Auto Reapply; Simple and Advanced provide a Stop automatic reports control. Failed/skipped/AlreadyPatched operations send nothing. Public GitHub records remain UNVERIFIED.
+
+**Next feature (1.0.5, not yet published):** [DLL compatibility index](docs/DLL_COMPATIBILITY_INDEX.md) compares local DLL version and SHA-256 with bundled anonymous observations and self-reported fix data. All submissions remain UNVERIFIED. The index does not authorize DLL modification.
+**1.0.5 candidate reporting:** the completed local-console Apply and offline DLL copy dialogs can now preview/send strict compatibility reports through the already configured Google Apps Script endpoint, without GitHub credentials on the user's PC. With explicit consent, Google posts a public GitHub Issue #1 comment; [compatibility-report.yml](.github/workflows/compatibility-report.yml) collects validated self-reports into [successful-fixes.csv](data/successful-fixes.csv) and separately [offline-fixes.csv](data/offline-fixes.csv). The first upload always requires confirmation; future verified Auto Reapply may report silently only after a separately approved, revocable machine-wide opt-in. **The owner must deploy the updated [Code.gs](integrations/google-apps-script/Code.gs) as a new Apps Script version before this new route can work.** Existing Stable 1.0.4 is unchanged; reports do not authorize Apply or imply working RDP connections.
 
 ## Stable 1.0.3
 
