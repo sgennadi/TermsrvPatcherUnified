@@ -167,6 +167,35 @@ internal sealed class NsudoDevilModeScope : IDisposable
         }
     }
 
+    // A staged executable and its request/status must not inherit write access
+    // from an untrusted source. Only SYSTEM and Administrators may be allowed.
+    internal static bool HasOnlySystemAdminFileAccess(FileSecurity security)
+    {
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        bool administratorsAllowed = false, systemAllowed = false;
+        foreach (FileSystemAccessRule entry in security.GetAccessRules(
+                     true, true, typeof(SecurityIdentifier)))
+        {
+            if (entry.AccessControlType != AccessControlType.Allow) continue;
+            if (entry.IdentityReference is not SecurityIdentifier sid) return false;
+            if (sid.Equals(administrators)) administratorsAllowed = true;
+            else if (sid.Equals(system)) systemAllowed = true;
+            else return false;
+        }
+        return administratorsAllowed && systemAllowed;
+    }
+
+    internal static void EnsurePrivateFile(string path)
+    {
+        var file = new FileInfo(path);
+        if (!file.Exists || (file.Attributes & FileAttributes.ReparsePoint) != 0)
+            throw new IOException("Protected job file is missing or linked.");
+        var security = file.GetAccessControl(AccessControlSections.Access);
+        if (!HasOnlySystemAdminFileAccess(security))
+            throw new UnauthorizedAccessException("Protected job file grants unexpected access.");
+    }
+
     public void Dispose()
     {
         try
