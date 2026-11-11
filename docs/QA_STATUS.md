@@ -1,3 +1,10 @@
+## Partial Google reporting and automatic close — 1.0.5-preview.5 candidate
+
+- **Reproduction:** Preview.4 posted the combined general diagnostics to Issue #43, but Google did not acknowledge an Issue #1 DLL compatibility comment. The UI correctly remained open and must not record automatic reporting consent on partial success.
+- **Fix:** Two independently validated receipts control successful close. In the same window, a failed second step leaves the first Issue receipt in memory; a manual retry shows only the pending compatibility JSON, obtains fresh approval, sends only that record and closes on its confirmed comment URL. A new EXE process does not implicitly trust/reuse an old in-memory receipt.
+- **Diagnostics:** The UI shows the safe Google error explanation instead of only `InvalidOperationException`, including receiver deployment checks and Issues-write permission guidance. GET now provides a public, read-only version/schema indicator after owner redeployment.
+- **Tests:** synthetic 2-POST partial failure + 1-POST compatibility retry, no duplicate diagnostic POST, receipt-state policy, gateway GET health, strict public data grammar and WPF review rendering. Neither live GitHub postings nor protected DLL changes run in CI.
+
 ## WinBuild DLL version and retrospective report recovery — 1.0.5-preview.4 candidate
 
 - **User reproduction:** Win11 26H2 / termsrv.dll `10.0.26100.8115 (WinBuild.160101.0800)`: protected SYSTEM Apply can complete successfully while the strict public report validator rejects the WinBuild suffix and saves a status with `Report=null`; the Simple/Advanced GUI consequently has no consent prompt.

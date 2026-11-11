@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.0.5-preview.5 — candidate (not yet published)
+
+- **Confirmed delivery closes the window:** Unified Apply closes automatically only after both the general diagnostic Issue and DLL compatibility comment have individually valid GitHub receipts; offline reports close after their sole validated comment. Failed, rejected or timed-out deliveries remain visible and never enable unattended reporting.
+- **Partial success is recoverable in the current window:** If diagnostics were already accepted but compatibility failed, show **Retry DLL compatibility only**, replace the read-only preview with just the remaining payload, and require a new explicit confirmation. Do not create a duplicate diagnostic Issue.
+- **Actionable receiver errors:** Display the actual safe Google error explanation, distinguishing an outdated/incompatible deployment from GitHub Issue #1 comment authorization or temporary failures.
+- **Read-only receiver health:** Google Apps Script GET now advertises `gateway_schema_version: 2` and both accepted schemas. A previously deployed Apps Script URL must be redeployed with the updated code by its owner to expose this marker; updating the Windows EXE alone cannot update Google's hosted script.
+- **Release verification:** Synthetic failure/retry/dedup tests and Windows/UI/packaging CI; no live public report or protected system DLL modification is performed by CI.
+
 ## 1.0.5-preview.4 — candidate (not yet published)
 
 - **WinBuild version fix:** compatibility reports now normalize legitimate `(WinBuild.x.y)` suffixes in Windows DLL version resources without changing the raw version used by protected backups and recovery journals.
