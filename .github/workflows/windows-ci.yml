@@ -1,8 +1,15 @@
 name: Windows build and safety tests
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+
+# One validation per PR head, plus the main branch after merge.
+# Cancel superseded PR runs to avoid spending CI minutes on stale revisions.
+concurrency:
+  group: windows-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-and-test:
