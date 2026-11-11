@@ -119,7 +119,15 @@ jobs:
           [System.IO.File]::WriteAllBytes($sample, [byte[]](0x39,0x81,0x3C,0x06,0,0,0x0F,0x84,0x6F,0x66,0x01,0))
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
           $product = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)? -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
+          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+            throw "Published EXE ProductVersion cannot identify the original Apply version: '$product'."
+          }
+          $sourceVersion = ($product -split '\+')[0]
+          if ($sourceVersion -ne (Get-Content VERSION -Raw).Trim()) {
+            throw "EXE ProductVersion mismatch: '$sourceVersion'."
+          }
+          Write-Host "PASS: checked EXE ProductVersion $sourceVersion for protected report recovery."
+          $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
           if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
           $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
           if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }

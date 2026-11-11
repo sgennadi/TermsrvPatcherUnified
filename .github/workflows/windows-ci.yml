@@ -114,7 +114,15 @@ jobs:
           [System.IO.File]::WriteAllBytes($inputFile, [byte[]](0x39,0x81,0x3C,0x06,0x00,0x00,0x0F,0x84,0x6F,0x66,0x01,0x00))
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
           $product = (Get-Item $exe).VersionInfo.ProductVersion
-          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)? '--inspect-file "{0}" --report "{1}"' -f $inputFile, $reportFile
+          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+            throw "Published EXE ProductVersion cannot identify the original Apply version: '$product'."
+          }
+          $sourceVersion = ($product -split '\+')[0]
+          if ($sourceVersion -ne (Get-Content VERSION -Raw).Trim()) {
+            throw "EXE ProductVersion mismatch: '$sourceVersion'."
+          }
+          Write-Host "PASS: checked EXE ProductVersion $sourceVersion for protected report recovery."
+          $arguments = '--inspect-file "{0}" --report "{1}"' -f $inputFile, $reportFile
           $process = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
           if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
