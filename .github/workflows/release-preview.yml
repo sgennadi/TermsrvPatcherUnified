@@ -137,21 +137,22 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = $env:RELEASE_TAG
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
-          if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
+          $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            "TermsrvPatcherUnified $env:RELEASE_VERSION - UNSIGNED PREVIEW (not Stable)."
-            'Manual Install: an administrator must approve; GitHub asset SHA-256 and ZIP are checked before replacement.'
-            'A copy of the current EXE runs as a helper after the GUI closes; previous EXE is backed up and restored if the health probe fails.'
-            'Application updates always require approval; the optional post-Windows Update DLL signature-check task is off by default.'
-            '1.0.5-preview.1 adds read-only DLL compatibility evidence, unified Remote Desktop / RDP Doctor and user-approved Google compatibility reports without an end-user GitHub token.'
-            'The Google Apps Script receiver must be redeployed by the owner to accept the new compatibility report schema. Offline/Windows CI does not test live RDP.'
-            'The approved Google Apps Script endpoint is embedded in the EXE. Reports create public GitHub Issues only after user confirmation.'
-            'Google reporting requires an explicit review and a verified GitHub Issue URL; no local save or account required. Live Google delivery was confirmed by public Issue #32; CI still uses simulated HTTP and does not validate OAuth sign-in or every Scheduler configuration.'
-            'The GitHub Actions runner only tests read-only inspection and synthetic checks; no live termsrv.dll changes.'
-            ''
-            'Full ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt (with complete GPLv3/MIT licenses). Update-only ZIP contains exactly one x64 EXE.'
+            '1. Combined RDP Doctor and connection diagnostics in one Remote Desktop tab.'
+            '2. Added DLL compatibility evidence by file version and SHA-256.'
+            '3. Added optional compatibility reports without a GitHub login.'
+            '4. Fixed Preview updates for 1.x versions.'
+            '5. Corrected version labels in application windows.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
+          if ($releaseExists) {
+            # Refresh the user-facing notes only; retain the published tag and binaries.
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --notes-file release-notes.txt
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "Updated notes for $tag; published assets retained unchanged."
+            exit 0
+          }
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify published updater release assets
