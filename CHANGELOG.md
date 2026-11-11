@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.6-preview.1 — 2026-11-11 (Preview candidate)
+
+1. Stage protected SYSTEM worker EXEs with new files inheriting SYSTEM/Administrators-only ACLs; verify the SHA-256 before use.
+2. Reject unexpected allow permissions on job executables, requests and status files.
+3. Report only a bounded failure stage and exception type when the non-destructive Session 0 probe fails.
+4. Repeat harmless Task Scheduler probes twice in Windows Server 2025 CI; never modify a real system DLL during CI.
+5. Preserve Stable 1.0.5 as latest; Preview updates require an explicit operator approval and have no automatic installation.
+
+**Scope:** reliability and security hardening. No new patch signatures, change to Microsoft RDP licensing, or evidence of physical Windows 11/RDP-reconnect testing. See [Issue #25](https://github.com/sgennadi/TermsrvPatcherUnified/issues/25).
+
 ## 1.0.5 — 2026-11-11 (Stable released)
 
 - **Unified Remote Desktop:** RDP Doctor and Remote Desktop settings share one Advanced tab; evidence remains read-only until a user authorizes an individual operation.
