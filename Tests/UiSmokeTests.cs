@@ -71,9 +71,22 @@ internal static class UiSmokeTests
                 if (tabs.Items.OfType<TabItem>().Count(tab =>
                         tab.Header as string == "System Health") != 1)
                     throw new Exception("DLL monitoring must be in a separate System Health tab.");
-                if (tabs.Items.OfType<TabItem>().Count(tab =>
-                        tab.Header as string == "RDP Doctor") != 1 ||
-                    main.FindName("RunRdpDoctorButton") is not Button ||
+                if (main.FindName("DllCompatibilityGrid") is not DataGrid compatibility ||
+                    !compatibility.IsReadOnly || compatibility.Columns.Count != 4 ||
+                    main.FindName("DllCompatibilitySummary") is not TextBlock ||
+                    main.FindName("RefreshCompatibilityButton") is not Button ||
+                    main.FindName("CopyCompatibilityButton") is not Button compatibilityCopy ||
+                    compatibilityCopy.IsEnabled)
+                    throw new Exception(
+                        "Compatibility index must be read-only with explicit local scan and disabled copy until scanned.");
+                if (tabs.Items.OfType<TabItem>().Any(tab =>
+                        tab.Header as string == "RDP Doctor") ||
+                    main.FindName("RdpDoctorPanel") is not Expander doctorPanel ||
+                    doctorPanel.IsExpanded ||
+                    main.FindName("RunRdpDoctorButton") is not Button doctorScan ||
+                    doctorScan.Content is not string scanLabel ||
+                    scanLabel != "Run RDP Doctor" ||
+                    main.FindName("RdpDoctorQuickStatus") is not TextBlock ||
                     main.FindName("CopyRdpDoctorButton") is not Button copyDoctor ||
                     copyDoctor.IsEnabled ||
                     main.FindName("DoctorVerdictText") is not TextBlock ||
@@ -85,7 +98,7 @@ internal static class UiSmokeTests
                     main.FindName("DoctorEventsGrid") is not DataGrid doctorEvents ||
                     !doctorEvents.IsReadOnly || doctorEvents.Columns.Count != 4 ||
                     main.FindName("DoctorEventStatus") is not TextBlock)
-                    throw new Exception("RDP Doctor must open read-only with separate findings, event metadata and disabled export.");
+                    throw new Exception("RDP Doctor must be nested in Remote Desktop, read-only, with disabled export before the one scan.");
 
                 if (main.FindName("RdpTechnicalAdvanced") is not Expander technicalRdp ||
                     technicalRdp.IsExpanded ||
@@ -133,7 +146,8 @@ internal static class UiSmokeTests
                     throw new Exception("Advanced Auto Reapply and Cleanup controls are missing.");
                 if (main.FindName("RdpExtendedDiagnostics") is not Expander extended ||
                     extended.IsExpanded ||
-                    main.FindName("InspectRdpSecurityButton") is not Button ||
+                    (extended.Header as string)?.StartsWith("Technical evidence", StringComparison.Ordinal) != true ||
+                    main.FindName("InspectRdpSecurityButton") is not null ||
                     main.FindName("RdpInspectionStatus") is not TextBlock ||
                     main.FindName("RdpFirewallInspection") is not TextBox firewallEvidence ||
                     !firewallEvidence.IsReadOnly ||
@@ -143,7 +157,7 @@ internal static class UiSmokeTests
                     !certEvidence.IsReadOnly ||
                     main.FindName("RdpGraphicsInspection") is not TextBox graphicsEvidence ||
                     !graphicsEvidence.IsReadOnly)
-                    throw new Exception("Four read-only RDP security inspection panels must start collapsed.");
+                    throw new Exception("Four read-only RDP security evidence panels must be inside Doctor without a second scan button.");
                 if (main.FindName("AdvancedAutoUpdateCheck") is not CheckBox autoCheck ||
                     autoCheck.IsChecked != false ||
                     main.FindName("AdvancedAutoUpdateStatus") is not TextBlock)
@@ -263,6 +277,17 @@ internal static class UiSmokeTests
                 if (diagnosticsWindow.FindName("SaveButton") is not Button ||
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
+                // No network calls or windows shown. Invalid receipt must never
+                // dismiss Diagnostics; a valid repository Issue must close it.
+                var completedReportDialog = new DiagnosticsWindow();
+                if (completedReportDialog.CloseAfterConfirmedDelivery(null) ||
+                    completedReportDialog.CloseAfterConfirmedDelivery(
+                        new Uri("https://evil.example/issues/40")))
+                    throw new Exception("Unconfirmed report closed Diagnostics.");
+                if (!completedReportDialog.CloseAfterConfirmedDelivery(
+                        new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/40")))
+                    throw new Exception("Confirmed GitHub report did not close Diagnostics.");
+                verified++;
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickAutoUpdateCheck") is not CheckBox autoUpdateOption ||
                     autoUpdateOption.IsChecked != false ||
@@ -316,14 +341,37 @@ internal static class UiSmokeTests
                     throw new Exception("Cleanup preview must warn about recovery loss and excluded system logs.");
 
                 var successReport = new SuccessfulFixWindow(record);
-                if (successReport.FindName("SimpleReportButton") is not Button simpleShare ||
-                    !simpleShare.IsEnabled ||
-                    successReport.FindName("SimpleReportBox") is not Border easyReportBox ||
-                    easyReportBox.Visibility != Visibility.Visible ||
-                    successReport.FindName("SendButton") is not Button ||
-                    successReport.FindName("TokenInput") is not PasswordBox ||
+                if (successReport.FindName("SendButton") is not Button compatibilitySend ||
+                    compatibilitySend.IsEnabled != DirectReportingSettings.Load().HasGoogleScript ||
+                    compatibilitySend.Content?.ToString() != "Review and send" ||
+                    successReport.FindName("Preview") is not TextBox publicPreview ||
+                    !publicPreview.IsReadOnly ||
+                    !publicPreview.Text.Contains("termsrv-compatibility/v1", StringComparison.Ordinal) ||
+                    !publicPreview.Text.Contains("termsrv-success/v2", StringComparison.Ordinal) ||
+                    !publicPreview.Text.Contains("universal-diagnostics/v1", StringComparison.Ordinal) ||
+                    !publicPreview.Text.Contains("GENERAL DIAGNOSTICS", StringComparison.Ordinal) ||
+                    successReport.FindName("AutoSendConsentCheck") is not CheckBox autoConsent ||
+                    autoConsent.Visibility != Visibility.Visible ||
+                    successReport.FindName("TokenInput") is not null ||
                     successReport.FindName("SkipButton") is not Button)
-                    throw new Exception("Successful Apply must offer friendly optional sharing without removing advanced GitHub reporting.");
+                    throw new Exception("Completed Apply must offer read-only, token-free Google compatibility review.");
+                var offlineReport = new OfflineFixMetadata("x64", "10.0.26100.1234",
+                    UpdateIntegration.Version, new string('a', 64), "1234ABCD",
+                    new string('b', 64), "FFFFFFFF",
+                    [new ChangedBytes(40, "11223344", "AABBCCDD")]);
+                var offlineShare = new SuccessfulFixWindow(offlineReport);
+                if (offlineShare.FindName("Preview") is not TextBox offlinePreview ||
+                    !offlinePreview.Text.Contains("termsrv-offline/v1", StringComparison.Ordinal) ||
+                    offlinePreview.IsReadOnly != true ||
+                    offlineShare.FindName("AutoSendConsentCheck") is not CheckBox offlineConsent ||
+                    offlineConsent.Visibility != Visibility.Collapsed ||
+                    offlineShare.FindName("SendButton") is not Button)
+                    throw new Exception("Offline DLL copy must have separate, clearly unverified token-free review.");
+                if (main.FindName("AdvancedRevokeAutoReportsButton") is not Button ||
+                    quick.FindName("QuickRevokeAutoReportsButton") is not Button ||
+                    main.FindName("AdvancedPendingReportButton") is not Button pending ||
+                    pending.Visibility != Visibility.Collapsed)
+                    throw new Exception("Both views must expose silent reporting revocation.");
                 var confirm = new ModernConfirmDialog();
                 if (confirm.FindName("DetailsText") is not TextBox reportDetails ||
                     !reportDetails.IsReadOnly ||

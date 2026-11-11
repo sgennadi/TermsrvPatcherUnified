@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using UniversalDiagnostics.Transport;
+using TermsrvPatcherUnified;
 using TermsrvPatcherUnified.Core;
 
 internal static class DirectReportingTests
@@ -206,6 +207,329 @@ internal static class DirectReportingTests
             { failed = true; }
             Verify(failed && fake.Count == 1,
                 "unconfirmed, malicious or invalid JSON response never marks report delivered");
+        }
+
+
+        // Structured system and offline reports use the same Google transport,
+        // but require an explicitly verified GitHub Issue #1 comment receipt.
+        var fix = new SuccessfulFixMetadata(
+            "Windows 11", "26H2", 26300, 9711, "10.0.26100.9549",
+            UpdateIntegration.Version, "automatic",
+            new string('a', 64), new string('b', 64),
+            [new ChangedBytes(0x00000220, "11223344", "AABBCCDD")]);
+        var submission = CompatibilityRelaySubmission.Create(fix);
+        Verify(submission.Kind == "successful_apply" &&
+               submission.Json.Contains("termsrv-success/v2", StringComparison.Ordinal) &&
+               !submission.Json.Contains("PRIVATE", StringComparison.Ordinal),
+            "completed Apply produces exact bounded typed metadata without personal identifiers");
+
+
+        // The combined manual report uses two existing strict Google schemas.
+        // One human confirmation may authorize both, but it never upgrades
+        // compatibility claims to verified remote RDP connectivity.
+        var unified = new UnifiedApplyReport(fix);
+        Verify(unified.DiagnosticJson.Contains("universal-diagnostics/v1",
+                    StringComparison.Ordinal) &&
+               unified.Compatibility.Kind == submission.Kind &&
+               unified.Compatibility.Body == submission.Body &&
+               unified.ReviewedText.Contains("1. GENERAL DIAGNOSTICS", StringComparison.Ordinal) &&
+               unified.ReviewedText.Contains("2. DLL COMPATIBILITY", StringComparison.Ordinal) &&
+               !unified.ReviewedText.Contains("PRIVATE", StringComparison.Ordinal),
+               "one reviewed report holds two independent, validated public sections");
+        const string generalReceipt =
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/987\"}";
+        const string fixReceipt =
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"," +
+            "\"comment_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-6789\"}";
+        var sent = new FakeHandler((request, payload) =>
+        {
+            if (request.Method != HttpMethod.Post ||
+                request.RequestUri!.AbsoluteUri != deployed ||
+                request.Headers.Authorization is not null)
+                return Json("{\"ok\":false,\"error\":\"invalid_request\"}");
+            return Json(payload.Contains("universal-diagnostics/v1", StringComparison.Ordinal)
+                ? generalReceipt : fixReceipt);
+        });
+        using (var http = new HttpClient(sent))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            Uri diagnosticsUrl = client.SendAsync(deployed, unified.DiagnosticJson,
+                unified.Diagnostics).GetAwaiter().GetResult();
+            Uri compatibilityUrl = client.SendCompatibilityAsync(deployed,
+                unified.Compatibility.Json, unified.Compatibility).GetAwaiter().GetResult();
+            Verify(diagnosticsUrl.AbsoluteUri.EndsWith("/987", StringComparison.Ordinal) &&
+                   compatibilityUrl.AbsoluteUri.EndsWith("#issuecomment-6789", StringComparison.Ordinal) &&
+                   sent.Count == 2 && sent.Requests.All(r => !r.HasAuth) &&
+                   sent.Requests[0].Body == unified.DiagnosticJson &&
+                   sent.Requests[1].Body == unified.Compatibility.Json,
+                "one approved unified review can submit exactly two separately acknowledged typed records");
+        }
+
+        // The first Google POST can be acknowledged while the second is
+        // rejected by a stale deployed Apps Script. That partial outcome is
+        // not a successful unified report and must never authorize auto consent
+        // or dismiss the review window. Retrying sends ONLY the second record.
+        var diagnosticUri = new Uri(
+            "https://github.com/sgennadi/TermsrvPatcherUnified/issues/43");
+        var compatibilityUri = new Uri(
+            "https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-6789");
+        Verify(!UnifiedReportDeliveryState.IsComplete(true, null, null) &&
+               !UnifiedReportDeliveryState.IsComplete(true, diagnosticUri, null) &&
+               !UnifiedReportDeliveryState.IsComplete(true, null, compatibilityUri) &&
+               UnifiedReportDeliveryState.IsComplete(true, diagnosticUri, compatibilityUri) &&
+               UnifiedReportDeliveryState.IsComplete(false, null, compatibilityUri) &&
+               !UnifiedReportDeliveryState.RetryCompatibilityOnly(true, null, null) &&
+               UnifiedReportDeliveryState.RetryCompatibilityOnly(true, diagnosticUri, null) &&
+               !UnifiedReportDeliveryState.RetryCompatibilityOnly(
+                   true, diagnosticUri, compatibilityUri) &&
+               !UnifiedReportDeliveryState.RetryCompatibilityOnly(
+                   false, diagnosticUri, null),
+            "one approved report closes only after ALL required receipts, never on a partial success");
+        int compatAttempts = 0;
+        var partialHandler = new FakeHandler((req, body) =>
+        {
+            if (body.Contains("universal-diagnostics/v1", StringComparison.Ordinal))
+                return Json(generalReceipt);
+            return Json(++compatAttempts == 1
+                ? "{\"ok\":false,\"error\":\"invalid_evidence\"}"
+                : fixReceipt);
+        });
+        using (var http = new HttpClient(partialHandler))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            Uri diag = client.SendAsync(deployed, unified.DiagnosticJson,
+                unified.Diagnostics).GetAwaiter().GetResult();
+            Verify(!UnifiedReportDeliveryState.IsComplete(true, diag, null),
+                "validated diagnostic Issue alone may not close the combined report");
+            bool rejected = false;
+            try
+            {
+                _ = client.SendCompatibilityAsync(deployed, unified.Compatibility.Json,
+                    unified.Compatibility).GetAwaiter().GetResult();
+            }
+            catch (InvalidOperationException ex)
+            {
+                rejected = ex.Message.Contains("Google receiver rejected", StringComparison.Ordinal) &&
+                    ex.Message.Contains("Manage deployments", StringComparison.Ordinal);
+            }
+            Verify(rejected && partialHandler.Count == 2,
+                "the exact server rejection reason must be surfaced without claiming completion");
+            Uri compat = client.SendCompatibilityAsync(deployed, unified.Compatibility.Json,
+                unified.Compatibility).GetAwaiter().GetResult();
+            Verify(UnifiedReportDeliveryState.IsComplete(true, diag, compat) &&
+                   partialHandler.Count == 3 &&
+                   partialHandler.Requests.Count(req => req.Body.Contains(
+                       "universal-diagnostics/v1", StringComparison.Ordinal)) == 1 &&
+                   partialHandler.Requests.Count(req => req.Body.Contains(
+                       "termsrv-compatibility/v1", StringComparison.Ordinal)) == 2,
+                "manual retry confirms compatibility without creating a duplicate diagnostic Issue");
+        }
+        const string consentSchema = "termsrv-auto-compatibility-consent/v1";
+        var consentJson = JsonSerializer.Serialize(new {
+            SchemaId = consentSchema,
+            ReceiverSha256 = AutoCompatibilityReporting.ReceiverFingerprint(deployed),
+            Enabled = true
+        });
+        Verify(AutoCompatibilityReporting.HasConsent(consentJson, deployed),
+            "exact endpoint-bound machine-wide consent can authorize future silent reports");
+        Verify(!AutoCompatibilityReporting.HasConsent(null, deployed) &&
+               !AutoCompatibilityReporting.HasConsent(consentJson.Replace("true", "false"), deployed) &&
+               !AutoCompatibilityReporting.HasConsent(consentJson, deployed + "?other=1") &&
+               !AutoCompatibilityReporting.HasConsent(consentJson, "https://evil.example/exec") &&
+               !AutoCompatibilityReporting.HasConsent(consentJson + "extra", deployed),
+               "missing, disabled, corrupted or endpoint-mismatched consent fails closed");
+        Verify(AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.Ready,
+                isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(false, true, PatchState.Ready,
+                   isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, false, PatchState.Ready,
+                   isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.Ready,
+                   isManual: true, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.AlreadyPatched,
+                   isManual: false, checksumVerified: true) &&
+               !AutoCompatibilityReporting.CanAutoSend(true, true, PatchState.Ready,
+                   isManual: false, checksumVerified: false),
+               "only a new verified automatic SYSTEM Apply with consent may silently report");
+
+
+        // A Session 0 one-shot protected Apply can lose the interactive GUI
+        // during TermService restart. Persisted verified report evidence must
+        // agree with the exact request and CURRENT installed DLL before any
+        // offer is shown. Automatic Windows-Update work has no such status.
+        string completedId = Guid.NewGuid().ToString("N");
+        var completedRequest = new IsolatedApplyExecutor.Request(
+            completedId, fix.OriginalSha256, fix.PatchedSha256, fix.DllVersion,
+            "synthetic-approved-profile", new string('c', 64), true);
+        var completedStatus = new IsolatedApplyExecutor.Status(
+            completedId, "Succeeded", "Protected write and RDP service recovery returned successfully.",
+            DateTimeOffset.UtcNow.ToString("O"), fix);
+        var persistedStatus = JsonSerializer.Deserialize<IsolatedApplyExecutor.Status>(
+            JsonSerializer.Serialize(completedStatus));
+        Verify(persistedStatus?.Report?.Changes.Count == 1 &&
+               IsolatedApplyExecutor.VerifiedReportMatches(persistedStatus,
+                   completedRequest, fix.PatchedSha256),
+               "protected one-shot status survives full JSON roundtrip after GUI termination");
+        Verify(IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest, fix.OriginalSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus with {
+                   State = "AlreadyPatched" }, completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus with {
+                   Report = null }, completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus with {
+                   Id = Guid.NewGuid().ToString("N") }, completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest with { OriginalSha256 = new string('d', 64) },
+                   fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest with { ExpectedPatchedSha256 = new string('e', 64) },
+                   fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest with { ExpectedPatchedSha256 = null! },
+                   fix.PatchedSha256),
+               "post-reconnect report requires exact one-shot ID, success, both hashes, and installed DLL");
+
+        // The original queued EXE (not the new reporting GUI version) must
+        // provide its authoritative informational ProductVersion.
+        string appModule = typeof(TermsrvEngine).Assembly.Location;
+        Verify(File.Exists(appModule) &&
+               IsolatedApplyExecutor.VersionFromStagedExecutable(appModule) ==
+                   UpdateIntegration.Version,
+               "original signed-file metadata yields exact app version for recovered reports");
+
+        // Actual Windows version resources include the WinBuild suffix:
+        // Preview.3 persisted "Succeeded" but omitted Report when its strictly
+        // numeric DLL metadata validator rejected this valid resource text.
+        const string rawVersion = "10.0.26100.8115 (WinBuild.160101.0800)";
+        const string numericVersion = "10.0.26100.8115";
+        Verify(SuccessfulFixMetadata.CanonicalDllVersion(rawVersion) == numericVersion &&
+               SuccessfulFixMetadata.CanonicalDllVersion(numericVersion) == numericVersion &&
+               SuccessfulFixMetadata.CanonicalDllVersion("10.0.26100.8115 (winbuild.160101.0800)") ==
+                   numericVersion &&
+               SuccessfulFixMetadata.CanonicalDllVersion("10.0.26100.8115 (unknown)") is null &&
+               SuccessfulFixMetadata.CanonicalDllVersion("not-a-version") is null &&
+               SuccessfulFixMetadata.CanonicalDllVersion("10.0.26100.8115<script>") is null,
+               "WinBuild resource suffix normalizes only to strict numeric DLL version");
+        var rawPlan = new PatchPlan(PatchState.Ready, "synthetic", "synthetic-approved-profile",
+            "C:\\Windows\\System32\\termsrv.dll", rawVersion,
+            new string('a', 64),
+            [new PatchEdit(0x220, [0x11, 0x22, 0x33, 0x44],
+                                  [0xAA, 0xBB, 0xCC, 0xDD])],
+            Enumerable.Repeat((byte)0x33, 1024).ToArray());
+        var rawOS = new WindowsDetails("Windows 11", "26H2", 26300, 9711,
+            "Client", true, "C:\\Windows\\System32\\termsrv.dll", rawVersion);
+        var normalizedFix = SuccessfulFixMetadata.FromSuccessfulApply(rawOS, rawPlan);
+        Verify(normalizedFix.DllVersion == numericVersion &&
+               normalizedFix.AsComment().Contains("dll=" + numericVersion, StringComparison.Ordinal) &&
+               !normalizedFix.AsComment().Contains("WinBuild", StringComparison.Ordinal),
+               "post-Apply Google compatibility report omits WinBuild resource suffix");
+
+        // Read-only recovery of a Preview.3 SYSTEM worker that wrote Succeeded
+        // without a report. The authenticated recovery-journal boundary itself
+        // is separately tested by RecoveryJournalStore; this test validates
+        // the exact request, original/replacement bytes and current checksum.
+        byte[] originalSynthetic = OfflineDllTests.SyntheticDll(x64: true);
+        byte[] patchedSynthetic = (byte[])originalSynthetic.Clone();
+        new byte[] { 0xAA, 0xBB, 0xCC, 0xDD }.CopyTo(patchedSynthetic, 0x220);
+        var recoveryRequest = new IsolatedApplyExecutor.Request(
+            completedId, SystemInfo.Sha256(originalSynthetic),
+            SystemInfo.Sha256(patchedSynthetic), rawVersion,
+            "synthetic-approved-profile", new string('c', 64), true);
+        var recoveryStatus = new IsolatedApplyExecutor.Status(
+            completedId, "Succeeded",
+            "Protected write and RDP service recovery returned successfully.",
+            DateTimeOffset.UtcNow.ToString("O"), Report: null);
+        var recoveryJournal = new RecoveryJournalStore.Verified(
+            recoveryRequest.OriginalSha256, recoveryRequest.ExpectedPatchedSha256,
+            rawVersion, recoveryRequest.ProfileId, originalSynthetic,
+            [new RecoveryJournalStore.Change(0x220,
+                [0x11, 0x22, 0x33, 0x44], [0xAA, 0xBB, 0xCC, 0xDD])]);
+        var recoveredMetadata = IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+            recoveryStatus, recoveryRequest, rawOS, patchedSynthetic,
+            recoveryJournal, "1.0.5-preview.3");
+        Verify(recoveredMetadata is not null &&
+               recoveredMetadata.DllVersion == numericVersion &&
+               recoveredMetadata.ApplicationVersion == "1.0.5-preview.3" &&
+               recoveredMetadata.OriginalSha256 == recoveryRequest.OriginalSha256 &&
+               recoveredMetadata.PatchedSha256 == recoveryRequest.ExpectedPatchedSha256 &&
+               recoveredMetadata.Changes.Count == 1 &&
+               recoveredMetadata.Changes[0].Offset == 0x220 &&
+               recoveredMetadata.Changes[0].Before == "11223344" &&
+               recoveredMetadata.Changes[0].After == "AABBCCDD" &&
+               IsolatedApplyExecutor.VerifiedReportMatches(
+                   recoveryStatus with { Report = recoveredMetadata },
+                   recoveryRequest, recoveryRequest.ExpectedPatchedSha256),
+               "Preview.3 one-shot success safely reconstructs a reviewed report without another Apply");
+        var changedInstalled = (byte[])patchedSynthetic.Clone();
+        changedInstalled[0x220] ^= 1;
+        Verify(IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus, recoveryRequest, rawOS, changedInstalled,
+                   recoveryJournal, "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus with { State = "AlreadyPatched" }, recoveryRequest, rawOS,
+                   patchedSynthetic, recoveryJournal, "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus with { Id = Guid.NewGuid().ToString("N") },
+                   recoveryRequest, rawOS, patchedSynthetic, recoveryJournal,
+                   "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus, recoveryRequest with { OriginalSha256 = new string('d', 64) },
+                   rawOS, patchedSynthetic, recoveryJournal, "1.0.5-preview.3") is null &&
+               IsolatedApplyExecutor.RecoverFromVerifiedJournal(
+                   recoveryStatus, recoveryRequest, rawOS, patchedSynthetic,
+                   recoveryJournal with { ProfileId = "unapproved" },
+                   "1.0.5-preview.3") is null,
+               "recovered reports reject drift, stale tasks and mismatching protected evidence");
+
+        var offline = new OfflineFixMetadata("x64", "10.0.26100.9549",
+            UpdateIntegration.Version, new string('a', 64), "1234ABCD",
+            new string('b', 64), "AABBCCDD",
+            [new ChangedBytes(0x00000220, "11223344", "AABBCCDD")]);
+        var offlineSubmission = CompatibilityRelaySubmission.Create(offline);
+        Verify(offlineSubmission.Kind == "offline_file" &&
+               offlineSubmission.Json.Contains("termsrv-offline/v1", StringComparison.Ordinal) &&
+               !offlineSubmission.Json.Contains("termsrv-success/v2", StringComparison.Ordinal),
+            "offline result cannot be relabeled as verified installed Apply");
+
+        const string commentReceipt =
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"," +
+            "\"comment_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-1234\"}";
+        var compatibilityHandler = new FakeHandler((_, _) => Json(commentReceipt));
+        using (var http = new HttpClient(compatibilityHandler))
+        using (var client = new GoogleAppsScriptReportClient(http))
+        {
+            Uri receiptUrl = client.SendCompatibilityAsync(
+                deployed, submission.Json, submission).GetAwaiter().GetResult();
+            Verify(receiptUrl.AbsoluteUri.EndsWith("#issuecomment-1234", StringComparison.Ordinal) &&
+                   compatibilityHandler.Count == 1 && !compatibilityHandler.Requests[0].HasAuth &&
+                   compatibilityHandler.Requests[0].Body == submission.Json,
+                "public compatibility report sent once without a GitHub token");
+            Throws<InvalidDataException>(() => client.SendCompatibilityAsync(
+                deployed, submission.Json + " ", submission).GetAwaiter().GetResult(),
+                "changed metadata cannot be sent after approval");
+            Verify(compatibilityHandler.Count == 1,
+                "mutated reviewed JSON never causes another request");
+            Uri offlineReceipt = client.SendCompatibilityAsync(
+                deployed, offlineSubmission.Json, offlineSubmission).GetAwaiter().GetResult();
+            Verify(offlineReceipt.AbsoluteUri.EndsWith("#issuecomment-1234", StringComparison.Ordinal) &&
+                   compatibilityHandler.Count == 2, "offline report uses identical consent-only endpoint");
+        }
+        foreach (var badReceipt in new[] {
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"}",
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1\"," +
+                "\"comment_url\":\"https://evil.example/issues/1#issuecomment-12\"}",
+            "{\"ok\":true,\"issue_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/2\"," +
+                "\"comment_url\":\"https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-12\"}"
+        })
+        {
+            var fake = new FakeHandler((_, _) => Json(badReceipt));
+            using var http = new HttpClient(fake);
+            using var client = new GoogleAppsScriptReportClient(http);
+            Throws<InvalidDataException>(() => client.SendCompatibilityAsync(
+                deployed, submission.Json, submission).GetAwaiter().GetResult(),
+                "a generic Issue or an off-repository comment is not delivery confirmation");
         }
 
         var github = new FakeHandler((request, _) => request.RequestUri!.AbsoluteUri switch

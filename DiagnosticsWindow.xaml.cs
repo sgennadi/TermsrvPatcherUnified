@@ -75,6 +75,15 @@ public partial class DiagnosticsWindow : Window
         };
     }
 
+    /// <summary>Close only after a validated repository-specific GitHub Issue receipt.</summary>
+    internal bool CloseAfterConfirmedDelivery(Uri? issue)
+    {
+        if (!GitHubIssuePublisher.IsApprovedIssueUri(issue))
+            return false;
+        Close(); // Safe for both modal and non-modal WPF windows.
+        return true;
+    }
+
     private void DescriptionChanged(object sender, TextChangedEventArgs e)
         => InvalidateSavedReview();
 
@@ -202,6 +211,7 @@ public partial class DiagnosticsWindow : Window
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         Uri? created = null;
+        Uri? confirmedIssueToClose = null;
         try
         {
             using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -212,6 +222,7 @@ public partial class DiagnosticsWindow : Window
             {
                 DiagnosticsBridge.MarkSubmitted(savedPath, savedId, created);
                 Status.Text = "Published and acknowledged locally: " + created.AbsoluteUri;
+                confirmedIssueToClose = created;
             }
             catch
             {
@@ -237,6 +248,9 @@ public partial class DiagnosticsWindow : Window
             GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
                 IncludeWindowsEvidenceCheck.IsChecked == true && submittedIssue is null && !googleConfirmed;
         }
+        // If local acknowledgement failed, keep the warning visible.
+        if (confirmedIssueToClose is not null)
+            CloseAfterConfirmedDelivery(confirmedIssueToClose);
     }
 
     private async void Anonymous_Click(object sender, RoutedEventArgs e)
@@ -259,6 +273,7 @@ public partial class DiagnosticsWindow : Window
         SaveButton.IsEnabled = false;
         DescriptionInput.IsEnabled = false;
         IncludeWindowsEvidenceCheck.IsEnabled = false;
+        Uri? confirmedIssueToClose = null;
         try
         {
             using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
@@ -269,6 +284,7 @@ public partial class DiagnosticsWindow : Window
             {
                 DiagnosticsBridge.MarkSubmitted(savedPath, savedId, issue);
                 Status.Text = "Anonymous report delivered and acknowledged: " + issue.AbsoluteUri;
+                confirmedIssueToClose = issue;
             }
             catch
             {
@@ -295,6 +311,8 @@ public partial class DiagnosticsWindow : Window
             GoogleButton.IsEnabled = reportingSettings.HasGoogleScript &&
                 IncludeWindowsEvidenceCheck.IsChecked == true && submittedIssue is null && !googleConfirmed;
         }
+        if (confirmedIssueToClose is not null)
+            CloseAfterConfirmedDelivery(confirmedIssueToClose);
     }
 
     private void Copy_Click(object sender, RoutedEventArgs e)

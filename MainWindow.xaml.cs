@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Diagnostics;
 using System.Text;
 using System.Windows;
+using System.Windows.Threading;
 using TermsrvPatcherUnified.Core;
 
 namespace TermsrvPatcherUnified;
@@ -29,15 +30,24 @@ public partial class MainWindow : Window
     private bool portRestartNeedsReview;
     private RdpConfigurationReport? lastRdpPolicyReport;
     private RdpDoctorReport? latestRdpDoctorReport;
+    private DllCompatibilityReport? latestDllCompatibilityReport;
     private bool openBlankAfterPolicyRefresh;
     private bool autoUpdateLoading;
     private bool autoUpdateChanging;
+    private string? pendingIndependentApplyId;
+    private string? lastOfferedIndependentApplyId;
+    private bool independentReportDialogOpen;
+    private bool independentReportRecoveryInProgress;
+    private string? unverifiedIndependentReportJobId;
+    private readonly DispatcherTimer independentReportTimer;
     private readonly UpdateIntegration updates = new();
     private readonly AutoUpdateGuiCoordinator autoUpdateCoordinator;
 
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        independentReportTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        independentReportTimer.Tick += (_, _) => RefreshIndependentReportOffer();
         autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,
             () => IsActive && !busy && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
@@ -51,6 +61,7 @@ public partial class MainWindow : Window
             fragmentLookup?.Cancel();
             fragmentLookup?.Dispose();
             WindowSettings.Save(this);
+            independentReportTimer.Stop();
             autoUpdateCoordinator.Dispose();
             updates.Dispose();
         };
@@ -60,6 +71,7 @@ public partial class MainWindow : Window
         RefreshUpdateIndicator();
         Loaded += async (_, _) =>
         {
+            independentReportTimer.Start();
             ReadAutoUpdateSetting();
             autoUpdateCoordinator.Start();
             if (offlineStartup)
@@ -80,6 +92,7 @@ public partial class MainWindow : Window
                 FooterText.Text = "Independent Apply: " + independent.State +
                                   " (job " + independent.Id[..8] + "). " +
                                   independent.Details;
+            RefreshIndependentReportOffer();
             // Startup metadata discovery; opted-in auto-update can open a
             // per-release confirmation, but never replaces an EXE silently.
             _ = StartupUpdatesAsync();
@@ -474,6 +487,7 @@ public partial class MainWindow : Window
                 await RunBusy(async () =>
                 {
                     string jobId = await Task.Run(() => IsolatedApplyExecutor.Queue(plan, createBackup));
+                    pendingIndependentApplyId = jobId;
                     FooterText.Text = "RDP/unknown session: SYSTEM Apply queued (" + jobId[..8] +
                                       "). Closing the GUI does not stop the job.";
                 }, "Apply");
@@ -489,7 +503,7 @@ public partial class MainWindow : Window
             if (consoleSuccess)
             {
                 FooterText.Text = "Local console Apply completed and verified.";
-                OfferSimpleCompatibilityReport("Verified automatic Apply");
+                OfferStructuredCompatibilityReport(plan);
             }
             return;
         }
@@ -506,49 +520,116 @@ public partial class MainWindow : Window
         }, "Apply");
         await CheckAsync();
         if (applied)
-        {
-            try
-            {
-                var versions = SuccessfulFixMetadata.FromSuccessfulApply(
-                    engine.EnvironmentInfo(), plan);
-                new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
-            }
-            catch (Exception ex)
-            {
-                // Reporting never determines the outcome of the local operation.
-                DiagnosticsBridge.Remember("Compatibility reporting", ex);
-                AuditLog.Append("Optional compatibility dialog was unavailable: " +
-                    ex.GetType().Name);
-            }
-        }
+            OfferStructuredCompatibilityReport(plan);
     }
 
-    private void OfferSimpleCompatibilityReport(string context)
+    private void OfferStructuredCompatibilityReport(PatchPlan plan)
     {
-        // Report offer is UI-only and cannot affect the completed protected
-        // operation. No report is generated or sent when declined.
+        // This UI offer follows the completed protected Apply; it can never
+        // authorize, affect or roll back the DLL operation.
         if (!IsLoaded) return;
-        if (ModernMessageDialog.Show(this,
-                "The operation completed successfully.\n\n" +
-                "Would you like to share a short compatibility report? " +
-                "It can help improve support for this Windows build.\n\n" +
-                "You will review the details before sending. " +
-                "No account, local save or automatic upload is needed.",
-                "Share compatibility information?", MessageBoxButton.YesNo,
-                MessageBoxImage.Information, MessageBoxResult.No) != MessageBoxResult.Yes)
-            return;
         try
         {
-            new DiagnosticsWindow(new DiagnosticsBridge.DiagnosticDraft(
-                context, "VerifiedSuccess", "SUCCESS",
-                "Protected Apply completed and verified."))
-            { Owner = this }.ShowDialog();
+            var versions = SuccessfulFixMetadata.FromSuccessfulApply(
+                engine.EnvironmentInfo(), plan);
+            new SuccessfulFixWindow(versions) { Owner = this }.ShowDialog();
+            _ = RefreshAutoReapplyAsync(); // Update the consent badge immediately.
         }
         catch (Exception ex)
         {
-            DiagnosticsBridge.Remember("Optional compatibility report", ex);
-            AuditLog.Append("Optional reporting dialog unavailable: " + ex.GetType().Name);
+            DiagnosticsBridge.Remember("Compatibility reporting", ex);
+            AuditLog.Append("Optional compatibility dialog unavailable: " +
+                ex.GetType().Name);
         }
+    }
+
+    /// <summary>
+    /// Poll only the previously approved one-shot worker result. Windows Update
+    /// Auto Reapply has separate state and NEVER triggers a GUI report prompt.
+    /// </summary>
+    private void RefreshIndependentReportOffer()
+    {
+        if (busy || independentReportDialogOpen || !IsLoaded) return;
+        var status = IsolatedApplyExecutor.ReadLatestStatus();
+        if (status?.State != "Succeeded" ||
+            IsolatedApplyExecutor.WasReportDelivered(status.Id) ||
+            string.Equals(unverifiedIndependentReportJobId, status.Id,
+                StringComparison.OrdinalIgnoreCase) ||
+            pendingIndependentApplyId is not null &&
+                !string.Equals(status.Id, pendingIndependentApplyId,
+                    StringComparison.OrdinalIgnoreCase))
+        {
+            AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
+            return;
+        }
+        AdvancedPendingReportButton.Visibility = Visibility.Visible;
+        if (!string.Equals(lastOfferedIndependentApplyId, status.Id,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            lastOfferedIndependentApplyId = status.Id;
+            _ = OfferIndependentApplyReportAsync(status.Id, userRequested: false);
+        }
+    }
+
+    private async Task OfferIndependentApplyReportAsync(string jobId, bool userRequested)
+    {
+        if (!IsLoaded || independentReportDialogOpen ||
+            independentReportRecoveryInProgress || busy) return;
+        independentReportRecoveryInProgress = true;
+        try
+        {
+            var status = IsolatedApplyExecutor.ReadLatestStatus();
+            if (status?.State != "Succeeded" ||
+                !string.Equals(status.Id, jobId, StringComparison.OrdinalIgnoreCase) ||
+                IsolatedApplyExecutor.WasReportDelivered(status.Id))
+                return;
+            var result = await Task.Run(() =>
+            {
+                bool valid = IsolatedApplyExecutor.TryReadVerifiedReport(status,
+                    out var metadata);
+                return (valid, metadata);
+            });
+            if (!IsLoaded || independentReportDialogOpen) return;
+            if (!result.valid || result.metadata is null)
+            {
+                unverifiedIndependentReportJobId = status.Id;
+                AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
+                FooterText.Text =
+                    "Protected Apply succeeded, but its report cannot be verified " +
+                    "from the saved job and current DLL. No data was sent.";
+                return;
+            }
+            if (!userRequested && !IsolatedApplyExecutor.TryClaimReportOffer(status.Id))
+                return;
+            independentReportDialogOpen = true;
+            try
+            {
+                if (new SuccessfulFixWindow(result.metadata) { Owner = this }
+                        .ShowDialog() == true)
+                {
+                    IsolatedApplyExecutor.TryMarkReportDelivered(status.Id);
+                    AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
+                }
+                await RefreshAutoReapplyAsync();
+            }
+            finally { independentReportDialogOpen = false; }
+        }
+        catch (Exception ex)
+        {
+            AuditLog.Append("Pending independent Apply report unavailable: " +
+                            ex.GetType().Name);
+            FooterText.Text = "Verified Apply report unavailable (" +
+                ex.GetType().Name + "). No report was sent.";
+        }
+        finally { independentReportRecoveryInProgress = false; }
+    }
+
+    private void PendingApplyReport_Click(object sender, RoutedEventArgs e)
+    {
+        var status = IsolatedApplyExecutor.ReadLatestStatus();
+        if (status?.State == "Succeeded" &&
+            !IsolatedApplyExecutor.WasReportDelivered(status.Id))
+            _ = OfferIndependentApplyReportAsync(status.Id, userRequested: true);
     }
 
     private async void ApplyAuto_Click(object sender, RoutedEventArgs e) => await ApplyAsync(autoPlan, false);
@@ -1095,6 +1176,46 @@ public partial class MainWindow : Window
         });
     }
 
+    private async void CheckDllCompatibility_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy) return;
+        latestDllCompatibilityReport = null;
+        DllCompatibilityGrid.ItemsSource = null;
+        DllCompatibilitySummary.Text = "Inspecting local DLL metadata and bundled evidence...";
+        CopyCompatibilityButton.IsEnabled = false;
+        await RunBusy(async () =>
+        {
+            var report = await Task.Run(() =>
+            {
+                var health = DllHealthMonitor.CheckLocal();
+                return (Health: health, Evidence: DllCompatibilityIndex.ReadLocal(health));
+            });
+            DisplayDllHealth(report.Health);
+            latestDllCompatibilityReport = report.Evidence;
+            DllCompatibilityGrid.ItemsSource = report.Evidence.Rows;
+            DllCompatibilitySummary.Text = report.Evidence.Summary;
+            CopyCompatibilityButton.IsEnabled = true;
+            FooterText.Text = "DLL compatibility evidence inspected locally. No report submitted or DLL changed.";
+        });
+    }
+
+    private void CopyDllCompatibility_Click(object sender, RoutedEventArgs e)
+    {
+        if (latestDllCompatibilityReport is null) return;
+        try
+        {
+            Clipboard.SetText(latestDllCompatibilityReport.AsText());
+            FooterText.Text = "Local compatibility evidence copied (no hostnames or file paths).";
+        }
+        catch (Exception error) when (error is System.Runtime.InteropServices.ExternalException or
+                                       System.Threading.ThreadStateException)
+        {
+            ModernMessageDialog.Show(this,
+                "Windows clipboard is not available: " + error.GetType().Name,
+                "DLL compatibility evidence", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+    }
+
     private async void SaveDllBaseline_Click(object sender, RoutedEventArgs e)
     {
         if (!Confirm(this, "Record DLL health baseline?",
@@ -1115,6 +1236,10 @@ public partial class MainWindow : Window
     private async void RunRdpDoctor_Click(object sender, RoutedEventArgs e)
     {
         if (busy) return;
+        // One entry point in Remote Desktop: summary + technical details are
+        // collected by the SAME read-only RDP Doctor scan.
+        RdpDoctorPanel.IsExpanded = true;
+        RdpDoctorPanel.BringIntoView();
         latestRdpDoctorReport = null;
         DoctorFindingsGrid.ItemsSource = null;
         DoctorEventsGrid.ItemsSource = null;
@@ -1122,6 +1247,11 @@ public partial class MainWindow : Window
         DoctorVerdictText.Text = "Inspecting service, local policy, TCP listeners and Windows logs...";
         DoctorCheckedText.Text = "Local inspection in progress. No Windows configuration changes.";
         DoctorEventStatus.Text = "Checking recent RDP event channels...";
+        RdpDoctorQuickStatus.Text = "Doctor: inspecting local RDP evidence...";
+        RdpInspectionStatus.Text = "Collecting local security evidence in the same scan...";
+        RdpFirewallInspection.Text = RdpRightsInspection.Text =
+            RdpCertificateInspection.Text = RdpGraphicsInspection.Text =
+            "Not yet inspected. Status UNKNOWN.";
         CopyRdpDoctorButton.IsEnabled = false;
         await RunBusy(async () =>
         {
@@ -1141,10 +1271,39 @@ public partial class MainWindow : Window
                 (report.EventWarnings.Count == 0
                     ? ""
                     : Environment.NewLine + string.Join(Environment.NewLine, report.EventWarnings));
+
+            // This raw security text may contain local identities or certificate
+            // details. It is displayed ONLY in the collapsed local technical panel;
+            // RdpDoctorReport.AsText() deliberately excludes it.
+            if (report.LocalSecurityDetails is { } details)
+            {
+                RdpFirewallInspection.Text = details.Firewall;
+                RdpRightsInspection.Text = details.LogonRights;
+                RdpCertificateInspection.Text = details.Certificate;
+                RdpGraphicsInspection.Text = details.Graphics;
+                RdpInspectionStatus.Text = "Detailed local evidence collected " +
+                    details.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
+                    " UTC. Missing values remain UNKNOWN. Not included in copied reports.";
+            }
+            else
+            {
+                RdpInspectionStatus.Text = "Security inspection unavailable (UNKNOWN). " +
+                    "No valid technical detail was collected.";
+            }
+            RdpDoctorQuickStatus.Text = "Doctor: " + report.Blockers +
+                " blocker(s), " + report.AttentionCount + " attention, " +
+                report.UnknownCount + " unverified. Remote connection NOT tested.";
             CopyRdpDoctorButton.IsEnabled = true;
             FooterText.Text = "RDP Doctor completed. " + report.Blockers +
                 " local blocker(s). No services, registry values or system DLL changed.";
         });
+        if (latestRdpDoctorReport is null)
+        {
+            DoctorVerdictText.Text = "RDP diagnostic did not complete; all results remain UNKNOWN.";
+            RdpDoctorQuickStatus.Text = "Doctor: inspection unavailable. No changes made.";
+            DoctorCheckedText.Text = "No completed scan available. Check Diagnostics for error details.";
+            RdpInspectionStatus.Text = "Technical evidence unavailable (UNKNOWN).";
+        }
     }
 
     private void CopyRdpDoctor_Click(object sender, RoutedEventArgs e)
@@ -1161,32 +1320,6 @@ public partial class MainWindow : Window
             ModernMessageDialog.Show(this, "Windows clipboard is not available: " +
                 error.GetType().Name, "RDP Doctor", MessageBoxButton.OK, MessageBoxImage.Information);
         }
-    }
-
-    private void OpenRdpSettingsFromDoctor_Click(object sender, RoutedEventArgs e)
-    {
-        var rdpTab = MainTabs.Items.OfType<System.Windows.Controls.TabItem>()
-            .FirstOrDefault(x => x.Header as string == "Remote Desktop");
-        if (rdpTab is not null) MainTabs.SelectedItem = rdpTab;
-    }
-
-    private async void InspectRdpSecurity_Click(object sender, RoutedEventArgs e)
-    {
-        if (busy) return;
-        RdpInspectionStatus.Text = "Inspecting local Windows APIs... No registry or policy writes.";
-        await RunBusy(async () =>
-        {
-            var report = await Task.Run(RdpSecurityInspector.ReadLocal);
-            RdpFirewallInspection.Text = report.Firewall;
-            RdpRightsInspection.Text = report.LogonRights;
-            RdpCertificateInspection.Text = report.Certificate;
-            RdpGraphicsInspection.Text = report.Graphics;
-            RdpInspectionStatus.Text = "Inspected " +
-                report.CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss") +
-                " UTC (read-only). Missing evidence remains Unknown.";
-            FooterText.Text = "RDP firewall / logon rights / certificate / graphics inspected locally. " +
-                "No changes or diagnostic uploads.";
-        });
     }
 
     private async void RefreshRdpSessions_Click(object sender, RoutedEventArgs e)
@@ -1887,13 +2020,40 @@ public partial class MainWindow : Window
             AdvancedAutoReapplyCheck.IsChecked = task.Trusted && task.Enabled;
             AdvancedAutoReapplyCheck.IsEnabled = !busy &&
                 (!task.Installed || task.Trusted);
-            AdvancedAutoReapplyStatus.Text = task.Message;
+            bool autoReportApproved = AutoCompatibilityReporting.IsEnabled(
+                DirectReportingSettings.Load().GoogleAppsScriptUrl);
+            AdvancedAutoReapplyStatus.Text = task.Message +
+                (autoReportApproved
+                    ? " Silent unified reports: consent ON."
+                    : " Silent unified reports: OFF.");
+            AdvancedRevokeAutoReportsButton.Visibility = autoReportApproved
+                ? Visibility.Visible : Visibility.Collapsed;
+            AdvancedRevokeAutoReportsButton.IsEnabled =
+                autoReportApproved && SystemInfo.IsAdministrator() && !busy;
             AdvancedRepairTaskButton.Visibility = task.Repairable
                 ? Visibility.Visible : Visibility.Collapsed;
             AdvancedRepairTaskButton.IsEnabled = task.Repairable && !busy &&
                 SystemInfo.IsAdministrator() && !autoTaskChanging;
         }
         finally { autoTaskLoading = false; }
+    }
+
+    private async void RevokeAutoReports_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || autoTaskChanging || !SystemInfo.IsAdministrator()) return;
+        if (ModernMessageDialog.Show(this,
+                "Remove permission for future silent diagnostic and compatibility reports? " +
+                "The Auto Reapply task, installed DLL and backups remain unchanged.",
+                "Disable automatic reports", MessageBoxButton.YesNo,
+                MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        try { await Task.Run(AutoCompatibilityReporting.Revoke); }
+        catch (Exception ex)
+        {
+            FooterText.Text = "Could not revoke reporting permission: " +
+                              ex.GetType().Name;
+        }
+        await RefreshAutoReapplyAsync();
     }
 
     private async void RepairAutoReapply_Click(object sender, RoutedEventArgs e)

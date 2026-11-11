@@ -35,6 +35,10 @@ internal sealed record RdpDoctorReport(
     DateTimeOffset CheckedUtc, IReadOnlyList<RdpDoctorFinding> Findings,
     IReadOnlyList<RdpDoctorEvent> Events, IReadOnlyList<string> EventWarnings)
 {
+    // Available only to the local UI. This may include group names and certificate
+    // metadata, so AsText() must NEVER serialize it or send it to reporting.
+    internal RdpSecurityInspection? LocalSecurityDetails { get; init; }
+
     public int Blockers => Findings.Count(x => x.Level == RdpDoctorLevel.Blocked);
     public int AttentionCount => Findings.Count(x => x.Level == RdpDoctorLevel.Attention);
     public int UnknownCount => Findings.Count(x => x.Level == RdpDoctorLevel.Unknown);
@@ -116,7 +120,8 @@ internal static class RdpDoctor
             socket = RdpDoctorSocket.Unknown;
         }
         var (events, warnings) = RdpDoctorEventReader.ReadRecent(TimeSpan.FromHours(24));
-        return Analyze(new(policy, security, port, socket, events, warnings));
+        return Analyze(new(policy, security, port, socket, events, warnings))
+            with { LocalSecurityDetails = security };
     }
 
     internal static RdpDoctorSocket InspectSockets(int port, IEnumerable<IPEndPoint> endpoints)

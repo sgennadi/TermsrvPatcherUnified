@@ -1,3 +1,56 @@
+## Stable 1.0.5 acceptance — 2026-11-11
+
+- **Real operator-approved reporting:** Windows 11 26H2 Apply metadata from Preview.4 was delivered through Google Apps Script into [general diagnostic Issue #46](https://github.com/sgennadi/TermsrvPatcherUnified/issues/46) and a [DLL compatibility Issue #1 comment](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1). The collector added one entry to `data/successful-fixes.csv`, without independently validating an RDP connection. The operator confirmed Unified Apply report closes after the successful send.
+- **Version downgrade guard:** tests cover installed Stable `1.0.5` vs `1.0.5-preview.5`, `1.0.5-preview.99`, older 1.0.4, equal 1.0.5 and explicitly approved newer versions. GUI staging and protected updater helper share the strict SemVer gate. Preview GitHub releases are always `--latest=false`.
+- **Final Stable gates:** Windows 2025 build, source/Google schema checks, WPF UI, DLL compatibility, offline DLL, backups, operation lock, RDP, EXE inspection and non-destructive SYSTEM execution run before publication; exactly 3 release assets are checked after publication.
+- **Not yet validated live:** unattended Auto Reapply after Windows Update, isolated physical RDP reconnection on all supported Windows builds and physical 200% DPI. Those require separate authorized machines and are not implied by public self-reports.
+
+## Partial Google reporting and automatic close — 1.0.5-preview.5 candidate
+
+- **Reproduction:** Preview.4 posted the combined general diagnostics to Issue #43, but Google did not acknowledge an Issue #1 DLL compatibility comment. The UI correctly remained open and must not record automatic reporting consent on partial success.
+- **Fix:** Two independently validated receipts control successful close. In the same window, a failed second step leaves the first Issue receipt in memory; a manual retry shows only the pending compatibility JSON, obtains fresh approval, sends only that record and closes on its confirmed comment URL. A new EXE process does not implicitly trust/reuse an old in-memory receipt.
+- **Diagnostics:** The UI shows the safe Google error explanation instead of only `InvalidOperationException`, including receiver deployment checks and Issues-write permission guidance. GET now provides a public, read-only version/schema indicator after owner redeployment.
+- **Tests:** synthetic 2-POST partial failure + 1-POST compatibility retry, no duplicate diagnostic POST, receipt-state policy, gateway GET health, strict public data grammar and WPF review rendering. Neither live GitHub postings nor protected DLL changes run in CI.
+
+## WinBuild DLL version and retrospective report recovery — 1.0.5-preview.4 candidate
+
+- **User reproduction:** Win11 26H2 / termsrv.dll `10.0.26100.8115 (WinBuild.160101.0800)`: protected SYSTEM Apply can complete successfully while the strict public report validator rejects the WinBuild suffix and saves a status with `Report=null`; the Simple/Advanced GUI consequently has no consent prompt.
+- **Fix:** retain raw DLL resource text in Windows, request and DPAPI journal for exact matching; canonicalize only the public metadata to the numeric `10.0.26100.8115`. Parse the source staged EXE ProductVersion, not the currently executing updater version.
+- **Recovery:** for a completed one-shot SYSTEM task with no embedded report, verify the job request, ID, terminal status, secure directories, original/executable SHA-256, current DLL SHA-256 and DPAPI-protected edited bytes, including their executable section. Reconstruct a report **without any new Apply**; unresolved evidence fails closed and cannot upload.
+- **Regression:** synthetic WinBuild variants, exact byte replay, tampering rejection, staged EXE version and WPF report workflow. No real Windows protected DLL is modified by CI.
+
+## Unified RDP post-Apply report recovery — 1.0.5-preview.3 candidate
+
+- A one-shot SYSTEM task now records a bounded, validated `SuccessfulFixMetadata` only after successful Apply and verified final DLL SHA-256. The UI reconstructs it after RDP disconnect and GUI restart without re-running Apply or guessing edited bytes.
+- Simple and Advanced independently verify the persisted job request, ID, state, original/result SHA-256, Windows/DLL build evidence and the current installed DLL SHA-256 before showing the report window. A durable once-per-job offer marker prevents repeated unsolicited prompts; a manual Share button remains available after dismissal.
+- The unattended Windows-Update Auto Reapply worker uses separate state and cannot trigger an interactive offer. Jobs from previous builds without validated evidence, failed tasks or AlreadyPatched are not offered.
+- Ordinary diagnostics closes after confirmed Google-to-GitHub delivery; no successful close on an unverified response. Synthetic .NET, Windows UI and published EXE checks are required; no actual protected DLL write or live reconnect is claimed.
+
+## Unified and silent Auto Reapply report QA — feature branch
+
+- A combined manual report presents typed diagnostics and DLL compatibility in one read-only preview with one approval, while the receiver stores them in two independent public GitHub record classes.
+- The unchecked-by-default consent is saved only after both manual receipts succeed; consent is protected, endpoint-bound, revocable, and checked by the SYSTEM worker after a successful SHA-256-verified Apply. No progress or failure dialogs appear in Session 0.
+- Synthetic tests cover absent/invalid/disabled consent, endpoint mismatch, non-SYSTEM context, manual/AlreadyPatched/failed checksums, read-only preview, and revocation controls. Windows GitHub Actions must pass before publishing or merging; no actual patch or live Google auto-send is asserted.
+
+## Compatibility Google relay QA — 1.0.5 candidate
+
+- New synthetic .NET fake-HTTP checks: exact approved JSON, no client token, explicit GitHub Issue #1 comment receipt, edited/mismatched JSON refusal and rejection of unrelated/malicious comment URLs.
+- New offline Node 24 Apps Script VM checks: strict schema and SHA/edit validation, public comment delivery, event-id dedup, existing diagnostic Issue backward compatibility, missing server token failure. No external network calls.
+- New WPF offscreen checks: consent-only report UI for console Apply and offline copy has no GitHub token field; the output remains read-only.
+- GitHub Actions aggregators separately run their Python self-tests before accepting public comment events. No live Google deployment, public Issue comment, functional Windows 11 RDP or physical 200% DPI is asserted.
+- **Owner must redeploy Google Apps Script** as a new version to enable this path; the current EXE does not update the hosted code.
+
+## Unified Remote Desktop / RDP Doctor — 1.0.5 candidate
+
+- The standalone RDP Doctor tab was merged into Remote Desktop; only one Run RDP Doctor scan button exists.
+- The prioritized findings, local event metadata and detailed Firewall, logon rights, TLS certificate and graphics boxes are populated from the same read-only inspection; the old separate Inspect button was removed.
+- WPF smoke checks single-tab topology, default-collapsed panels, read-only grids and no duplicate inspector button. Synthetic Doctor report checks local identity/certificate details remain excluded from text export.
+- Windows CI must pass at final PR head before merging; this does not validate live Windows 11 remote connections or real 200% DPI hardware.
+
+# DLL compatibility-index QA (1.0.5 feature branch; NOT RELEASED)
+
+The offline, non-destructive compatibility-index test command `--dll-compatibility-qa` validates exact version/SHA matching, missing/malformed data, self-report trust boundaries and path-free exports. Windows CI is required before publishing. The approved Stable release is 1.0.4. Real RDP sessions, Windows servicing and 200% physical DPI are not validated by the offline test.
+
 # QA status — 2026-11-10
 
 ## Stable 1.0.0 — published
