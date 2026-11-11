@@ -37,6 +37,8 @@ public partial class MainWindow : Window
     private string? pendingIndependentApplyId;
     private string? lastOfferedIndependentApplyId;
     private bool independentReportDialogOpen;
+    private bool independentReportRecoveryInProgress;
+    private string? unverifiedIndependentReportJobId;
     private readonly DispatcherTimer independentReportTimer;
     private readonly UpdateIntegration updates = new();
     private readonly AutoUpdateGuiCoordinator autoUpdateCoordinator;
@@ -549,8 +551,10 @@ public partial class MainWindow : Window
     {
         if (busy || independentReportDialogOpen || !IsLoaded) return;
         var status = IsolatedApplyExecutor.ReadLatestStatus();
-        if (status?.State != "Succeeded" || status.Report is null ||
+        if (status?.State != "Succeeded" ||
             IsolatedApplyExecutor.WasReportDelivered(status.Id) ||
+            string.Equals(unverifiedIndependentReportJobId, status.Id,
+                StringComparison.OrdinalIgnoreCase) ||
             pendingIndependentApplyId is not null &&
                 !string.Equals(status.Id, pendingIndependentApplyId,
                     StringComparison.OrdinalIgnoreCase))
@@ -569,11 +573,13 @@ public partial class MainWindow : Window
 
     private async Task OfferIndependentApplyReportAsync(string jobId, bool userRequested)
     {
-        if (!IsLoaded || independentReportDialogOpen || busy) return;
+        if (!IsLoaded || independentReportDialogOpen ||
+            independentReportRecoveryInProgress || busy) return;
+        independentReportRecoveryInProgress = true;
         try
         {
             var status = IsolatedApplyExecutor.ReadLatestStatus();
-            if (status?.State != "Succeeded" || status.Report is null ||
+            if (status?.State != "Succeeded" ||
                 !string.Equals(status.Id, jobId, StringComparison.OrdinalIgnoreCase) ||
                 IsolatedApplyExecutor.WasReportDelivered(status.Id))
                 return;
@@ -586,8 +592,11 @@ public partial class MainWindow : Window
             if (!IsLoaded || independentReportDialogOpen) return;
             if (!result.valid || result.metadata is null)
             {
+                unverifiedIndependentReportJobId = status.Id;
                 AdvancedPendingReportButton.Visibility = Visibility.Collapsed;
-                FooterText.Text = "Saved Apply report no longer matches the verified installed DLL.";
+                FooterText.Text =
+                    "Protected Apply succeeded, but its report cannot be verified " +
+                    "from the saved job and current DLL. No data was sent.";
                 return;
             }
             if (!userRequested && !IsolatedApplyExecutor.TryClaimReportOffer(status.Id))
@@ -612,12 +621,14 @@ public partial class MainWindow : Window
             FooterText.Text = "Verified Apply report unavailable (" +
                 ex.GetType().Name + "). No report was sent.";
         }
+        finally { independentReportRecoveryInProgress = false; }
     }
 
     private void PendingApplyReport_Click(object sender, RoutedEventArgs e)
     {
         var status = IsolatedApplyExecutor.ReadLatestStatus();
-        if (status?.State == "Succeeded" && status.Report is not null)
+        if (status?.State == "Succeeded" &&
+            !IsolatedApplyExecutor.WasReportDelivered(status.Id))
             _ = OfferIndependentApplyReportAsync(status.Id, userRequested: true);
     }
 
