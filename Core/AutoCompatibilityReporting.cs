@@ -145,14 +145,19 @@ internal static class AutoCompatibilityReporting
                     plan.State, plan.IsManual, validHash))
                 return;
 
-            var payload = CompatibilityRelaySubmission.Create(
+            // Same two bounded, separately typed sections as the operator-reviewed
+            // unified report. No Windows event messages, identities or RDP tests.
+            var report = new UnifiedApplyReport(
                 SuccessfulFixMetadata.FromSuccessfulApply(os, plan));
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             using var client = new GoogleAppsScriptReportClient();
+            _ = client.SendAsync(
+                settings.GoogleAppsScriptUrl, report.DiagnosticJson,
+                report.Diagnostics, timeout.Token).GetAwaiter().GetResult();
             _ = client.SendCompatibilityAsync(
-                settings.GoogleAppsScriptUrl, payload.Json, payload, timeout.Token)
-                .GetAwaiter().GetResult();
-            AuditLog.Append("Silent Auto Reapply compatibility report confirmed by GitHub.");
+                settings.GoogleAppsScriptUrl, report.Compatibility.Json,
+                report.Compatibility, timeout.Token).GetAwaiter().GetResult();
+            AuditLog.Append("Silent Auto Reapply unified report confirmed by GitHub.");
         }
         catch (Exception ex)
         {
