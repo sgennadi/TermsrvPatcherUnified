@@ -2,6 +2,8 @@
 
 **Latest Stable:** [**1.0.5**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.5) · **Published:** 2026-11-11 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
 
+**Upcoming Preview candidate:** `1.0.6-preview.1` is being validated in [PR #49](https://github.com/sgennadi/TermsrvPatcherUnified/pull/49). It hardens isolated SYSTEM worker staging and harmless scheduler probes; **Stable 1.0.5 remains the current published recommendation**. See [Changelog](CHANGELOG.md).
+
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
