@@ -113,6 +113,52 @@ jobs:
           $reportFile = Join-Path $PWD 'scan-smoke.txt'
           [System.IO.File]::WriteAllBytes($inputFile, [byte[]](0x39,0x81,0x3C,0x06,0x00,0x00,0x0F,0x84,0x6F,0x66,0x01,0x00))
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $product = (Get-Item $exe).VersionInfo.ProductVersion
+          if ($product -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)? '--inspect-file "{0}" --report "{1}"' -f $inputFile, $reportFile
+          $process = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }
+          if (-not (Test-Path $reportFile)) { throw 'No inspection report was created.' }
+          if (-not ((Get-Content $reportFile -Raw) -match 'read-only DLL inspection')) { throw 'Unexpected inspection report.' }
+          $healthy = Start-Process -FilePath $exe -ArgumentList '--update-probe', (Get-Content VERSION -Raw).Trim() -Wait -PassThru
+          if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
+          $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
+          if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }
+      - name: Non-destructive SYSTEM Task Scheduler worker smoke (no DLL writes)
+        shell: pwsh
+        run: |
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          $probe = Start-Process -FilePath $exe -ArgumentList '--isolated-executor-qa' -Wait -PassThru
+          if ($probe.ExitCode -ne 0) {
+            $root = Join-Path $env:ProgramData 'TermsrvPatcherUnified.Secure/Executor'
+            if (Test-Path $root) {
+              Get-ChildItem $root -Directory | Sort-Object CreationTimeUtc -Descending |
+                Select-Object -First 1 | ForEach-Object {
+                  $status = Join-Path $_.FullName 'status.json'
+                  if (Test-Path $status) { Write-Host (Get-Content $status -Raw) }
+                }
+            }
+            throw "SYSTEM Task Scheduler probe failed with exit code $($probe.ExitCode). No system DLL was modified."
+          }
+          Write-Host 'PASS: isolated SYSTEM/Session 0 Task Scheduler worker ran without opening termsrv.dll or touching services.'
+      - name: Package exact two-file portable ZIP and one-EXE updater ZIP
+        shell: pwsh
+        run: ./scripts/package_preview.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: TermsrvPatcherUnified-preview-win-x64
+          path: |
+            TermsrvPatcherUnified-win-x64.zip
+            TermsrvPatcherUnified-update-win-x64.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+) {
+            throw "Published EXE ProductVersion cannot identify the original Apply version: '$product'."
+          }
+          $sourceVersion = ($product -split '\+')[0]
+          if ($sourceVersion -ne (Get-Content VERSION -Raw).Trim()) {
+            throw "EXE ProductVersion mismatch: '$sourceVersion'."
+          }
+          Write-Host "PASS: checked EXE ProductVersion $sourceVersion for protected report recovery."
           $arguments = '--inspect-file "{0}" --report "{1}"' -f $inputFile, $reportFile
           $process = Start-Process -FilePath $exe -ArgumentList $arguments -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Read-only EXE smoke test failed: $($process.ExitCode)" }

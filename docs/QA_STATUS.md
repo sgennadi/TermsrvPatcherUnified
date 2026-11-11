@@ -1,3 +1,10 @@
+## WinBuild DLL version and retrospective report recovery — 1.0.5-preview.4 candidate
+
+- **User reproduction:** Win11 26H2 / termsrv.dll `10.0.26100.8115 (WinBuild.160101.0800)`: protected SYSTEM Apply can complete successfully while the strict public report validator rejects the WinBuild suffix and saves a status with `Report=null`; the Simple/Advanced GUI consequently has no consent prompt.
+- **Fix:** retain raw DLL resource text in Windows, request and DPAPI journal for exact matching; canonicalize only the public metadata to the numeric `10.0.26100.8115`. Parse the source staged EXE ProductVersion, not the currently executing updater version.
+- **Recovery:** for a completed one-shot SYSTEM task with no embedded report, verify the job request, ID, terminal status, secure directories, original/executable SHA-256, current DLL SHA-256 and DPAPI-protected edited bytes, including their executable section. Reconstruct a report **without any new Apply**; unresolved evidence fails closed and cannot upload.
+- **Regression:** synthetic WinBuild variants, exact byte replay, tampering rejection, staged EXE version and WPF report workflow. No real Windows protected DLL is modified by CI.
+
 ## Unified RDP post-Apply report recovery — 1.0.5-preview.3 candidate
 
 - A one-shot SYSTEM task now records a bounded, validated `SuccessfulFixMetadata` only after successful Apply and verified final DLL SHA-256. The UI reconstructs it after RDP disconnect and GUI restart without re-running Apply or guessing edited bytes.
