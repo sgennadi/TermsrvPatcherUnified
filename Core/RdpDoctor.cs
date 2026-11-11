@@ -4,7 +4,7 @@ using System.Text;
 
 namespace TermsrvPatcherUnified.Core;
 
-internal enum RdpDoctorLevel { Ok, Attention, Blocked, Unknown }
+internal enum RdpDoctorLevel { Ok, Observed, Attention, Blocked, Unknown, Unavailable, NotTested }
 
 internal enum RdpDoctorSocket { Unknown, NotListening, LoopbackOnly, Listening }
 
@@ -13,10 +13,13 @@ internal sealed record RdpDoctorFinding(
 {
     public string Status => Level switch
     {
-        RdpDoctorLevel.Ok => "OK (local)",
+        RdpDoctorLevel.Ok => "Verified locally",
+        RdpDoctorLevel.Observed => "Observed locally",
         RdpDoctorLevel.Attention => "Attention",
         RdpDoctorLevel.Blocked => "Blocker",
-        _ => "Unverified"
+        RdpDoctorLevel.Unavailable => "Unavailable",
+        RdpDoctorLevel.NotTested => "Not tested",
+        _ => "Incomplete"
     };
 }
 
@@ -42,6 +45,10 @@ internal sealed record RdpDoctorReport(
     public int Blockers => Findings.Count(x => x.Level == RdpDoctorLevel.Blocked);
     public int AttentionCount => Findings.Count(x => x.Level == RdpDoctorLevel.Attention);
     public int UnknownCount => Findings.Count(x => x.Level == RdpDoctorLevel.Unknown);
+    public int UnavailableCount => Findings.Count(x => x.Level == RdpDoctorLevel.Unavailable);
+    public int NotTestedCount => Findings.Count(x => x.Level == RdpDoctorLevel.NotTested);
+    public int LocalEvidenceCount => Findings.Count(x =>
+        x.Level is RdpDoctorLevel.Ok or RdpDoctorLevel.Observed);
 
     public string Verdict => Blockers > 0
         ? "Local RDP blocker detected. Remote connectivity has NOT been tested."
@@ -58,7 +65,10 @@ internal sealed record RdpDoctorReport(
             .AppendLine("Checked UTC: " + CheckedUtc.ToUniversalTime().ToString("yyyy-MM-dd HH:mm:ss"))
             .AppendLine("Verdict: " + Verdict)
             .AppendLine("Blockers: " + Blockers + "; attention: " + AttentionCount +
-                        "; unverified: " + UnknownCount)
+                        "; local evidence: " + LocalEvidenceCount +
+                        "; unavailable: " + UnavailableCount +
+                        "; incomplete: " + UnknownCount +
+                        "; not tested: " + NotTestedCount)
             .AppendLine("IMPORTANT: local checks cannot prove external RDP reachability or licensing.");
         foreach (var x in Findings)
         {
@@ -99,14 +109,6 @@ internal static class RdpDoctor
         {
             // Unknown: a failed probe never becomes "enabled".
         }
-        try { security = RdpSecurityInspector.ReadLocal(); }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or
-                                   System.ComponentModel.Win32Exception or UnauthorizedAccessException or
-                                   System.Security.SecurityException or ArgumentException or
-                                   System.Runtime.InteropServices.COMException)
-        {
-            // Per-source failure is unknown. Do not reveal local account names.
-        }
         try
         {
             port = RdpPostApply.ReadLocalPort();
@@ -118,6 +120,14 @@ internal static class RdpDoctor
                                    System.Security.SecurityException or ArgumentException)
         {
             socket = RdpDoctorSocket.Unknown;
+        }
+        try { security = RdpSecurityInspector.ReadLocal(port); }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or
+                                   System.ComponentModel.Win32Exception or UnauthorizedAccessException or
+                                   System.Security.SecurityException or ArgumentException or
+                                   System.Runtime.InteropServices.COMException)
+        {
+            // Failed inspection is unavailable, never evidence of a healthy firewall.
         }
         var (events, warnings) = RdpDoctorEventReader.ReadRecent(TimeSpan.FromHours(24));
         return Analyze(new(policy, security, port, socket, events, warnings))
@@ -256,75 +266,105 @@ internal static class RdpDoctor
                 "LSA restriction could not be verified.",
                 "Review LimitBlankPasswordUse locally and security GPO/MDM provenance.");
 
-        var firewall = source.Security?.Firewall ?? "";
-        if (string.IsNullOrWhiteSpace(firewall) ||
-            firewall.Contains("UNKNOWN", StringComparison.OrdinalIgnoreCase) ||
-            firewall.Contains("Unable to inspect", StringComparison.OrdinalIgnoreCase))
-            Add(checks, "Windows Firewall", RdpDoctorLevel.Unknown,
-                "Inbound RDP rule inspection unavailable.",
-                "Inspect effective inbound rules, active network profile, port and source address restrictions.");
-        else if (firewall.Contains("No built-in RDP inbound", StringComparison.OrdinalIgnoreCase) ||
-                 firewall.Contains("No built-in RDP inbound rule", StringComparison.OrdinalIgnoreCase))
-            Add(checks, "Windows Firewall", RdpDoctorLevel.Attention,
-                "No built-in RDP inbound rule group detected. Custom rules might exist.",
-                "Review effective Firewall rules and approved source scope. Do not disable Windows Firewall.");
+        var firewall = source.Security?.FirewallEvidence;
+        if (firewall is not null)
+            Add(checks, "Windows Firewall", firewall.Level, firewall.Summary,
+                "Expand Technical evidence > Firewall to review the active profile, exact TCP port, " +
+                "Allow/Block candidates and any COM/CIM/registry fallback. Never disable Firewall to troubleshoot.");
+        else if (source.Security is null ||
+                 string.IsNullOrWhiteSpace(source.Security.Firewall) ||
+                 source.Security.Firewall.Contains("Unable to inspect", StringComparison.OrdinalIgnoreCase))
+            Add(checks, "Windows Firewall", RdpDoctorLevel.Unavailable,
+                "Inbound Firewall rule inspection unavailable.",
+                "Run as administrator and inspect the local Firewall technical evidence; no rules are changed.");
         else
             Add(checks, "Windows Firewall", RdpDoctorLevel.Unknown,
-                "Built-in rule metadata is available, but effective RDP access remains unverified.",
-                "Check active profile intersection, enabled Allow rules, TCP port, address scope and upstream filters.");
+                "Only unstructured local Firewall metadata is available; effective rules not established.",
+                "Review active profile, inbound TCP port, enabled rules and source scope.");
 
         var rights = source.Security?.LogonRights ?? "";
-        Add(checks, "Remote interactive logon rights", RdpDoctorLevel.Unknown,
-            rights.Contains("Local applied LSA", StringComparison.Ordinal)
-                ? "LSA Allow/Deny assignments were enumerated (user/group token and nested membership not evaluated)."
-                : "Effective logon rights not verified.",
-            "Inspect SeRemoteInteractiveLogonRight, SeDenyRemoteInteractiveLogonRight and effective group memberships. Deny takes precedence.");
+        if (string.IsNullOrWhiteSpace(rights) ||
+            rights.Contains("Unable to inspect", StringComparison.OrdinalIgnoreCase) ||
+            rights.Contains("Rights status UNKNOWN", StringComparison.OrdinalIgnoreCase))
+            Add(checks, "Remote interactive logon rights", RdpDoctorLevel.Unavailable,
+                "Local LSA Allow/Deny rights could not be read.",
+                "Review access to local LSA policy; actual account group membership cannot be inferred.");
+        else if (rights.Contains("Not enumerated", StringComparison.OrdinalIgnoreCase) ||
+                 rights.Contains("status UNKNOWN", StringComparison.OrdinalIgnoreCase))
+            Add(checks, "Remote interactive logon rights", RdpDoctorLevel.Unknown,
+                "LSA assignments were only partially enumerated.",
+                "Check SeRemoteInteractiveLogonRight, SeDenyRemoteInteractiveLogonRight and failed LSA lookups.");
+        else if (rights.Contains("Local applied LSA", StringComparison.Ordinal))
+            Add(checks, "Remote interactive logon rights", RdpDoctorLevel.Observed,
+                "Local Allow/Deny assignments read; nested groups and the actual user token NOT evaluated.",
+                "Deny takes precedence. Compare the target account and nested group membership before attempting sign-in.");
+        else
+            Add(checks, "Remote interactive logon rights", RdpDoctorLevel.Unknown,
+                "LSA evidence is incomplete; effective user permissions not established.",
+                "Inspect LSA Allow/Deny rights and the effective user's token.");
 
         var certificate = source.Security?.Certificate ?? "";
         if (certificate.Contains("EXPIRED or not yet valid", StringComparison.Ordinal))
             Add(checks, "RDP TLS certificate", RdpDoctorLevel.Attention,
-                "Certificate validity dates appear expired or not yet valid.",
-                "Review the actual listener binding and trusted replacement certificate; no automatic certificate changes.");
+                "The locally located listener certificate is outside its validity dates.",
+                "Inspect listener binding and trusted certificate; do not change TLS settings automatically.");
+        else if (certificate.Contains("Within validity dates", StringComparison.Ordinal))
+            Add(checks, "RDP TLS certificate", RdpDoctorLevel.Observed,
+                "Bound certificate found and validity dates checked locally; active TLS handshake/trust NOT tested.",
+                "Check trust chain, TermService private-key access and remote handshake if connections fail.");
+        else if (string.IsNullOrWhiteSpace(certificate) ||
+                 certificate.Contains("Unable to inspect", StringComparison.OrdinalIgnoreCase))
+            Add(checks, "RDP TLS certificate", RdpDoctorLevel.Unavailable,
+                "Certificate inspection unavailable.",
+                "Check local certificate store permissions and RDP listener binding.");
         else
             Add(checks, "RDP TLS certificate", RdpDoctorLevel.Unknown,
-                certificate.Contains("Within validity dates", StringComparison.Ordinal)
-                    ? "Certificate is within its date window. TLS trust and active handshake not verified."
-                    : "Certificate binding, trust or validity not independently established.",
-                "Check RDP listener certificate, issuer trust, private-key permissions and remote TLS handshake.");
+                "Certificate metadata is incomplete or no listener binding was found.",
+                "Check listener certificate, issuer trust, private-key permissions and remote TLS handshake.");
 
-        Add(checks, "Graphics / codec policy", RdpDoctorLevel.Unknown,
-            source.Security?.Graphics is null
-                ? "GPU, AVC and WDDM policies could not be inspected."
-                : "GPU, AVC and WDDM policy metadata was inspected; negotiated codec is unknown.",
-            "Review graphics GPO only if users report poor visual performance. It is not a primary connectivity test.");
+        var graphics = source.Security?.Graphics ?? "";
+        if (graphics.Contains("RDP graphics ADMX", StringComparison.Ordinal))
+            Add(checks, "Graphics / codec policy", RdpDoctorLevel.Observed,
+                "GPU, AVC and WDDM policy metadata read locally; active codec negotiation NOT tested.",
+                "Inspect graphics GPO only for reported performance problems, not as proof of connectivity.");
+        else
+            Add(checks, "Graphics / codec policy", RdpDoctorLevel.Unavailable,
+                "GPU, AVC or WDDM policy inspection unavailable.",
+                "Inspect local computer policy registry and applied GPO, if needed.");
 
         int eventErrors = source.Events.Count(x => x.Level is "Critical" or "Error");
         int eventWarnings = source.Events.Count(x => x.Level == "Warning");
         if (source.EventWarnings.Count > 0)
             Add(checks, "Windows RDP event logs", RdpDoctorLevel.Unknown,
-                "One or more event channels were unavailable or unreadable.",
-                "Check channel accessibility in Event Viewer; missing logs cannot prove a healthy RDP session.");
+                source.Events.Count > 0
+                    ? "Some event channels were read, but one or more channels were unavailable."
+                    : "One or more Windows RDP event channels were unavailable.",
+                "Inspect individual Event Viewer channels; gaps cannot establish successful connections.");
         else if (eventErrors + eventWarnings > 0)
             Add(checks, "Windows RDP event logs", RdpDoctorLevel.Attention,
                 "Last 24 hours: " + eventErrors + " error/critical and " +
-                eventWarnings + " warning event(s). Events are clues, not diagnosed root causes.",
-                "Review the event IDs and timestamps in the local table; correlate with the user's connection attempt.");
+                eventWarnings + " warning event(s), for correlation only.",
+                "Correlate event IDs and UTC times with the user's independent connection attempt.");
         else
-            Add(checks, "Windows RDP event logs", RdpDoctorLevel.Unknown,
-                source.Events.Count == 0 ? "No recent events found in the inspected channels." :
-                    source.Events.Count + " recent informational event(s); no errors observed in sampled records.",
-                "If a connection fails, reproduce with a timestamp and inspect all relevant channels and client logs.");
+            Add(checks, "Windows RDP event logs", RdpDoctorLevel.Observed,
+                source.Events.Count == 0
+                    ? "Inspected event channels returned no sampled events in the last 24 hours."
+                    : source.Events.Count + " recent informational event(s); no errors found in this bounded sample.",
+                "A clean sample is not proof of connectivity. Correlate events with a separately tested RDP session.");
 
-        Add(checks, "External client connection", RdpDoctorLevel.Unknown,
-            "No remote TCP, TLS, credential or interactive logon attempt was performed.",
-            "Use a different authorized computer to test the configured port and a normal RDP sign-in; compare timestamps with events.");
+        Add(checks, "External client connection", RdpDoctorLevel.NotTested,
+            "No TCP connection, TLS handshake, authentication or interactive logon from another host was attempted.",
+            "From a separate authorized computer, test the configured port and normal RDP sign-in.");
 
         var sorted = checks.OrderBy(x => x.Level switch
         {
             RdpDoctorLevel.Blocked => 0,
             RdpDoctorLevel.Attention => 1,
-            RdpDoctorLevel.Unknown => 2,
-            _ => 3
+            RdpDoctorLevel.Unavailable => 2,
+            RdpDoctorLevel.Unknown => 3,
+            RdpDoctorLevel.NotTested => 4,
+            RdpDoctorLevel.Observed => 5,
+            _ => 6
         }).ToArray();
         return new(DateTimeOffset.UtcNow, sorted, source.Events, source.EventWarnings);
     }
