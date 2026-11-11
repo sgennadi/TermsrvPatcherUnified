@@ -541,8 +541,12 @@ internal static class IsolatedApplyExecutor
         if (status?.State != "Succeeded" || request is null || record is null ||
             !TryNormalizeId(status.Id, out var id) ||
             !string.Equals(request.Id, id, StringComparison.OrdinalIgnoreCase) ||
+            request.OriginalSha256 is null ||
             request.OriginalSha256.Length != 64 ||
+            !request.OriginalSha256.All(Uri.IsHexDigit) ||
+            request.ExpectedPatchedSha256 is null ||
             request.ExpectedPatchedSha256.Length != 64 ||
+            !request.ExpectedPatchedSha256.All(Uri.IsHexDigit) ||
             string.IsNullOrWhiteSpace(installedSha256) ||
             !string.Equals(installedSha256, request.ExpectedPatchedSha256,
                 StringComparison.OrdinalIgnoreCase) ||
@@ -552,7 +556,8 @@ internal static class IsolatedApplyExecutor
                 StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(record.DllVersion, request.FileVersion,
                 StringComparison.Ordinal) ||
-            record.Mode != "automatic")
+            record.Mode != "automatic" ||
+            !string.Equals(status.Id, request.Id, StringComparison.OrdinalIgnoreCase))
             return false;
         try { record.Validate(); return true; }
         catch (Exception ex) when (ex is InvalidDataException or

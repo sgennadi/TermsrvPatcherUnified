@@ -367,7 +367,9 @@ internal static class UiSmokeTests
                     offlineShare.FindName("SendButton") is not Button)
                     throw new Exception("Offline DLL copy must have separate, clearly unverified token-free review.");
                 if (main.FindName("AdvancedRevokeAutoReportsButton") is not Button ||
-                    quick.FindName("QuickRevokeAutoReportsButton") is not Button)
+                    quick.FindName("QuickRevokeAutoReportsButton") is not Button ||
+                    main.FindName("AdvancedPendingReportButton") is not Button pending ||
+                    pending.Visibility != Visibility.Collapsed)
                     throw new Exception("Both views must expose silent reporting revocation.");
                 var confirm = new ModernConfirmDialog();
                 if (confirm.FindName("DetailsText") is not TextBox reportDetails ||
