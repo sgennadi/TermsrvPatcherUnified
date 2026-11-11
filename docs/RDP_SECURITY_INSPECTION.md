@@ -1,5 +1,19 @@
 # RDP extended diagnostics (1.0.3)
 
+## Preview 1.0.6-preview.2: Firewall read-only evidence and safer interpretation
+
+The unified RDP Doctor now checks inbound TCP candidates against the **actual
+configured RDP port**, active profile, Allow/Block action and rule state.
+Classic Firewall COM is tried first; if unavailable, **limited** local CIM
+then registry evidence is displayed with explicit "Incomplete/Unavailable"
+status. Fallback output is never presented as effective Firewall authorization.
+No rules, service states, credentials or system DLLs are modified.
+
+See [RDP Doctor details](RDP_DOCTOR.md) for all statuses, limitations and
+synthetic QA. An observed matching Allow rule proves only the local rule
+metadata; it does not prove remote connection or RDS licensing.
+
+
 Four new read-only panels are available in **Remote Desktop > Connection diagnostics**.
 
 | Panel | Source and meaning | Not proved |
