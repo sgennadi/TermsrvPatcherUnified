@@ -277,6 +277,17 @@ internal static class UiSmokeTests
                 if (diagnosticsWindow.FindName("SaveButton") is not Button ||
                     diagnosticsWindow.FindName("ReportPreview") is not TextBox)
                     throw new Exception("Optional local copy and direct metadata preview controls are missing.");
+                // No network calls or windows shown. Invalid receipt must never
+                // dismiss Diagnostics; a valid repository Issue must close it.
+                var completedReportDialog = new DiagnosticsWindow();
+                if (completedReportDialog.CloseAfterConfirmedDelivery(null) ||
+                    completedReportDialog.CloseAfterConfirmedDelivery(
+                        new Uri("https://evil.example/issues/40")))
+                    throw new Exception("Unconfirmed report closed Diagnostics.");
+                if (!completedReportDialog.CloseAfterConfirmedDelivery(
+                        new Uri("https://github.com/sgennadi/TermsrvPatcherUnified/issues/40")))
+                    throw new Exception("Confirmed GitHub report did not close Diagnostics.");
+                verified++;
                 var quick = new QuickApplyWindow();
                 if (quick.FindName("QuickAutoUpdateCheck") is not CheckBox autoUpdateOption ||
                     autoUpdateOption.IsChecked != false ||
@@ -356,7 +367,9 @@ internal static class UiSmokeTests
                     offlineShare.FindName("SendButton") is not Button)
                     throw new Exception("Offline DLL copy must have separate, clearly unverified token-free review.");
                 if (main.FindName("AdvancedRevokeAutoReportsButton") is not Button ||
-                    quick.FindName("QuickRevokeAutoReportsButton") is not Button)
+                    quick.FindName("QuickRevokeAutoReportsButton") is not Button ||
+                    main.FindName("AdvancedPendingReportButton") is not Button pending ||
+                    pending.Visibility != Visibility.Collapsed)
                     throw new Exception("Both views must expose silent reporting revocation.");
                 var confirm = new ModernConfirmDialog();
                 if (confirm.FindName("DetailsText") is not TextBox reportDetails ||

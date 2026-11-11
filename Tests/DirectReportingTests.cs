@@ -291,6 +291,44 @@ internal static class DirectReportingTests
                    isManual: false, checksumVerified: false),
                "only a new verified automatic SYSTEM Apply with consent may silently report");
 
+
+        // A Session 0 one-shot protected Apply can lose the interactive GUI
+        // during TermService restart. Persisted verified report evidence must
+        // agree with the exact request and CURRENT installed DLL before any
+        // offer is shown. Automatic Windows-Update work has no such status.
+        string completedId = Guid.NewGuid().ToString("N");
+        var completedRequest = new IsolatedApplyExecutor.Request(
+            completedId, fix.OriginalSha256, fix.PatchedSha256, fix.DllVersion,
+            "synthetic-approved-profile", new string('c', 64), true);
+        var completedStatus = new IsolatedApplyExecutor.Status(
+            completedId, "Succeeded", "Protected write and RDP service recovery returned successfully.",
+            DateTimeOffset.UtcNow.ToString("O"), fix);
+        var persistedStatus = JsonSerializer.Deserialize<IsolatedApplyExecutor.Status>(
+            JsonSerializer.Serialize(completedStatus));
+        Verify(persistedStatus?.Report?.Changes.Count == 1 &&
+               IsolatedApplyExecutor.VerifiedReportMatches(persistedStatus,
+                   completedRequest, fix.PatchedSha256),
+               "protected one-shot status survives full JSON roundtrip after GUI termination");
+        Verify(IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest, fix.OriginalSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus with {
+                   State = "AlreadyPatched" }, completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus with {
+                   Report = null }, completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus with {
+                   Id = Guid.NewGuid().ToString("N") }, completedRequest, fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest with { OriginalSha256 = new string('d', 64) },
+                   fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest with { ExpectedPatchedSha256 = new string('e', 64) },
+                   fix.PatchedSha256) &&
+               !IsolatedApplyExecutor.VerifiedReportMatches(completedStatus,
+                   completedRequest with { ExpectedPatchedSha256 = null! },
+                   fix.PatchedSha256),
+               "post-reconnect report requires exact one-shot ID, success, both hashes, and installed DLL");
         var offline = new OfflineFixMetadata("x64", "10.0.26100.9549",
             UpdateIntegration.Version, new string('a', 64), "1234ABCD",
             new string('b', 64), "AABBCCDD",

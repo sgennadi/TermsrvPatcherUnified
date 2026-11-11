@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.5-preview.3 — candidate (not yet published)
+
+- **Report after RDP reconnect:** a successful independently executed SYSTEM Apply persists validated Windows/DLL metadata in its private job status. On reopening Simple or Advanced, the UI compares job ID, original and patched SHA-256, DLL version, verified result and the current installed DLL checksum before offering the Unified Apply report once; manual Share remains available after skipping it.
+- **No false success:** skipped, failed, AlreadyPatched and legacy status records without verification do not trigger report offers. Windows Update Auto Reapply remains silent and only sends with the prior protected opt-in.
+- **Auto-close:** the Diagnostics window closes immediately after GitHub confirms the report. Unconfirmed delivery and cancelled sends leave it open. Unified Apply no longer requires a separate success-message dismissal.
+- **Validation:** Windows CI and WPF synthetic/report policy tests are required before Preview publication. No real RDP disconnection or protected system DLL write is claimed.
+
 ## 1.0.5 — in development (not published)
 
 - **Unified Apply report:** one reviewed window shows Windows/DLL diagnostic metadata and separate exact DLL compatibility evidence. The confirmed send submits two strictly typed public GitHub records, preserving their distinct trust levels.
