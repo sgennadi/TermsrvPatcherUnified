@@ -1,3 +1,11 @@
+## Preview 1.0.7-preview.1 — clear installed DLL state (candidate)
+
+- **Bug:** Simple Mode previously preferred the text "Verified original available for Revert" over the current exact-signature result. Thus a recoverable patched DLL did not clearly say "PATCHED".
+- **Fix:** Simple and Advanced have a prominent independent DLL status: PATCHED (verified replacement evidence), NOT PATCHED (known original-side signature), or UNKNOWN (unsupported, ambiguous, conflicting or failed inspection). A matching Find signature alone does **not** authenticate Microsoft provenance.
+- **Separate capability:** Revert readiness is shown independently and requires an exact current DLL SHA-256 and file-version-bound recovery. A recovery source with conflicting current signature evidence fails closed, disables Apply/Revert, and never overrides the DLL-status label.
+- **Freshness:** quick check independently hashes current installed DLL after recovery inspection; Apply/Revert invalidate any previous status until a fresh check. No display-only status authorizes write permissions or changes protected files.
+- **Gates:** pure synthetic classification tests, WPF controls for Simple/Advanced, SHA-256/current-file safety, Windows Server 2025 CI, and separate Preview publisher. Real RDP connections and Windows Update Auto Reapply are not tested by this change.
+
 ## Stable 1.0.6 — release acceptance (published 2026-11-12)
 
 - Combines protected Session 0 worker/ACL hardening from Preview.1 and read-only RDP Doctor/Firewall improvement from Preview.2.
