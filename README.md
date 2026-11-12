@@ -4,6 +4,8 @@
 
 **Previous Preview (testing):** [**1.0.6-preview.2**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.2) · [Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086119000). **Stable 1.0.6 is now recommended** and will not be downgraded by an older Preview.
 
+**Upcoming Preview 1.0.7-preview.1 (under QA):** the installed `termsrv.dll` now has an explicit **PATCHED / NOT PATCHED / UNKNOWN** status in both Simple and Advanced views, read from current exact DLL signatures. **Revert** eligibility is separately described using current-SHA-bound protected recovery evidence, never substituted for patch state. Conflicts and file changes fail closed; status after Apply/Revert requires a fresh Check. [Release candidate PR](https://github.com/sgennadi/TermsrvPatcherUnified/pulls). Stable **1.0.6 remains Latest Stable** until this preview is validated and published.
+
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
