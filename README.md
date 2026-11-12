@@ -1,26 +1,26 @@
 # TermsrvPatcherUnified
 
-**Latest Stable:** [**1.0.5**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.5) · **Published:** 2026-11-11 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
+**Latest Stable:** [**1.0.6**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6) · **Published:** 2026-11-12 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
 
-**Latest Preview (optional):** [**1.0.6-preview.2**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.2) · **Published:** 2026-11-11 · clearer RDP Doctor statuses and read-only Firewall TCP-port/profile/Allow-Block diagnostics, with COM → CIM → registry fallback. [Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086119000) and [Preview publication](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086615648) passed. **Stable 1.0.5 remains Latest Stable and recommended**; Preview installation requires administrator approval. See [Changelog](CHANGELOG.md).
-
-**Stable 1.0.6 release candidate:** combines Preview.1 protected SYSTEM staging with Preview.2 RDP Doctor and read-only port/profile-aware Windows Firewall inspection. The Windows 2025 Stable publisher must pass all safety gates before publication; **Latest published Stable remains 1.0.5 until then**. The final Stable version will be newer than 1.0.6-preview.2.
+**Previous Preview (testing):** [**1.0.6-preview.2**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.2) · [Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086119000). **Stable 1.0.6 is now recommended** and will not be downgraded by an older Preview.
 
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
 
-## What's new in Stable 1.0.5
+## What's new in Stable 1.0.6
 
-1. **Unified Remote Desktop:** RDP settings, policy/security evidence and read-only **RDP Doctor** are combined under **Advanced → Remote Desktop**. See [RDP Doctor](docs/RDP_DOCTOR.md) and [RDP security inspections](docs/RDP_SECURITY_INSPECTION.md).
-2. **DLL compatibility index:** compare the local `termsrv.dll` version and SHA-256 with reported observations. All collected observations are **unverified self-reports**; matching evidence does not authorize Apply or prove that RDP works. See [compatibility index](docs/DLL_COMPATIBILITY_INDEX.md).
-3. **Reliable Apply reports:** reconstruct a verified successful SYSTEM Apply report after reconnecting an RDP session, correctly normalize Windows DLL `(WinBuild...)` version suffixes for the public schema, and show one combined diagnostics + compatibility review.
-4. **Google-to-GitHub reporting:** submit only after explicit review, retry only the missing report if partial delivery fails, and automatically close the report window after validated receipts. An operator-approved live report reached [general diagnostics Issue #46](https://github.com/sgennadi/TermsrvPatcherUnified/issues/46) and [DLL compatibility Issue #1](https://github.com/sgennadi/TermsrvPatcherUnified/issues/1); the collector added a row to [successful-fixes.csv](data/successful-fixes.csv). The report is not independent proof of RDP connectivity.
-5. **Safer Stable/Preview updates:** a release must be **strictly newer** than the installed version. For example, `1.0.5-preview.5` cannot replace Stable `1.0.5`. A genuinely newer Preview can be installed only after explicit approval. SHA-256 checks, protected staging, an EXE backup and a health-probe rollback remain in place.
+1. **Clear RDP Doctor statuses:** separate locally verified, observed, blocked, attention, unavailable, incomplete and not-tested findings.
+2. **Windows Firewall:** inspect the real RDP TCP port, active network profile and relevant Allow/Block rules, including explicit custom-port rules and limited CIM/registry fallback.
+3. **Improved Remote Desktop UI:** six summary counters, readable color-coded evidence and private local technical details.
+4. **Safer protected operations:** verify SYSTEM job ACLs and staged EXE SHA-256; retain bounded failure-stage diagnostics and two safe Session 0 tests.
+5. **Protected updating and reporting:** require administrator consent, preserve backup and rollback, silent opt-in Auto Reapply reports and strict older-Preview downgrade blocking.
+
+**Note:** Local Firewall observations never prove remote connection, TLS trust, authentication or Microsoft RDP licensing. Windows 11 live RDP and Windows Update reapply are not CI tests.
 
 ## Download and update
 
-Use the [Stable 1.0.5 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.5): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification. Preview releases never set GitHub's **Latest Stable** label.
+Use the [Stable 1.0.6 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification. Preview releases never set GitHub's **Latest Stable** label.
 
 ## Reporting, consent and verification
 

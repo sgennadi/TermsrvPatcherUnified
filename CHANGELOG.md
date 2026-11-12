@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.6 — 2026-11-12 (Stable release candidate)
+## 1.0.6 — 2026-11-12 (Stable released)
 
 1. **RDP Doctor:** separate locally verified, observed, attention, unavailable, incomplete, blocked and untested results without falsely claiming successful remote access.
 2. **Windows Firewall:** inspect the configured TCP port, current network profiles, explicit custom and built-in Allow/Block candidates; label COM/CIM/registry evidence honestly.
@@ -9,6 +9,8 @@
 5. **Updater and reporting:** retain explicit administrator approval, recovery/rollback, consent-based silent Auto Reapply reporting, and SemVer protection against older Preview installation.
 
 **Scope:** the release changes no automatic patch signatures. It does not prove working RDP/TLS authentication, Windows Update reapply or RDS licensing; real Windows 11 client tests remain separate from CI.
+
+**Verified:** [Stable PR CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43163214647) and [Stable release publisher](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43163485075) passed. [GitHub Stable 1.0.6](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6) contains the portable, updater and SHA-256 artifacts.
 
 ## 1.0.6-preview.2 — 2026-11-11 (Preview released)
 
