@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.7-preview.1 — 2026-11-12 (Preview candidate)
+
+1. **Unambiguous DLL status:** Simple and Advanced now prominently show **DLL STATUS: PATCHED**, **NOT PATCHED** or **UNKNOWN** based on current installed DLL signature evidence — not on the Revert button.
+2. **Separate recovery status:** identify whether Revert uses a SHA-256-verified original/journal, requires catalog-only reconstruction or is unavailable. Originality of Microsoft files is never inferred from a signature alone.
+3. **Fail closed:** conflicting original/recovery evidence, stale recovery SHA/version and a DLL changed mid-check prevent automatic actions. Recovery inspection failures do not mask separately verified patch bytes.
+4. **Freshness:** in-progress and completed Apply/Revert invalidate the previous state until a new Check Status. Nothing is patched, restored, or uploaded by this display improvement.
+5. **Regression QA:** pure state/recovery matrix and WPF Simple/Advanced status smoke tests. Stable 1.0.6 remains unchanged; Preview installation always requires explicit approval.
+
+**Scope:** on-device real Windows/RDP connectivity and Microsoft RDP licensing are not inferred or tested by this read-only status change.
+
 ## 1.0.6 — 2026-11-12 (Stable released)
 
 1. **RDP Doctor:** separate locally verified, observed, attention, unavailable, incomplete, blocked and untested results without falsely claiming successful remote access.
