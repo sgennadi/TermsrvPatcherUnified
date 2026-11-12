@@ -460,6 +460,11 @@ public partial class QuickApplyWindow : Window
         if (status.State is "Queued" or "Running")
         {
             queued = true;
+            currentInstalledStatus = null;
+            QuickDllStateText.Text = "DLL STATUS: OPERATION IN PROGRESS";
+            QuickDllEvidenceText.Text = "A protected task may change the DLL. Current status will require a fresh Check.";
+            QuickRevertStateText.Text = "Revert: unavailable while task is active";
+            QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(160, 92, 14));
             QuickApplyButton.IsEnabled = false;
             QuickRevertButton.IsEnabled = false;
             QuickCheckButton.IsEnabled = false;
@@ -476,6 +481,11 @@ public partial class QuickApplyWindow : Window
         if (queued)
         {
             queued = false;
+            currentInstalledStatus = null;
+            QuickDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
+            QuickDllEvidenceText.Text = "The protected task finished. Check Status reads the currently installed DLL.";
+            QuickRevertStateText.Text = "Revert: recheck recovery after task completion";
+            QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
             QuickCheckButton.IsEnabled = true;
             QuickNoBackupCheck.IsEnabled = true;
             QuickStatusText.Text = status.State switch
