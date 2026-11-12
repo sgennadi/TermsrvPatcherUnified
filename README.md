@@ -2,8 +2,6 @@
 
 **Latest Stable:** [**1.0.7**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7) · **Published:** 2026-11-12 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
 
-**Previous Preview (testing):** [**1.0.7-preview.1**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1) · [preview Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43229584371). **Stable 1.0.7 is now recommended.** Older Preview builds cannot replace this Stable.
-
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
@@ -14,13 +12,13 @@ TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signatu
 2. **Independent Revert readiness:** SHA-256/version-bound recovery is shown separately, including catalog reconstruction versus a verified original/journal source.
 3. **Fail closed:** stale, conflicting or changing file evidence disables automatic actions; run Check Status after Apply or Revert, including scheduled SYSTEM jobs.
 4. **Existing diagnostics retained:** RDP Doctor, configured-port Windows Firewall evidence, privacy-aware reports and protected SYSTEM worker checks.
-5. **Stable update protection:** administrator confirmation, rollback and version safeguards prevent installing an older Preview over Stable.
+5. **Stable update protection:** administrator confirmation, rollback and version safeguards prevent installing an older release over the installed version.
 
 **Limitations:** synthetic Windows CI does not prove successful live RDP authentication, Microsoft licensing or Windows Update Auto Reapply.
 
 ## Download and update
 
-Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification. Preview releases never set GitHub's **Latest Stable** label.
+Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification.
 
 ## Reporting, consent and verification
 
@@ -34,7 +32,7 @@ Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified
 
 ### Stable 1.0.4
 
-[Stable 1.0.4](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.4) introduced read-only RDP Doctor with prioritized local connectivity/service/policy evidence and bounded TerminalServices event metadata. In 1.0.5 it is integrated into the Remote Desktop tab. Earlier release details and individual Preview milestones remain in [CHANGELOG.md](CHANGELOG.md).
+[Stable 1.0.4](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.4) introduced read-only RDP Doctor with prioritized local connectivity/service/policy evidence and bounded TerminalServices event metadata. In 1.0.5 it is integrated into the Remote Desktop tab. Earlier release details remain in [CHANGELOG.md](CHANGELOG.md).
 
 ## Stable 1.0.3
 
@@ -42,11 +40,11 @@ Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified
 
 Read-only RDP connection inspection covers Windows Firewall rule metadata, LSA Allow/Deny logon rights, the listener TLS certificate and GPU/AVC/WDDM computer policies. The separate machine-wide **Auto-update Stable** checkbox checks GitHub at startup and every four hours while the GUI is open. An enabled protected Auto Reapply task can also perform a read-only daily version check. **No unsigned EXE is installed unattended**; every installation must be approved interactively using the existing verification and rollback workflow.
 
-Preview and Stable channels now strictly filter both GitHub's prerelease flag and SemVer; incorrect cached cross-channel results are ignored. Blank-password status is shown as Restriction ON/OFF without raw numeric suffixes. These checks cannot guarantee external RDP connectivity or full GPO effectiveness.
+Update channels strictly enforce GitHub release type and SemVer; incorrect cached cross-channel results are ignored. Blank-password status is shown as Restriction ON/OFF without raw numeric suffixes. These checks cannot guarantee external RDP connectivity or full GPO effectiveness.
 
 ## Stable 1.0.2
 
-[Stable 1.0.2](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.2) was published as a non-prerelease on 2026-11-10 after [Windows safety CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882045385) and the [Stable release safety gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882425777) completed successfully. The published x64 portable archive includes exactly `TermsrvPatcherUnified.exe` and `Example.txt`; a one-EXE updater ZIP and SHA-256 file are also available.
+[Stable 1.0.2](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.2) was published as a Stable release on 2026-11-10 after [Windows safety CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882045385) and the [Stable release safety gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42882425777) completed successfully. The published x64 portable archive includes exactly `TermsrvPatcherUnified.exe` and `Example.txt`; a one-EXE updater ZIP and SHA-256 file are also available.
 
 This update provides a larger, readable RDP policy table with color-coded and text-labelled edit permissions, per-row Edit buttons and double-clicks; a single inline blank-password security editor; extended read-only GPO diagnostics and a persistent **First Seen (Unverified)** DLL reference. It does not alter automatic patch signatures, authorization to write protected files or Microsoft licensing requirements.
 
@@ -60,12 +58,12 @@ This is a UI and usability update. No new automatic signature families or relaxe
 
 ## Stable 1.0.0
 
-[Stable 1.0.0](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.0) was published as a **non-prerelease** after [final Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42851593054) and the separate [Stable release safety gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42851593018) completed successfully. Published assets were verified to contain exactly the portable ZIP, updater-only ZIP and SHA-256 file. These checks are not proof of end-to-end RDP compatibility on every Windows build.
+[Stable 1.0.0](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.0) was published as a **Stable release** after [final Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42851593054) and the separate [Stable release safety gate](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/42851593018) completed successfully. Published assets were verified to contain exactly the portable ZIP, updater-only ZIP and SHA-256 file. These checks are not proof of end-to-end RDP compatibility on every Windows build.
 
 Stable 1.0.0 includes:
 
 - A wider, resizable **Simple** window with its primary actions in a fixed footer, improved **Advanced** layout, and scrollable modern confirmation dialogs; the usable desktop work area is respected at 100–200% scaling.
-- **Stable / Preview** selectors inside Updates. The **Updates** buttons in **both** Simple and Advanced show a highlighted **NEW** indicator when either channel has a newer release, with the version and channel in the tooltip. Cached results are explicitly marked and **cannot authorize installation**; Check must verify a live release before Install.
+- **Release channel** selection inside Updates (Stable is recommended). The **Updates** buttons in **both** Simple and Advanced show a highlighted **NEW** indicator when the selected channel has a newer release, with the version and channel in the tooltip. Cached results are explicitly marked and **cannot authorize installation**; Check must verify a live release before Install.
 - Read-only identification of an RDP setting's controlling GPO, including the exact RSoP registry value, GPO GUID, and precedence where available. Unknown GPOs are labelled unverified. Approved local DWORD edits are guarded by Group Policy detection, value validation, and rollback; no automatic `gpupdate` or service restart.
 - Consent-based Google Apps Script-to-GitHub diagnostic reports, SHA-256 metadata, release ZIP verification, and a portable EXE updater with rollback.
 - An explicit non-destructive CI gate for the protected SYSTEM/Session 0 worker, read-only DLL probes, backup integrity, automatic-signature safety, and WPF smoke tests.
@@ -90,7 +88,7 @@ Stable 1.0.0 includes:
 - **RDP post-apply guidance:** after saving settings, the unified RDP dashboard summarizes what changed and recommends a **new connection** or the **next sign-in** where appropriate. **Refresh Computer Policy** is opt-in, explicitly confirmed, and executes `gpupdate.exe /target:computer /force /wait:90` as an administrator; it may reapply non-RDP computer GPOs. It does **not** invoke `/boot`, `/logoff`, stop TermService, or reboot Windows. A locally observed valid listener-port change unlocks **Review service restart**, a read-only warning/instructions dialog; the GUI does not disrupt RDP sessions to perform a restart. A local registry readback is not proof that an RDP client can connect or that the effective domain policy has propagated.
 - **Auto reapply after Windows Update — optional, default OFF:** a checkbox in both Simple and Advanced creates a persistent, ACL-protected Task Scheduler job under **SYSTEM / Session 0**, with its own verified EXE under administrator-owned ProgramData (not the potentially writable Desktop EXE). Event ID 19 in WindowsUpdateClient/Operational is checked after a 30-minute delay, plus a post-boot check after 15 minutes and a daily fallback at 03:00. The worker compares the installed DLL SHA-256 with its last observation, skips when a reboot is pending, and attempts Apply **only** with an exact, uniquely verified automatic profile, a supported Windows client and mandatory full backup plus encrypted recovery journal. Unknown/ambiguous/unrecognized DLLs are never patched. Rechecking a previously skipped DLL after an application update is supported. No scheduling is enabled merely by launching or updating the app.
 - **Cleanup (explicit opt-in):** choose backup/recovery deletion, local app log/history/diagnostic cleanup and optionally removal of the Auto Reapply scheduled task. The task-removal box is OFF by default and receives a separate Yes/No question. Deleting backups warns about possible permanent loss of Revert; active/uncertain SYSTEM jobs block cleanup. It never erases the installed DLL, Windows Event Logs, Windows Update history, files exported outside app-managed folders, or updater rollback hold.
-- **Updates and Diagnostics:** **Updates • NEW** is shown on the Simple and Advanced Updates buttons for a discovered newer Stable or Preview release. The updater requires a strictly newer SemVer, live verification, manual approval, backup and rollback. Google Apps Script accepts bounded general diagnostics and compatibility metadata with validated GitHub receipts; free-text descriptions, raw logs, paths, hostnames and client GitHub tokens are excluded. The first report requires explicit operator review; subsequent silent Auto Reapply reports require a separate, revocable administrator opt-in.
+- **Updates and Diagnostics:** **Updates • NEW** is shown on the Simple and Advanced Updates buttons for a discovered newer release on the selected channel. The updater requires a strictly newer SemVer, live verification, manual approval, backup and rollback. Google Apps Script accepts bounded general diagnostics and compatibility metadata with validated GitHub receipts; free-text descriptions, raw logs, paths, hostnames and client GitHub tokens are excluded. The first report requires explicit operator review; subsequent silent Auto Reapply reports require a separate, revocable administrator opt-in.
 - **Windows DLL telemetry for compatibility observations (opt-in):** in Diagnostics, a checked option collects the running Windows release, Build/UBR, the installed `termsrv.dll` numeric file version and **SHA-256 of the current DLL** without uploading file bytes. The exact values are shown before saving or sending. Uncheck to omit them; a custom DLL digest could identify that custom build. The optional fields travel only in the strictly checked anonymous metadata or reviewed manual report. An approved new Issue can populate `data/diagnostic-observations.csv` as **UNVERIFIED** compatibility evidence, including an error code and app version. This never modifies `Patterns/AutomaticPatterns.txt` or marks a DLL as successfully patched. A live Google-to-GitHub observation was received as Issue #32; no compatibility or Apply success is inferred from that observation.
 
 A unique matching signature does **not** prove Remote Desktop will work after modification or that any additional sessions are licensed.
