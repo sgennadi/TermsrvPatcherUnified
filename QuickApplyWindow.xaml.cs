@@ -16,6 +16,7 @@ public partial class QuickApplyWindow : Window
     private PatchPlan? plan;
     private PatchPlan? completedAppliedPlan;
     private AutomaticRevertPlan? revertPlan;
+    private InstalledDllStatus? currentInstalledStatus;
     private readonly DispatcherTimer statusTimer;
     private bool checking;
     private bool queued;
@@ -71,6 +72,7 @@ public partial class QuickApplyWindow : Window
     {
         if (checking || queued) return;
         checking = true;
+        currentInstalledStatus = null;
         QuickApplyButton.IsEnabled = false;
         QuickRevertButton.IsEnabled = false;
         QuickCheckButton.IsEnabled = false;
@@ -97,6 +99,11 @@ public partial class QuickApplyWindow : Window
                     // Failure must not override separately confirmed current DLL bytes.
                     AuditLog.Append("Compact Revert eligibility unavailable: " + ex.GetType().Name);
                 }
+                // Never classify an installed file that changed during
+                // recovery-source inspection (Windows Update/race).
+                if (!SystemInfo.Sha256(File.ReadAllBytes(os.DllPath)).Equals(
+                        candidate.OriginalSha256, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Installed DLL changed during Check Status.");
                 return (os, candidate, recovery, recoveryInspectionFailed);
             });
             plan = result.candidate;
@@ -107,6 +114,8 @@ public partial class QuickApplyWindow : Window
             // never by the availability of a Revert button or old backup.
             var installed = InstalledDllStatus.FromEvidence(
                 plan, revertPlan, result.recoveryInspectionFailed);
+            currentInstalledStatus = installed;
+            if (!installed.CanOfferAutomaticRevert) revertPlan = null;
             QuickDllStateText.Text = installed.Headline;
             QuickDllEvidenceText.Text = installed.Evidence;
             QuickRevertStateText.Text = installed.RevertHeadline;
@@ -146,6 +155,7 @@ public partial class QuickApplyWindow : Window
         {
             plan = null;
             revertPlan = null;
+            currentInstalledStatus = null;
             QuickApplyButton.IsEnabled = false;
             QuickRevertButton.IsEnabled = false;
             QuickDllStateText.Text = "DLL STATUS: UNKNOWN";
@@ -168,6 +178,7 @@ public partial class QuickApplyWindow : Window
     private async void Apply_Click(object sender, RoutedEventArgs e)
     {
         if (checking || queued || plan?.State != PatchState.Ready ||
+            currentInstalledStatus?.CanOfferAutomaticApply != true ||
             !SystemInfo.IsAdministrator() || !NsudoDevilModeScope.IsBundled)
             return;
 
@@ -266,7 +277,8 @@ public partial class QuickApplyWindow : Window
             if (!queued && plan is { State: PatchState.Ready })
                 QuickApplyButton.IsEnabled = SystemInfo.IsAdministrator() &&
                                              NsudoDevilModeScope.IsBundled;
-            if (!queued && revertPlan is not null)
+            if (!queued && revertPlan is not null &&
+                currentInstalledStatus?.CanOfferAutomaticRevert == true)
                 QuickRevertButton.IsEnabled = SystemInfo.IsAdministrator() &&
                                               NsudoDevilModeScope.IsBundled;
         }
@@ -275,6 +287,7 @@ public partial class QuickApplyWindow : Window
     private async void Revert_Click(object sender, RoutedEventArgs e)
     {
         if (checking || queued || revertPlan is null ||
+            currentInstalledStatus?.CanOfferAutomaticRevert != true ||
             !SystemInfo.IsAdministrator() || !NsudoDevilModeScope.IsBundled)
             return;
         var approved = revertPlan;
@@ -366,7 +379,8 @@ public partial class QuickApplyWindow : Window
             checking = false;
             QuickCheckButton.IsEnabled = !queued;
             QuickNoBackupCheck.IsEnabled = !queued;
-            if (!queued && revertPlan is not null)
+            if (!queued && revertPlan is not null &&
+                currentInstalledStatus?.CanOfferAutomaticRevert == true)
                 QuickRevertButton.IsEnabled = true;
         }
     }
