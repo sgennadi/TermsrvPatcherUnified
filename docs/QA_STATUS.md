@@ -1,3 +1,10 @@
+## Stable 1.0.7 — release acceptance (candidate, 2026-11-12)
+
+- **Scope:** promote the current-DLL classification and independent Revert readiness already included in [Preview 1.0.7-preview.1](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1), without new patch patterns.
+- **Previous verification:** [preview PR Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43229584371), [main CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056079), [Preview release](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056078) and [updater rollback](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056190) passed.
+- **Pending Stable gates:** release-branch Windows 2025 tests for DLL state and WPF UI, updater SemVer, compiled EXE ProductVersion, repeat non-destructive SYSTEM/Session 0 tests, release ZIP contents and SHA-256 manifest.
+- **Not verified by CI:** physical Windows 11 RDP reconnection or session licensing, live Windows Update Auto Reapply, and actual system DLL modification.
+
 ## Preview 1.0.7-preview.1 — clear installed DLL state (published 2026-11-12)
 
 - **Bug:** Simple Mode previously preferred the text "Verified original available for Revert" over the current exact-signature result. Thus a recoverable patched DLL did not clearly say "PATCHED".
