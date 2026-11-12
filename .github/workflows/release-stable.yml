@@ -122,6 +122,12 @@ jobs:
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
           $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
           if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
+          $product = (Get-Item $exe).VersionInfo.ProductVersion
+          if ([string]::IsNullOrWhiteSpace($product)) { throw 'Published EXE ProductVersion is missing.' }
+          $sourceVersion = ($product -split '\+')[0]
+          if ($sourceVersion -ne $env:RELEASE_VERSION) {
+            throw "EXE ProductVersion mismatch: $sourceVersion (expected $env:RELEASE_VERSION)."
+          }
           $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
           if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
           $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
@@ -131,9 +137,11 @@ jobs:
         shell: pwsh
         run: |
           $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
-          $probe = Start-Process -FilePath $exe -ArgumentList '--isolated-executor-qa' -Wait -PassThru
-          if ($probe.ExitCode -ne 0) { throw "Protected SYSTEM worker probe failed with code $($probe.ExitCode). No system DLL was modified." }
-          Write-Host 'PASS: non-destructive SYSTEM/Session 0 worker; no real DLL writes.'
+          foreach ($round in 1..2) {
+            $probe = Start-Process -FilePath $exe -ArgumentList '--isolated-executor-qa' -Wait -PassThru
+            if ($probe.ExitCode -ne 0) { throw "Protected SYSTEM worker probe $round failed with code $($probe.ExitCode). No system DLL was modified." }
+            Write-Host "PASS: non-destructive SYSTEM/Session 0 worker round $round; no real DLL writes."
+          }
       - name: Package exact two-file portable ZIP and one-EXE updater ZIP
         if: env.PUBLISH_STABLE == 'true'
         shell: pwsh
@@ -149,16 +157,16 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
           $notes = @(
-            '1. Combine Remote Desktop and RDP Doctor in one Advanced tab.'
-            '2. Add a DLL compatibility index and verified Apply reporting.'
-            '3. Restore reviewed reports after RDP reconnect; close after confirmed delivery.'
-            '4. Send future verified Auto Reapply reports only after explicit opt-in.'
-            '5. Protect Stable from older Preview installs; retain backup and rollback.'
+            '1. Clarify locally verified, observed, unavailable and untested RDP Doctor findings.'
+            '2. Inspect Firewall TCP port, active profile and Allow/Block candidates; use limited CIM/registry fallback.'
+            '3. Improve six-counter Remote Desktop layout and privacy-safe technical evidence.'
+            '4. Harden SYSTEM job ACLs, SHA-256 checks and bounded failure-stage diagnostics.'
+            '5. Preserve approved updates, rollback, consent-gated reporting and downgrade protection.'
             ''
-            'TermsrvPatcherUnified 1.0.5 Stable - unsigned Windows x64. Installation is manual and administrator-approved.'
-            'Google-to-GitHub report delivery was confirmed in Issues #46 and #1; collected DLL evidence is self-reported, not an independent RDP validation.'
-            'CI checks compile, packaging, read-only inspection, updater and synthetic SYSTEM execution; actual Windows Update Auto Reapply and RDP recovery remain separate on-device tests.'
-            'Portable ZIP contains exactly TermsrvPatcherUnified.exe and Example.txt. Update ZIP contains one EXE. SHA256SUMS.txt verifies both ZIP files.'
+            'TermsrvPatcherUnified 1.0.6 Stable - unsigned Windows x64. Administrator-approved installation.'
+            'Matching local Firewall rules do NOT prove effective remote TCP/TLS/authentication or Microsoft RDP licensing.'
+            'CI validates synthetic Firewall, WPF, updater, backup, ZIP, and non-destructive SYSTEM execution. Windows 11 live RDP and Windows Update reapply require separate on-device tests.'
+            'Portable ZIP: TermsrvPatcherUnified.exe and Example.txt. Updater ZIP: one EXE. SHA256SUMS.txt contains published archive checksums.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Stable)" --notes-file release-notes.txt --latest
