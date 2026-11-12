@@ -237,6 +237,11 @@ public partial class QuickApplyWindow : Window
                 });
                 completedAppliedPlan = approvedPlan;
                 plan = null;
+                currentInstalledStatus = null;
+                QuickDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
+                QuickDllEvidenceText.Text = "Protected Apply finished. Press Check Status to confirm current DLL bytes.";
+                QuickRevertStateText.Text = "Revert: recheck after Apply";
+                QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
                 QuickStatusText.Text = "Apply completed and verified";
                 QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
                 QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
@@ -251,6 +256,11 @@ public partial class QuickApplyWindow : Window
             completedAppliedPlan = null; // Only SYSTEM's persisted verified result can authorize a report.
             activeJobId = id;
             queued = true;
+            currentInstalledStatus = null;
+            QuickDllStateText.Text = "DLL STATUS: OPERATION PENDING";
+            QuickDllEvidenceText.Text = "SYSTEM Apply is queued; current DLL status must be rechecked after completion.";
+            QuickRevertStateText.Text = "Revert: recheck after Apply";
+            QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
             QuickStatusText.Text = "Queued independently of RDP";
             QuickHelpText.Text = "Job " + id[..8] +
                 " was accepted by Task Scheduler. Wait for Running or Succeeded status. " +
@@ -274,7 +284,8 @@ public partial class QuickApplyWindow : Window
             checking = false;
             QuickCheckButton.IsEnabled = !queued;
             QuickNoBackupCheck.IsEnabled = !queued;
-            if (!queued && plan is { State: PatchState.Ready })
+            if (!queued && plan is { State: PatchState.Ready } &&
+                currentInstalledStatus?.CanOfferAutomaticApply == true)
                 QuickApplyButton.IsEnabled = SystemInfo.IsAdministrator() &&
                                              NsudoDevilModeScope.IsBundled;
             if (!queued && revertPlan is not null &&
@@ -340,6 +351,11 @@ public partial class QuickApplyWindow : Window
                 });
                 revertPlan = null;
                 plan = null;
+                currentInstalledStatus = null;
+                QuickDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
+                QuickDllEvidenceText.Text = "Revert completed. Press Check Status to examine the currently installed DLL.";
+                QuickRevertStateText.Text = "Revert: verify result with fresh Check";
+                QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
                 QuickStatusText.Text = sourceFree
                     ? "Catalog reconstruction completed; result SHA-256 verified"
                     : "Revert completed and original SHA-256 verified";
@@ -358,6 +374,11 @@ public partial class QuickApplyWindow : Window
             string id = await Task.Run(() => IsolatedApplyExecutor.QueueRevert(approved));
             activeJobId = id;
             queued = true;
+            currentInstalledStatus = null;
+            QuickDllStateText.Text = "DLL STATUS: OPERATION PENDING";
+            QuickDllEvidenceText.Text = "SYSTEM Revert is queued; wait for completion and run Check Status.";
+            QuickRevertStateText.Text = "Revert: operation pending";
+            QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
             QuickStatusText.Text = "Revert queued independently of RDP";
             QuickHelpText.Text = "Job " + id[..8] +
                 " accepted by Task Scheduler. Closing this window cannot cancel it. " +
