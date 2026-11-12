@@ -4,6 +4,8 @@
 
 **Latest Preview (optional):** [**1.0.6-preview.2**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.2) · **Published:** 2026-11-11 · clearer RDP Doctor statuses and read-only Firewall TCP-port/profile/Allow-Block diagnostics, with COM → CIM → registry fallback. [Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086119000) and [Preview publication](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086615648) passed. **Stable 1.0.5 remains Latest Stable and recommended**; Preview installation requires administrator approval. See [Changelog](CHANGELOG.md).
 
+**Stable 1.0.6 release candidate:** combines Preview.1 protected SYSTEM staging with Preview.2 RDP Doctor and read-only port/profile-aware Windows Firewall inspection. The Windows 2025 Stable publisher must pass all safety gates before publication; **Latest published Stable remains 1.0.5 until then**. The final Stable version will be newer than 1.0.6-preview.2.
+
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.

@@ -1,3 +1,11 @@
+## Stable 1.0.6 — release acceptance (candidate, 2026-11-12)
+
+- Combines protected Session 0 worker/ACL hardening from Preview.1 and read-only RDP Doctor/Firewall improvement from Preview.2.
+- Prior acceptance: [Preview.1 Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43059718996), [Preview.2 Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086615656) and [Preview.2 publication](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086615648) succeeded.
+- Pending Stable gates: Windows 2025 compilation, full synthetic Firewall/RDP/WPF and updater tests, EXE ProductVersion, two no-DLL-write SYSTEM/Session 0 probes, and exact 3-asset GitHub Release verification.
+- New regression matrix tests Preview.2 → Stable 1.0.6 upgrade plus rejection of equal/older Preview/Stable. All EXE replacements require administrator approval and rollback.
+- CI does not modify a production Firewall or system DLL and does not verify physical Windows 11 RDP reconnect, live Windows Update Auto Reapply, or 200% display rendering on a physical screen.
+
 ## Preview 1.0.6-preview.2 — RDP Doctor statuses and Firewall regression (published 2026-11-11)
 
 - **Trust model:** local facts have separate Verified locally / Observed locally states; incomplete enumeration, unavailable sources and deliberately Not tested external connectivity are distinct from each other. No local observation is a remote sign-in claim.

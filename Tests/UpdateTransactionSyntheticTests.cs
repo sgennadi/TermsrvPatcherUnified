@@ -35,7 +35,14 @@ internal static class UpdateTransactionSyntheticTests
             ("1.0.5", "1.0.5", false),
             ("1.0.5-preview.5", "1.0.5", true),
             ("1.0.5-preview.4", "1.0.5-preview.5", true),
-            ("1.0.5", "1.0.6-preview.1", true) // explicit newer Preview only
+            ("1.0.5", "1.0.6-preview.1", true), // explicit newer Preview only
+            ("1.0.5", "1.0.6", true),
+            ("1.0.6-preview.1", "1.0.6", true),
+            ("1.0.6-preview.2", "1.0.6", true),
+            ("1.0.6", "1.0.6-preview.2", false),
+            ("1.0.6", "1.0.6-preview.99", false),
+            ("1.0.6", "1.0.6", false),
+            ("1.0.7", "1.0.6", false)
         };
         foreach (var test in versionCases)
         {
