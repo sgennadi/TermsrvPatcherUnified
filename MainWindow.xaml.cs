@@ -13,6 +13,7 @@ public partial class MainWindow : Window
 {
     private readonly TermsrvEngine engine;
     private PatchPlan? autoPlan;
+    private InstalledDllStatus? currentDllClassification;
     private VerifiedSignatureSnapshot? signatureSnapshot;
     private PatchPlan? manualPlan;
     private ScanReport? lastScan;
@@ -128,6 +129,7 @@ public partial class MainWindow : Window
             MainTabs.IsEnabled = true;
             RestoreButton.IsEnabled = true;
             ApplyAutoButton.IsEnabled = autoPlan?.State == PatchState.Ready &&
+                currentDllClassification?.CanOfferAutomaticApply == true &&
                 NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator() &&
                 IsolatedApplyExecutor.ReadLatestStatus()?.State is not ("Queued" or "Running");
             ApplyManualButton.IsEnabled = manualPlan?.State == PatchState.Ready && NsudoDevilModeScope.IsBundled && SystemInfo.IsAdministrator();
@@ -141,6 +143,10 @@ public partial class MainWindow : Window
         // Never preserve an old Ready plan if the second read, scan, or hash
         // verification fails: RunBusy's finally must not re-enable stale Apply.
         autoPlan = null;
+        currentDllClassification = null;
+        AdvancedDllStateText.Text = "DLL STATUS: CHECKING...";
+        AdvancedDllEvidenceText.Text = "Comparing exact signatures and SHA-256 of the installed DLL.";
+        AdvancedDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
         signatureSnapshot = null;
         lastScan = null;
         AutoSignatureGrid.ItemsSource = null;
@@ -183,9 +189,19 @@ public partial class MainWindow : Window
                         StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException(
                         "DLL changed before structural scanning; recheck the file.");
+                AutomaticRevertPlan? recovery = null;
+                bool recoveryInspectionFailed = false;
+                try { recovery = AutomaticRevertSafety.Inspect(); }
+                catch (Exception ex)
+                {
+                    recoveryInspectionFailed = true;
+                    AuditLog.Append("Advanced Revert eligibility unavailable: " + ex.GetType().Name);
+                }
+                // Recovery is bound to the same current DLL snapshot.
                 evidence.RequireCurrentFile(os.DllPath);
                 return (Info: os, Preview: plan, Evidence: evidence,
-                    Fallback: fallback, Priority: priority);
+                    Fallback: fallback, Priority: priority,
+                    Recovery: recovery, RecoveryInspectionFailed: recoveryInspectionFailed);
             });
             var os = result.Info;
             autoPlan = result.Preview;
@@ -193,34 +209,34 @@ public partial class MainWindow : Window
             lastScan = result.Fallback;
             SystemText.Text = os.Display + (os.Is64Bit ? " | x64" : " | x86");
             DllText.Text = $"termsrv.dll: {os.DllVersion}  |  {os.DllPath}";
-            StatusText.Text = $"Automatic status: {autoPlan.State}  |  {autoPlan.Description}";
-            StatusText.Foreground = autoPlan.State == PatchState.AlreadyPatched
-                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
-            AutoSimpleStatus.Text = autoPlan.State switch
+            // The installed DLL byte result must be visible independently of
+            // backup, Revert or an old Task Scheduler result.
+            var installed = InstalledDllStatus.FromEvidence(
+                autoPlan, result.Recovery, result.RecoveryInspectionFailed);
+            currentDllClassification = installed;
+            AdvancedDllStateText.Text = installed.Headline;
+            AdvancedDllEvidenceText.Text = installed.Evidence;
+            AdvancedDllStateText.Foreground = installed.Kind switch
             {
-                PatchState.Ready => "Exact pattern verified — ready to apply",
-                PatchState.AlreadyPatched => "Already patched",
-                PatchState.Ambiguous => "Multiple conflicting signatures — Apply blocked",
-                PatchState.Unsupported => "Automatic Apply unavailable on this file",
-                _ => "No verified automatic pattern found"
+                InstalledDllKind.Patched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
+                InstalledDllKind.NotPatched => new SolidColorBrush(Color.FromRgb(40, 88, 157)),
+                _ => new SolidColorBrush(Color.FromRgb(160, 92, 14))
             };
-            AutoSimpleStatus.Foreground = autoPlan.State switch
+            StatusText.Text = "Automatic signature result: " + autoPlan.State +
+                " | " + autoPlan.Description;
+            StatusText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            AutoSimpleStatus.Text = installed.Headline;
+            AutoSimpleStatus.Foreground = installed.Kind switch
             {
-                PatchState.Ready => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
-                PatchState.AlreadyPatched => new SolidColorBrush(Color.FromRgb(185, 28, 28)),
-                _ => new SolidColorBrush(Color.FromRgb(11, 46, 90))
+                InstalledDllKind.Patched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
+                InstalledDllKind.NotPatched => new SolidColorBrush(Color.FromRgb(40, 88, 157)),
+                _ => new SolidColorBrush(Color.FromRgb(160, 92, 14))
             };
             AutoSimpleProfile.Text = string.IsNullOrWhiteSpace(autoPlan.ProfileId)
                 ? "Detected pattern: none"
                 : "Detected pattern: " + autoPlan.ProfileId;
-            AutoSimpleReason.Text = autoPlan.State == PatchState.Ready
-                ? "One verified profile selected. Review and confirm Apply; only the current DLL will be modified."
-                : autoPlan.State == PatchState.AlreadyPatched
-                    ? "No patch is needed. Revert is available only with independently verified recovery evidence."
-                    : autoPlan.State == PatchState.Ambiguous
-                        ? "Conflicting or overlapping matches must be reviewed in Technical details."
-                        : "No compatible single automatic target is authorized. Open Technical details for diagnostics.";
+            AutoSimpleReason.Text = installed.Evidence + " " + installed.RevertHeadline +
+                ". " + installed.RevertDetails;
             AutoSummary.Text = autoPlan.ProfileId.Length == 0 ? autoPlan.Description :
                 $"Matched: {autoPlan.ProfileId}";
             AutoDetails.Text = PlanText(autoPlan);
@@ -233,7 +249,7 @@ public partial class MainWindow : Window
             AutoPriorityGrid.ItemsSource = result.Priority.Rows;
             AutoPrioritySummary.Text = result.Priority.Summary +
                 " Selecting a row shows HEX only; it cannot change the Apply target.";
-            ApplyAutoButton.ToolTip = autoPlan.State == PatchState.Ready
+            ApplyAutoButton.ToolTip = installed.CanOfferAutomaticApply
                 ? "Only " + autoPlan.ProfileId +
                   " will be applied. Row selection does not change the verified plan."
                 : "No currently eligible automatic Apply plan.";
@@ -270,6 +286,9 @@ public partial class MainWindow : Window
         });
         if (autoPlan is null)
         {
+            AdvancedDllStateText.Text = "DLL STATUS: UNKNOWN";
+            AdvancedDllEvidenceText.Text = "Signature or file SHA-256 inspection failed. Recheck the installed DLL.";
+            AdvancedDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(160, 92, 14));
             AutoSimpleStatus.Text = "Automatic check could not complete";
             AutoSimpleProfile.Text = "Detected pattern: unknown";
             AutoSimpleReason.Text = "No verified Apply is available. Review the error and run Check DLL again.";
@@ -632,7 +651,17 @@ public partial class MainWindow : Window
             _ = OfferIndependentApplyReportAsync(status.Id, userRequested: true);
     }
 
-    private async void ApplyAuto_Click(object sender, RoutedEventArgs e) => await ApplyAsync(autoPlan, false);
+    private async void ApplyAuto_Click(object sender, RoutedEventArgs e)
+    {
+        if (currentDllClassification?.CanOfferAutomaticApply != true) return;
+        // Any attempt, including user cancellation, requires a fresh Check
+        // before a second automatic Apply can be approved.
+        currentDllClassification = null;
+        AdvancedDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
+        AdvancedDllEvidenceText.Text = "Recheck installed DLL bytes after the Apply workflow.";
+        AdvancedDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
+        await ApplyAsync(autoPlan, false);
+    }
     private async void ApplyManual_Click(object sender, RoutedEventArgs e) => await ApplyAsync(manualPlan, true);
 
     private async void Restore_Click(object sender, RoutedEventArgs e)

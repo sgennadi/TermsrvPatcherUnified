@@ -89,6 +89,9 @@ internal static class UiSmokeTests
                     main.FindName("RdpDoctorQuickStatus") is not TextBlock ||
                     main.FindName("CopyRdpDoctorButton") is not Button copyDoctor ||
                     copyDoctor.IsEnabled ||
+                    main.FindName("AdvancedDllStateText") is not TextBlock advancedStatus ||
+                    advancedStatus.Text != "DLL STATUS: CHECKING..." ||
+                    main.FindName("AdvancedDllEvidenceText") is not TextBlock ||
                     main.FindName("DoctorVerdictText") is not TextBlock ||
                     main.FindName("DoctorBlockersText") is not TextBlock ||
                     main.FindName("DoctorAttentionText") is not TextBlock ||
@@ -327,7 +330,11 @@ internal static class UiSmokeTests
                     quick.FindName("QuickCancelButton") is not Button ||
                     quick.FindName("QuickAdvancedButton") is not Button ||
                     quick.FindName("QuickCheckButton") is not Button ||
-                    quick.FindName("QuickStatusText") is not TextBlock)
+                    quick.FindName("QuickStatusText") is not TextBlock ||
+                    quick.FindName("QuickDllStateText") is not TextBlock dllStatus ||
+                    dllStatus.Text != "DLL STATUS: CHECKING..." ||
+                    quick.FindName("QuickDllEvidenceText") is not TextBlock ||
+                    quick.FindName("QuickRevertStateText") is not TextBlock)
                     throw new Exception("Compact Apply / Revert / Check / Advanced / Cancel and safe backup default missing.");
                 var cleanup = new CleanupWindow();
                 if (cleanup.FindName("CleanupBackupsCheck") is not CheckBox ||

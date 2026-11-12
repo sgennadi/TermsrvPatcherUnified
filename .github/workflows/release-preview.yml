@@ -148,16 +148,16 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           $releaseExists = $LASTEXITCODE -eq 0
           $notes = @(
-            '1. Show local, incomplete, unavailable and untested RDP evidence separately.'
-            '2. Inspect RDP Firewall TCP port, active profile and Allow/Block candidates.'
-            '3. Fall back to clearly limited CIM/registry evidence if Firewall COM fails.'
-            '4. Improve the compact Doctor dashboard and safe, privacy-aware report.'
-            '5. Add Firewall/RDP synthetic tests; never modify Firewall or system DLL.'
+            '1. Show current DLL STATUS: PATCHED, NOT PATCHED or UNKNOWN on startup.'
+            '2. Show Revert readiness independently from patch state and backup presence.'
+            '3. Reject stale or conflicting signature/recovery SHA-256 and version evidence.'
+            '4. Invalidate old status after Apply/Revert until a fresh Check Status.'
+            '5. Add pure classification and WPF layout regressions; no DLL changes by status checks.'
             ''
-            'TermsrvPatcherUnified 1.0.6-preview.2 - Windows x64, unsigned.'
-            'Stable 1.0.5 remains Latest Stable; unsigned Preview installation requires explicit approval.'
-            'Matching local Firewall rules cannot prove remote connectivity or licensing.'
-            'CI does not perform a protected DLL write or a live Windows 11 RDP authentication test.'
+            'TermsrvPatcherUnified 1.0.7-preview.1 - unsigned Windows x64.'
+            'Stable 1.0.6 remains Latest Stable; installation requires explicit administrator approval.'
+            'Matching replacement bytes do not independently confirm a functional RDP connection or Microsoft licensing.'
+            'CI performs no protected DLL writes or real RDP authentication.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           if ($releaseExists) {

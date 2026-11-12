@@ -89,6 +89,61 @@ void Expect<TException>(Action action, string message) where TException : Except
     Ensure(threw, message);
 }
 
+// Regression: current installed DLL state and ability to Revert are
+// independent facts. None of these pure tests accesses the system DLL.
+var currentDllSha = new string('A', 64);
+var otherDllSha = new string('B', 64);
+PatchPlan StatusPlan(PatchState state) =>
+    new(state, "synthetic", "synthetic-profile", "termsrv.dll",
+        "10.0.26100.1", currentDllSha, [], null);
+var recovery = new AutomaticRevertPlan(otherDllSha, currentDllSha,
+    "10.0.26100.1", "synthetic-profile", "Journal");
+var patchedWithoutRecovery = InstalledDllStatus.FromEvidence(
+    StatusPlan(PatchState.AlreadyPatched), null);
+Ensure(patchedWithoutRecovery.Kind == InstalledDllKind.Patched &&
+       !patchedWithoutRecovery.CanOfferAutomaticRevert &&
+       patchedWithoutRecovery.Headline.Contains("PATCHED", StringComparison.Ordinal),
+    "verified current replacement bytes remain patched even without recovery");
+var patchedWithRecovery = InstalledDllStatus.FromEvidence(
+    StatusPlan(PatchState.AlreadyPatched), recovery);
+Ensure(patchedWithRecovery.Kind == InstalledDllKind.Patched &&
+       patchedWithRecovery.CanOfferAutomaticRevert &&
+       patchedWithRecovery.RevertHeadline.Contains("AVAILABLE", StringComparison.Ordinal),
+    "revert is a separate verified capability, never the primary patch status");
+var originalSide = InstalledDllStatus.FromEvidence(StatusPlan(PatchState.Ready), null);
+Ensure(originalSide.Kind == InstalledDllKind.NotPatched &&
+       originalSide.CanOfferAutomaticApply &&
+       !originalSide.CanOfferAutomaticRevert,
+    "original-side signature is not called patched and does not expose Revert");
+var ambiguous = InstalledDllStatus.FromEvidence(StatusPlan(PatchState.Ambiguous), null);
+Ensure(ambiguous.Kind == InstalledDllKind.Unknown &&
+       !ambiguous.CanOfferAutomaticApply && !ambiguous.CanOfferAutomaticRevert,
+    "ambiguous installed DLL never grants automatic actions");
+var unsupported = InstalledDllStatus.FromEvidence(StatusPlan(PatchState.Unsupported), null);
+Ensure(unsupported.Kind == InstalledDllKind.Unknown &&
+       !unsupported.CanOfferAutomaticApply && !unsupported.CanOfferAutomaticRevert,
+    "unsupported installed DLL is Unknown, not automatically original");
+var recoveredUnknown = InstalledDllStatus.FromEvidence(
+    StatusPlan(PatchState.Unknown), recovery);
+Ensure(recoveredUnknown.Kind == InstalledDllKind.Patched &&
+       recoveredUnknown.CanOfferAutomaticRevert,
+    "exact SHA/version-bound protected recovery is valid evidence when automatic recognition is unknown");
+var conflicting = InstalledDllStatus.FromEvidence(StatusPlan(PatchState.Ready), recovery);
+Ensure(conflicting.Kind == InstalledDllKind.Unknown &&
+       !conflicting.CanOfferAutomaticApply && !conflicting.CanOfferAutomaticRevert,
+    "contradictory original and protected-recovery evidence fails closed");
+var stale = InstalledDllStatus.FromEvidence(StatusPlan(PatchState.AlreadyPatched),
+    recovery with { InstalledSha256 = otherDllSha });
+Ensure(stale.Kind == InstalledDllKind.Unknown &&
+       !stale.CanOfferAutomaticRevert,
+    "old backup never determines the status of a newly changed DLL");
+var recoveryFailure = InstalledDllStatus.FromEvidence(
+    StatusPlan(PatchState.AlreadyPatched), null, recoveryInspectionFailed: true);
+Ensure(recoveryFailure.Kind == InstalledDllKind.Patched &&
+       !recoveryFailure.CanOfferAutomaticRevert &&
+       recoveryFailure.RevertHeadline.Contains("NOT VERIFIED", StringComparison.Ordinal),
+    "failed recovery inspection never overwrites separately verified patched state");
+
 byte[] FakeBytes(BytePattern group, int offset = 40)
 {
     var value = Enumerable.Repeat((byte)0xFA, 256).ToArray();
