@@ -40,7 +40,21 @@
         <StackPanel>
           <TextBlock x:Name="SystemText" FontWeight="SemiBold" FontSize="15" Text="Detecting operating system..."/>
           <TextBlock x:Name="DllText" Margin="0,5,0,0" Foreground="{StaticResource MutedBrush}"/>
-          <TextBlock x:Name="StatusText" Margin="0,7,0,0" FontWeight="SemiBold" Foreground="#28589D"/>
+          <Border Background="{StaticResource SoftBlueBrush}" CornerRadius="8" Padding="11"
+                  Margin="0,9,0,0">
+            <StackPanel>
+              <TextBlock x:Name="AdvancedDllStateText" Text="DLL STATUS: CHECKING..."
+                         FontSize="17" FontWeight="Bold"
+                         Foreground="{StaticResource NavyBrush}" TextWrapping="Wrap"/>
+              <TextBlock x:Name="AdvancedDllEvidenceText"
+                         Text="Run Check DLL to inspect the current installed file."
+                         Margin="0,5,0,0" FontSize="12"
+                         Foreground="{StaticResource ContentBrush}" TextWrapping="Wrap"/>
+            </StackPanel>
+          </Border>
+          <TextBlock x:Name="StatusText" Margin="0,7,0,0"
+                     FontSize="12" TextWrapping="Wrap"
+                     Foreground="{StaticResource MutedBrush}"/>
           <CheckBox x:Name="CreateBackupCheck" IsChecked="True" Margin="0,9,0,0"
                     Content="Create backup before applying (recommended)"
                     ToolTip="Automatic Reapply always creates a full backup, regardless of this manual preference."/>
