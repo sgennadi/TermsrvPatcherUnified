@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.7 — 2026-11-12 (Stable release candidate)
+## 1.0.7 — 2026-11-12 (Stable released)
 
 1. Show **DLL STATUS: PATCHED / NOT PATCHED / UNKNOWN** in Simple and Advanced based on the current installed DLL, independently of backup or Revert availability.
 2. Show **Revert** readiness separately using SHA-256- and version-bound recovery evidence; distinguish verified originals, catalog reconstruction and unavailable recovery.
@@ -9,6 +9,8 @@
 5. Preserve administrator-approved update transactions, backup/rollback and version protection against older Preview installations.
 
 **QA boundary:** CI does not modify a real system DLL, prove successful Windows 11 RDP authentication or grant Microsoft licensing privileges. No new patch signature is introduced.
+
+**Verified:** [release PR Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43255717407), [main Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43256184355), and [Stable publisher](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43256184520) passed; [v1.0.7](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7) is Latest Stable.
 
 ## 1.0.7-preview.1 — 2026-11-12 (Preview released)
 

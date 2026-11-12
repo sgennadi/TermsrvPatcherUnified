@@ -1,28 +1,26 @@
 # TermsrvPatcherUnified
 
-**Latest Stable:** [**1.0.6**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6) · **Published:** 2026-11-12 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
+**Latest Stable:** [**1.0.7**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7) · **Published:** 2026-11-12 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
 
-**Latest Preview (optional):** [**1.0.7-preview.1**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1) · **Published:** 2026-11-12 · clear **PATCHED / NOT PATCHED / UNKNOWN** installed DLL status and independent, current-SHA-bound Revert readiness. [Windows PR QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43229584371), [Preview publisher](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056078) and [upgrade/rollback tests](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056190) passed. **Stable 1.0.6 remains Latest Stable and recommended**; Preview installation requires explicit confirmation.
-
-**Stable 1.0.7 release candidate (not yet published):** promotes the verified [Preview 1.0.7-preview.1](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1), with prominent **PATCHED / NOT PATCHED / UNKNOWN** status independent of **Revert** readiness in Simple and Advanced. Version checks and release CI are required before publication. **Stable 1.0.6 remains Latest Stable until GitHub confirms v1.0.7.**
+**Previous Preview (testing):** [**1.0.7-preview.1**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1) · [preview Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43229584371). **Stable 1.0.7 is now recommended.** Older Preview builds cannot replace this Stable.
 
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
 
-## What's new in Stable 1.0.6
+## What's new in Stable 1.0.7
 
-1. **Clear RDP Doctor statuses:** separate locally verified, observed, blocked, attention, unavailable, incomplete and not-tested findings.
-2. **Windows Firewall:** inspect the real RDP TCP port, active network profile and relevant Allow/Block rules, including explicit custom-port rules and limited CIM/registry fallback.
-3. **Improved Remote Desktop UI:** six summary counters, readable color-coded evidence and private local technical details.
-4. **Safer protected operations:** verify SYSTEM job ACLs and staged EXE SHA-256; retain bounded failure-stage diagnostics and two safe Session 0 tests.
-5. **Protected updating and reporting:** require administrator consent, preserve backup and rollback, silent opt-in Auto Reapply reports and strict older-Preview downgrade blocking.
+1. **Unambiguous DLL status:** both Simple and Advanced display **PATCHED / NOT PATCHED / UNKNOWN** based on current installed `termsrv.dll` evidence, not the Revert button.
+2. **Independent Revert readiness:** SHA-256/version-bound recovery is shown separately, including catalog reconstruction versus a verified original/journal source.
+3. **Fail closed:** stale, conflicting or changing file evidence disables automatic actions; run Check Status after Apply or Revert, including scheduled SYSTEM jobs.
+4. **Existing diagnostics retained:** RDP Doctor, configured-port Windows Firewall evidence, privacy-aware reports and protected SYSTEM worker checks.
+5. **Stable update protection:** administrator confirmation, rollback and version safeguards prevent installing an older Preview over Stable.
 
-**Note:** Local Firewall observations never prove remote connection, TLS trust, authentication or Microsoft RDP licensing. Windows 11 live RDP and Windows Update reapply are not CI tests.
+**Limitations:** synthetic Windows CI does not prove successful live RDP authentication, Microsoft licensing or Windows Update Auto Reapply.
 
 ## Download and update
 
-Use the [Stable 1.0.6 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification. Preview releases never set GitHub's **Latest Stable** label.
+Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification. Preview releases never set GitHub's **Latest Stable** label.
 
 ## Reporting, consent and verification
 
