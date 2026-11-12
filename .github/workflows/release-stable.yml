@@ -157,16 +157,17 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
           $notes = @(
-            '1. Clarify locally verified, observed, unavailable and untested RDP Doctor findings.'
-            '2. Inspect Firewall TCP port, active profile and Allow/Block candidates; use limited CIM/registry fallback.'
-            '3. Improve six-counter Remote Desktop layout and privacy-safe technical evidence.'
-            '4. Harden SYSTEM job ACLs, SHA-256 checks and bounded failure-stage diagnostics.'
-            '5. Preserve approved updates, rollback, consent-gated reporting and downgrade protection.'
+            '1. Show current DLL STATUS: PATCHED, NOT PATCHED or UNKNOWN in Simple and Advanced.'
+            '2. Show Revert readiness separately, with SHA-256 and version-bound recovery evidence.'
+            '3. Fail closed on contradictory, stale or changing DLL and recovery evidence.'
+            '4. Require a fresh status check after Apply/Revert, including SYSTEM scheduled jobs.'
+            '5. Keep the Firewall/RDP Doctor improvements, approved updates and rollback.'
             ''
-            'TermsrvPatcherUnified 1.0.6 Stable - unsigned Windows x64. Administrator-approved installation.'
-            'Matching local Firewall rules do NOT prove effective remote TCP/TLS/authentication or Microsoft RDP licensing.'
-            'CI validates synthetic Firewall, WPF, updater, backup, ZIP, and non-destructive SYSTEM execution. Windows 11 live RDP and Windows Update reapply require separate on-device tests.'
-            'Portable ZIP: TermsrvPatcherUnified.exe and Example.txt. Updater ZIP: one EXE. SHA256SUMS.txt contains published archive checksums.'
+            'TermsrvPatcherUnified 1.0.7 Stable - unsigned Windows x64.'
+            'Installation and protected operations require administrator approval.'
+            'Matching DLL bytes do not prove successful remote sign-in or Microsoft licensing.'
+            'Synthetic Windows CI and harmless SYSTEM/Session 0 tests do not replace real RDP testing.'
+            'Portable ZIP: TermsrvPatcherUnified.exe and Example.txt. Updater ZIP: one EXE. SHA256SUMS.txt supplies checksums.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Stable)" --notes-file release-notes.txt --latest

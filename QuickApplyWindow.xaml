@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.QuickApplyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 1.0.7-preview.1"
+        Title="TermsrvPatcherUnified 1.0.7"
         Width="940" Height="675" MinWidth="690" MinHeight="510"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"
@@ -16,7 +16,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock x:Name="QuickVersionText" Text="1.0.7-preview.1   •   Remote Desktop maintenance"
+          <TextBlock x:Name="QuickVersionText" Text="1.0.7   •   Remote Desktop maintenance"
                      FontSize="12" Margin="0,4,0,0"
                      Foreground="{StaticResource MutedBrush}"/>
         </StackPanel>

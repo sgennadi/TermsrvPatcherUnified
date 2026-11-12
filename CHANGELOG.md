@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.7 — 2026-11-12 (Stable release candidate)
+
+1. Show **DLL STATUS: PATCHED / NOT PATCHED / UNKNOWN** in Simple and Advanced based on the current installed DLL, independently of backup or Revert availability.
+2. Show **Revert** readiness separately using SHA-256- and version-bound recovery evidence; distinguish verified originals, catalog reconstruction and unavailable recovery.
+3. Fail closed on stale, contradictory or changing DLL evidence, and require a fresh Check after Apply/Revert, including scheduled SYSTEM tasks.
+4. Retain Stable 1.0.6 Firewall/RDP Doctor improvements, private diagnostics, and protected job execution.
+5. Preserve administrator-approved update transactions, backup/rollback and version protection against older Preview installations.
+
+**QA boundary:** CI does not modify a real system DLL, prove successful Windows 11 RDP authentication or grant Microsoft licensing privileges. No new patch signature is introduced.
+
 ## 1.0.7-preview.1 — 2026-11-12 (Preview released)
 
 1. **Unambiguous DLL status:** Simple and Advanced now prominently show **DLL STATUS: PATCHED**, **NOT PATCHED** or **UNKNOWN** based on current installed DLL signature evidence — not on the Revert button.
