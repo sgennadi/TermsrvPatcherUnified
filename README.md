@@ -2,9 +2,7 @@
 
 **Latest Stable:** [**1.0.6**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6) · **Published:** 2026-11-12 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
 
-**Previous Preview (testing):** [**1.0.6-preview.2**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.6-preview.2) · [Windows QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43086119000). **Stable 1.0.6 is now recommended** and will not be downgraded by an older Preview.
-
-**Upcoming Preview 1.0.7-preview.1 (under QA):** the installed `termsrv.dll` now has an explicit **PATCHED / NOT PATCHED / UNKNOWN** status in both Simple and Advanced views, read from current exact DLL signatures. **Revert** eligibility is separately described using current-SHA-bound protected recovery evidence, never substituted for patch state. Conflicts and file changes fail closed; status after Apply/Revert requires a fresh Check. [Release candidate PR](https://github.com/sgennadi/TermsrvPatcherUnified/pulls). Stable **1.0.6 remains Latest Stable** until this preview is validated and published.
+**Latest Preview (optional):** [**1.0.7-preview.1**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1) · **Published:** 2026-11-12 · clear **PATCHED / NOT PATCHED / UNKNOWN** installed DLL status and independent, current-SHA-bound Revert readiness. [Windows PR QA](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43229584371), [Preview publisher](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056078) and [upgrade/rollback tests](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056190) passed. **Stable 1.0.6 remains Latest Stable and recommended**; Preview installation requires explicit confirmation.
 
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 

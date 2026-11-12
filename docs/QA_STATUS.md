@@ -1,10 +1,10 @@
-## Preview 1.0.7-preview.1 — clear installed DLL state (candidate)
+## Preview 1.0.7-preview.1 — clear installed DLL state (published 2026-11-12)
 
 - **Bug:** Simple Mode previously preferred the text "Verified original available for Revert" over the current exact-signature result. Thus a recoverable patched DLL did not clearly say "PATCHED".
 - **Fix:** Simple and Advanced have a prominent independent DLL status: PATCHED (verified replacement evidence), NOT PATCHED (known original-side signature), or UNKNOWN (unsupported, ambiguous, conflicting or failed inspection). A matching Find signature alone does **not** authenticate Microsoft provenance.
 - **Separate capability:** Revert readiness is shown independently and requires an exact current DLL SHA-256 and file-version-bound recovery. A recovery source with conflicting current signature evidence fails closed, disables Apply/Revert, and never overrides the DLL-status label.
 - **Freshness:** quick check independently hashes current installed DLL after recovery inspection; Apply/Revert invalidate any previous status until a fresh check. No display-only status authorizes write permissions or changes protected files.
-- **Gates:** pure synthetic classification tests, WPF controls for Simple/Advanced, SHA-256/current-file safety, Windows Server 2025 CI, and separate Preview publisher. Real RDP connections and Windows Update Auto Reapply are not tested by this change.
+- **Verified gates:** [PR Windows 2025 CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43229584371), [main Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056079), [Preview publisher](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056078) and [published EXE replacement/rollback](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/43230056190) succeeded. [Preview 1.0.7-preview.1](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1) is marked prerelease; Latest Stable remains 1.0.6. Real RDP connections and Windows Update Auto Reapply are not tested by this change.
 
 ## Stable 1.0.6 — release acceptance (published 2026-11-12)
 

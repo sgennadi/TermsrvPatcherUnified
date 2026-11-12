@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.0.7-preview.1 — 2026-11-12 (Preview candidate)
+## 1.0.7-preview.1 — 2026-11-12 (Preview released)
 
 1. **Unambiguous DLL status:** Simple and Advanced now prominently show **DLL STATUS: PATCHED**, **NOT PATCHED** or **UNKNOWN** based on current installed DLL signature evidence — not on the Revert button.
 2. **Separate recovery status:** identify whether Revert uses a SHA-256-verified original/journal, requires catalog-only reconstruction or is unavailable. Originality of Microsoft files is never inferred from a signature alone.
