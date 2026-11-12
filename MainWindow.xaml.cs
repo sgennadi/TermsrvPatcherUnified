@@ -141,6 +141,9 @@ public partial class MainWindow : Window
         // Never preserve an old Ready plan if the second read, scan, or hash
         // verification fails: RunBusy's finally must not re-enable stale Apply.
         autoPlan = null;
+        AdvancedDllStateText.Text = "DLL STATUS: CHECKING...";
+        AdvancedDllEvidenceText.Text = "Comparing exact signatures and SHA-256 of the installed DLL.";
+        AdvancedDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
         signatureSnapshot = null;
         lastScan = null;
         AutoSignatureGrid.ItemsSource = null;
@@ -193,14 +196,24 @@ public partial class MainWindow : Window
             lastScan = result.Fallback;
             SystemText.Text = os.Display + (os.Is64Bit ? " | x64" : " | x86");
             DllText.Text = $"termsrv.dll: {os.DllVersion}  |  {os.DllPath}";
-            StatusText.Text = $"Automatic status: {autoPlan.State}  |  {autoPlan.Description}";
-            StatusText.Foreground = autoPlan.State == PatchState.AlreadyPatched
-                ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-                : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            // The installed DLL byte result must be visible independently of
+            // backup, Revert or an old Task Scheduler result.
+            var installed = InstalledDllStatus.FromEvidence(autoPlan, recovery: null);
+            AdvancedDllStateText.Text = installed.Headline;
+            AdvancedDllEvidenceText.Text = installed.Evidence;
+            AdvancedDllStateText.Foreground = installed.Kind switch
+            {
+                InstalledDllKind.Patched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
+                InstalledDllKind.NotPatched => new SolidColorBrush(Color.FromRgb(40, 88, 157)),
+                _ => new SolidColorBrush(Color.FromRgb(160, 92, 14))
+            };
+            StatusText.Text = "Automatic signature result: " + autoPlan.State +
+                " | " + autoPlan.Description;
+            StatusText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
             AutoSimpleStatus.Text = autoPlan.State switch
             {
                 PatchState.Ready => "Exact pattern verified — ready to apply",
-                PatchState.AlreadyPatched => "Already patched",
+                PatchState.AlreadyPatched => "Patched — exact replacement signature matched",
                 PatchState.Ambiguous => "Multiple conflicting signatures — Apply blocked",
                 PatchState.Unsupported => "Automatic Apply unavailable on this file",
                 _ => "No verified automatic pattern found"
@@ -208,7 +221,7 @@ public partial class MainWindow : Window
             AutoSimpleStatus.Foreground = autoPlan.State switch
             {
                 PatchState.Ready => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
-                PatchState.AlreadyPatched => new SolidColorBrush(Color.FromRgb(185, 28, 28)),
+                PatchState.AlreadyPatched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
                 _ => new SolidColorBrush(Color.FromRgb(11, 46, 90))
             };
             AutoSimpleProfile.Text = string.IsNullOrWhiteSpace(autoPlan.ProfileId)
@@ -270,6 +283,9 @@ public partial class MainWindow : Window
         });
         if (autoPlan is null)
         {
+            AdvancedDllStateText.Text = "DLL STATUS: UNKNOWN";
+            AdvancedDllEvidenceText.Text = "Signature or file SHA-256 inspection failed. Recheck the installed DLL.";
+            AdvancedDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(160, 92, 14));
             AutoSimpleStatus.Text = "Automatic check could not complete";
             AutoSimpleProfile.Text = "Detected pattern: unknown";
             AutoSimpleReason.Text = "No verified Apply is available. Review the error and run Check DLL again.";
