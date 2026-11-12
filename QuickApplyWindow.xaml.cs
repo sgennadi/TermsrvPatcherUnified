@@ -75,7 +75,10 @@ public partial class QuickApplyWindow : Window
         QuickRevertButton.IsEnabled = false;
         QuickCheckButton.IsEnabled = false;
         QuickNoBackupCheck.IsEnabled = false;
-        QuickStatusText.Text = "Checking installed DLL...";
+        QuickStatusText.Text = "Inspecting current DLL and recovery...";
+        QuickDllStateText.Text = "DLL STATUS: CHECKING...";
+        QuickDllEvidenceText.Text = "Reading current installed DLL bytes and exact signatures.";
+        QuickRevertStateText.Text = "Revert: checking separately...";
         QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
         QuickHelpText.Text = "Comparing full exact signatures and SHA-256.";
         try
@@ -86,58 +89,58 @@ public partial class QuickApplyWindow : Window
                 var os = engine.EnvironmentInfo();
                 var candidate = engine.Inspect();
                 AutomaticRevertPlan? recovery = null;
+                bool recoveryInspectionFailed = false;
                 try { recovery = AutomaticRevertSafety.Inspect(); }
                 catch (Exception ex)
                 {
-                    // Recovery metadata may be damaged by an OS update or
-                    // security tool. Never let it authorize Revert or block
-                    // a separate, read-only automatic signature Check.
+                    recoveryInspectionFailed = true;
+                    // Failure must not override separately confirmed current DLL bytes.
                     AuditLog.Append("Compact Revert eligibility unavailable: " + ex.GetType().Name);
                 }
-                return (os, candidate, recovery);
+                return (os, candidate, recovery, recoveryInspectionFailed);
             });
             plan = result.candidate;
             revertPlan = result.recovery;
             QuickSystemText.Text = result.os.Display;
             QuickDllText.Text = "termsrv.dll " + result.os.DllVersion;
-            bool authorized = plan.State == PatchState.Ready &&
+            // The installed DLL status is determined by the CURRENT byte scan,
+            // never by the availability of a Revert button or old backup.
+            var installed = InstalledDllStatus.FromEvidence(
+                plan, revertPlan, result.recoveryInspectionFailed);
+            QuickDllStateText.Text = installed.Headline;
+            QuickDllEvidenceText.Text = installed.Evidence;
+            QuickRevertStateText.Text = installed.RevertHeadline;
+            QuickDllStateText.Foreground = installed.Kind switch
+            {
+                InstalledDllKind.Patched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
+                InstalledDllKind.NotPatched => new SolidColorBrush(Color.FromRgb(40, 88, 157)),
+                _ => new SolidColorBrush(Color.FromRgb(160, 92, 14))
+            };
+            QuickRevertStateText.Foreground = installed.CanOfferAutomaticRevert
+                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
+                : new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            bool authorized = installed.CanOfferAutomaticApply &&
                 !plan.IsManual && result.os.Supported &&
                 SystemInfo.IsAdministrator() && NsudoDevilModeScope.IsBundled;
             QuickApplyButton.IsEnabled = authorized;
-            QuickRevertButton.IsEnabled = revertPlan is not null &&
+            QuickRevertButton.IsEnabled = installed.CanOfferAutomaticRevert &&
                 SystemInfo.IsAdministrator() && NsudoDevilModeScope.IsBundled;
-            QuickStatusText.Text = authorized ? "Ready to apply" :
-                revertPlan?.RecoverySource == "ExactCatalog"
-                    ? "Revert by known signature (no original backup)" :
-                revertPlan is not null ? "Verified original available for Revert" :
-                plan.State == PatchState.AlreadyPatched ? "Already patched" :
-                "Automatic Apply unavailable";
-            // A verified recovery source is a GOOD result, even when the
-            // installed DLL is already patched. Do not color it like a failure.
-            QuickStatusText.Foreground = revertPlan is not null &&
-                revertPlan.RecoverySource != "ExactCatalog"
-                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
-                : plan.State == PatchState.AlreadyPatched &&
-                  revertPlan?.RecoverySource != "ExactCatalog"
-                    ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-                    : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            QuickStatusText.Text = authorized ? "Apply: available (confirmation required)" :
+                installed.CanOfferAutomaticRevert ? "Revert: available (confirmation required)" :
+                installed.Kind == InstalledDllKind.Unknown
+                    ? "Automatic modification unavailable — inspect Advanced"
+                    : "No automatic action currently available";
+            QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
             BackupOptionChanged(this, new RoutedEventArgs());
             var session = InteractiveSessionDetector.Detect();
-            QuickHelpText.Text = authorized
-                ? (session == SessionKind.Console
-                    ? "Local console: direct protected Apply. Full backup is optional."
-                    : "RDP or uncertain session: one-shot SYSTEM task, independent of the window.")
-                : revertPlan is not null
-                    ? revertPlan.RecoverySource == "ExactCatalog"
-                        ? "NO BACKUP/JOURNAL: bytes reconstructible from fixed catalog; " +
-                          "not proof of a genuine Microsoft original. Review before Revert."
-                        : (session == SessionKind.Console
-                            ? "Original SHA-256 verified against protected recovery."
-                            : "Protected Revert will continue under SYSTEM after RDP disconnect.")
-                    : plan.State == PatchState.AlreadyPatched
-                        ? "No safe saved source or reversible fixed signature. " +
-                          "Use Advanced and Windows SFC/DISM recovery; Revert disabled."
-                        : "No verified one-click action. Open Advanced for details.";
+            QuickHelpText.Text = installed.RevertDetails + " " +
+                (authorized
+                    ? (session == SessionKind.Console
+                        ? "Apply uses the protected local console path."
+                        : "Apply uses a separate one-shot SYSTEM task when run over RDP.")
+                    : installed.Kind == InstalledDllKind.Unknown
+                        ? "Review exact signatures under Advanced. No automatic Apply or Revert is enabled."
+                        : "Use Check Status after Windows Update or any completed Apply/Revert.");
         }
         catch (Exception e)
         {
@@ -145,6 +148,10 @@ public partial class QuickApplyWindow : Window
             revertPlan = null;
             QuickApplyButton.IsEnabled = false;
             QuickRevertButton.IsEnabled = false;
+            QuickDllStateText.Text = "DLL STATUS: UNKNOWN";
+            QuickDllEvidenceText.Text = "Inspection failed. No current-file status is confirmed.";
+            QuickRevertStateText.Text = "Revert: NOT VERIFIED";
+            QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(160, 92, 14));
             QuickStatusText.Text = "Automatic check could not complete";
             QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
             QuickHelpText.Text = e.GetType().Name + ". Open Advanced for diagnostics.";
