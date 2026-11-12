@@ -35,7 +35,7 @@ internal sealed record InstalledDllStatus(
 
         bool patchedByCatalog = plan.State == PatchState.AlreadyPatched;
         bool patchedByRecovery = recoveryMatches &&
-            plan.State is PatchState.Unknown or PatchState.Ambiguous;
+            plan.State is (PatchState.Unknown or PatchState.Ambiguous);
 
         if (patchedByCatalog || patchedByRecovery)
         {
