@@ -212,8 +212,9 @@ eq(post(change(m365Report, {id: crypto.randomUUID()})).error,
   'not_configured', 'M365 token must be separately configured on server');
 properties.set('GITHUB_M365_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND');
 
+const beforeMissingPat = githubPosts.length;
 properties.delete('GITHUB_ISSUES_TOKEN');
 eq(post(compat('successful_apply', initialBody)).error, 'not_configured',
    'missing server-side GitHub PAT fails closed');
-eq(githubPosts.length, 3, 'missing PAT must never submit');
+eq(githubPosts.length, beforeMissingPat, 'missing PAT must never submit');
 console.log('PASS: ' + checks + ' offline Google compatibility gateway checks; no HTTP or real reports.');
