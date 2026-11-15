@@ -37,8 +37,9 @@ function doGet() {
     ok: true,
     service: 'TermsrvPatcherUnified diagnostics',
     method: 'POST',
-    gateway_schema_version: 2,
-    capabilities: ['universal-diagnostics/v1', 'termsrv-compatibility/v1']
+    gateway_schema_version: 3,
+    capabilities: ['universal-diagnostics/v1', 'termsrv-compatibility/v1',
+      'microsoft365-auth-repair/v1']
   });
 }
 
@@ -232,6 +233,105 @@ function publishCompatibility_(report, token) {
   return {ok: true, issue_url: COMPATIBILITY_ISSUE_URL, comment_url: url};
 }
 
+
+// Shared receiver extension: Microsoft365AuthRepair UniversalDiagnostics v1.
+// The existing Termsrv routes above remain unchanged and keep their own token.
+const M365_REPORT_REPOSITORY = 'sgennadi/Microsoft365AuthRepair';
+const M365_ISSUE_API = 'https://api.github.com/repos/' + M365_REPORT_REPOSITORY + '/issues';
+const M365_TOKEN_PROPERTY = 'GITHUB_M365_ISSUES_TOKEN';
+const M365_ISSUES_PER_UTC_DAY = 12;
+const M365_FIELDS = Object.freeze([
+  'schema', 'id', 'timestamp_utc', 'project', 'component',
+  'error_type', 'code', 'level', 'version', 'platform',
+  'architecture', 'fingerprint'
+]);
+
+function validM365Report_(input) {
+  if (!input || typeof input !== 'object' || Array.isArray(input) ||
+      Object.keys(input).length !== 1 ||
+      !Object.prototype.hasOwnProperty.call(input, 'event')) return false;
+  const r = input.event;
+  if (!r || typeof r !== 'object' || Array.isArray(r) ||
+      Object.keys(r).length !== M365_FIELDS.length ||
+      Object.keys(r).some(k => !M365_FIELDS.includes(k))) return false;
+  if (r.schema !== 'universal-diagnostics/v1' ||
+      r.project !== M365_REPORT_REPOSITORY ||
+      r.platform !== 'Windows' ||
+      !['AMD64', 'ARM64'].includes(r.architecture) ||
+      typeof r.id !== 'string' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(r.id) ||
+      typeof r.component !== 'string' ||
+      !/^[A-Za-z][A-Za-z0-9 _-]{0,55}$/.test(r.component) ||
+      typeof r.error_type !== 'string' ||
+      !/^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(r.error_type) ||
+      typeof r.code !== 'string' ||
+      !/^(?:0x[A-Fa-f0-9]{1,8}|[A-Za-z0-9_-]{1,32})$/.test(r.code) ||
+      !['info', 'warning', 'error'].includes(r.level) ||
+      typeof r.version !== 'string' ||
+      !/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/.test(r.version) ||
+      typeof r.timestamp_utc !== 'string' ||
+      !/^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$/.test(r.timestamp_utc) ||
+      typeof r.fingerprint !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(r.fingerprint)) return false;
+
+  const seen = Date.parse(r.timestamp_utc), now = Date.now();
+  if (!Number.isFinite(seen) ||
+      seen > now + 5 * 60 * 1000 ||
+      seen < now - 90 * 24 * 3600 * 1000 ||
+      new Date(seen).toISOString().replace('.000Z', 'Z') !== r.timestamp_utc)
+    return false;
+  const expected = sha256_(
+    [r.project, r.component, r.error_type, r.code]
+      .map(v => v.toLowerCase()).join('|'));
+  return r.fingerprint === expected ? r : false;
+}
+
+function m365IssueBody_(r) {
+  return '<!-- udx-report-id:' + r.id + ' -->\n' +
+    '## Microsoft 365 Auth Repair: Anonymous UniversalDiagnostics\n\n' +
+    '- Schema: ' + r.schema + '\n' +
+    '- Project: ' + r.project + '\n' +
+    '- Component: ' + r.component + '\n' +
+    '- Version: ' + r.version + '\n' +
+    '- Severity: ' + r.level + '\n' +
+    '- Error class: ' + r.error_type + '\n' +
+    '- Error code: ' + r.code + '\n' +
+    '- Observed UTC: ' + r.timestamp_utc + '\n' +
+    '- OS: ' + r.platform + '\n' +
+    '- Architecture: ' + r.architecture + '\n' +
+    '- Fingerprint: ' + r.fingerprint + '\n\n' +
+    'Only typed allowlisted metadata. No summary, logs, paths, tokens, user IDs or device IDs.\n';
+}
+
+function publishM365_(report, token) {
+  const payload = JSON.stringify({
+    title: '[Diagnostics] Microsoft365AuthRepair ' + report.id.slice(0, 8),
+    body: m365IssueBody_(report)
+  });
+  const response = UrlFetchApp.fetch(M365_ISSUE_API, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: payload,
+    followRedirects: false,
+    muteHttpExceptions: true,
+    headers: {
+      Authorization: 'Bearer ' + token,
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent': 'UniversalDiagnostics-ReportGateway'
+    }
+  });
+  if (response.getResponseCode() !== 201)
+    return {ok: false, error: 'github_not_confirmed'};
+  let result;
+  try { result = JSON.parse(response.getContentText()); }
+  catch (_) { return {ok: false, error: 'github_receipt_invalid'}; }
+  const url = String(result.html_url || '');
+  if (!/^https:\/\/github\.com\/sgennadi\/Microsoft365AuthRepair\/issues\/[1-9][0-9]*$/.test(url))
+    return {ok: false, error: 'github_receipt_invalid'};
+  return {ok: true, issue_url: url};
+}
+
 function doPost(event) {
   try {
     if (!event || !event.postData ||
@@ -244,10 +344,11 @@ function doPost(event) {
     catch (_) { return output_({ok: false, error: 'invalid_json'}); }
     const compatibility = validCompatibility_(input);
     const report = compatibility ? null : validReport_(input);
-    if (!compatibility && !report) return output_({ok: false, error: 'invalid_evidence'});
+    const m365 = !compatibility && !report ? validM365Report_(input) : null;
+    if (!compatibility && !report && !m365) return output_({ok: false, error: 'invalid_evidence'});
 
     const properties = PropertiesService.getScriptProperties();
-    const token = properties.getProperty('GITHUB_ISSUES_TOKEN');
+    const token = properties.getProperty(m365 ? M365_TOKEN_PROPERTY : 'GITHUB_ISSUES_TOKEN');
     if (!token) return output_({ok: false, error: 'not_configured'});
 
     // Lock prevents parallel submissions from bypassing our global cap.
@@ -255,8 +356,8 @@ function doPost(event) {
     if (!lock.tryLock(2500)) return output_({ok: false, error: 'busy'});
     try {
       const cache = CacheService.getScriptCache();
-      const dedupKey = (compatibility ? 'cpx_' : 'udx_') +
-        (compatibility ? compatibility.id : report.id);
+      const dedupKey = (m365 ? 'm365_' : compatibility ? 'cpx_' : 'udx_') +
+        (m365 ? m365.id : compatibility ? compatibility.id : report.id);
       const cached = cache.get(dedupKey);
       if (cached) {
         if (compatibility)
@@ -266,9 +367,10 @@ function doPost(event) {
       }
 
       const day = Utilities.formatDate(new Date(), 'Etc/UTC', 'yyyyMMdd');
-      const countKey = (compatibility ? 'comments_' : 'issues_') + day;
+      const countKey = (m365 ? 'm365_issues_' : compatibility ? 'comments_' : 'issues_') + day;
       const count = Number(properties.getProperty(countKey) || '0');
-      const dayLimit = compatibility ? COMPATIBILITY_LIMIT_PER_UTC_DAY : ISSUE_LIMIT_PER_UTC_DAY;
+      const dayLimit = m365 ? M365_ISSUES_PER_UTC_DAY :
+        compatibility ? COMPATIBILITY_LIMIT_PER_UTC_DAY : ISSUE_LIMIT_PER_UTC_DAY;
       if (count >= dayLimit)
         return output_({ok: false, error: 'daily_limit'});
 
@@ -277,6 +379,14 @@ function doPost(event) {
         if (!receipt.ok) return output_(receipt);
         properties.setProperty(countKey, String(count + 1));
         cache.put(dedupKey, receipt.comment_url, 21600);
+        return output_(receipt);
+      }
+
+      if (m365) {
+        const receipt = publishM365_(m365, token);
+        if (!receipt.ok) return output_(receipt);
+        properties.setProperty(countKey, String(count + 1));
+        cache.put(dedupKey, receipt.issue_url, 21600);
         return output_(receipt);
       }
 

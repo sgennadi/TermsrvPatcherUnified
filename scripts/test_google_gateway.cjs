@@ -8,7 +8,10 @@ const crypto = require('node:crypto');
 
 const githubPosts = [];
 const cache = new Map();
-const properties = new Map([['GITHUB_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND']]);
+const properties = new Map([
+  ['GITHUB_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND'],
+  ['GITHUB_M365_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND']
+]);
 const iso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const githubResponse = (status, json) => ({
   getResponseCode: () => status,
@@ -57,8 +60,11 @@ const sandbox = {
         html_url: 'https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-' + (++commentNumber)
       });
     assert.ok(url.endsWith('/issues'), 'only the approved API may be used');
+    const repo = url === 'https://api.github.com/repos/sgennadi/Microsoft365AuthRepair/issues'
+      ? 'Microsoft365AuthRepair' : 'TermsrvPatcherUnified';
+    assert.equal(url, 'https://api.github.com/repos/sgennadi/' + repo + '/issues');
     return githubResponse(201, {
-      html_url: 'https://github.com/sgennadi/TermsrvPatcherUnified/issues/' + (++issueNumber)
+      html_url: 'https://github.com/sgennadi/' + repo + '/issues/' + (++issueNumber)
     });
   }}
 };
@@ -101,9 +107,10 @@ function truth(value, label) {
   checks++;
 }
 const health = JSON.parse(sandbox.doGet().text);
-truth(health.ok === true && health.gateway_schema_version === 2 &&
+truth(health.ok === true && health.gateway_schema_version === 3 &&
       health.capabilities.includes('universal-diagnostics/v1') &&
-      health.capabilities.includes('termsrv-compatibility/v1'),
+      health.capabilities.includes('termsrv-compatibility/v1') &&
+      health.capabilities.includes('microsoft365-auth-repair/v1'),
   'read-only GET advertises both supported reporting schemas without GitHub writes');
 eq(githubPosts.length, 0, 'GET capability check never creates an Issue or comment');
 const report = compat('successful_apply', initialBody);
@@ -162,6 +169,45 @@ receipt = post(diagnostic);
 truth(receipt.ok && receipt.issue_url.endsWith('/issues/501') && !receipt.comment_url,
   'legacy anonymous diagnostics still creates its own Issue');
 eq(githubPosts.length, 3, 'legacy issue path unchanged');
+
+const m365Component = 'EntraWAMBroker';
+const m365Type = 'USER_REPORT';
+const m365Code = 'WAM_REVIEW';
+const m365Fingerprint = crypto.createHash('sha256')
+  .update(['sgennadi/Microsoft365AuthRepair', m365Component, m365Type, m365Code]
+    .map(x => x.toLowerCase()).join('|')).digest('hex');
+const m365Report = {
+  schema: 'universal-diagnostics/v1', id: crypto.randomUUID(),
+  timestamp_utc: iso(), project: 'sgennadi/Microsoft365AuthRepair',
+  component: m365Component, error_type: m365Type, code: m365Code,
+  level: 'info', version: '1.0.1-preview.1', platform: 'Windows',
+  architecture: 'ARM64', fingerprint: m365Fingerprint
+};
+let countBefore = githubPosts.length;
+receipt = post(m365Report);
+truth(receipt.ok && /^https:\/\/github\.com\/sgennadi\/Microsoft365AuthRepair\/issues\/[0-9]+$/.test(receipt.issue_url),
+  'strict universal M365 report routes to its own GitHub repository');
+eq(githubPosts.length, countBefore + 1, 'M365 report creates exactly one Issue');
+truth(githubPosts.at(-1).url === 'https://api.github.com/repos/sgennadi/Microsoft365AuthRepair/issues' &&
+  !githubPosts.at(-1).body.body.includes('private'),
+  'M365 route has its own GitHub API target, no free-form metadata');
+receipt = post(m365Report);
+truth(receipt.ok && receipt.duplicate === true, 'M365 duplicate report gets cached receipt');
+eq(githubPosts.length, countBefore + 1, 'no duplicate GitHub Issues');
+for (const invalid of [
+  change(m365Report, {summary: 'MY PRIVATE ACCOUNT'}),
+  change(m365Report, {project: 'sgennadi/TermsrvPatcherUnified'}),
+  change(m365Report, {fingerprint: 'b'.repeat(64)}),
+  change(m365Report, {component: 'Entra WAM / BAD PATH'}),
+  change(m365Report, {architecture: 'Other'}),
+  change(m365Report, {timestamp_utc: '2000-01-01T00:00:00Z'})
+]) eq(post(invalid).error, 'invalid_evidence', 'unsafe M365 field rejected');
+eq(githubPosts.length, countBefore + 1, 'unsafe M365 attempts create no issues');
+properties.delete('GITHUB_M365_ISSUES_TOKEN');
+eq(post(change(m365Report, {id: crypto.randomUUID()})).error,
+  'not_configured', 'M365 token must be separately configured on server');
+properties.set('GITHUB_M365_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND');
+
 properties.delete('GITHUB_ISSUES_TOKEN');
 eq(post(compat('successful_apply', initialBody)).error, 'not_configured',
    'missing server-side GitHub PAT fails closed');

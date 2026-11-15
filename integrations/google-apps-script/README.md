@@ -71,8 +71,8 @@ after fixing the receiver; the already confirmed diagnostic Issue is not
 resent during that same window session.
 
 The repository version of `Code.gs` now exposes a **read-only** GET capability
-response with `"gateway_schema_version":2` and
-`"capabilities":["universal-diagnostics/v1","termsrv-compatibility/v1"]`.
+response with `"gateway_schema_version":3` and
+`"capabilities":["universal-diagnostics/v1","termsrv-compatibility/v1","microsoft365-auth-repair/v1"]`.
 Open the application's existing Google `.../exec` URL in a browser and check
 that both schemas are listed. GET cannot create an Issue/comment and never
 exposes the server-side GitHub token. If these fields are absent, the live
@@ -90,3 +90,46 @@ the token or confidential logs into a public Issue or chat. The app closes the
 report window **only after all required GitHub receipts** and never grants
 unattended reporting consent on partial delivery. Reopening a different EXE
 does not automatically recover in-memory partial receipt state.
+
+## Shared receiver for Microsoft 365 Auth Repair (added November 2026)
+
+**No second Apps Script URL is required.** This same deployed Google Web App
+can now also receive strictly typed UniversalDiagnostics v1 events from
+sgennadi/Microsoft365AuthRepair. Its data goes to **that** repository's public
+Issues only, never to Termsrv compatibility Issue #1 or CSV.
+
+**One-time owner setup:**
+1. Create a separate GitHub fine-grained PAT belonging to sgennadi, with
+   Repository access **only** Microsoft365AuthRepair and permission
+   **Issues: Read and write**. Keep the existing Termsrv PAT unchanged.
+2. In the **existing** Google Apps Script project: Project Settings > Script
+   Properties, set GITHUB_M365_ISSUES_TOKEN to this second PAT. Never commit or
+   share it, and never place it into either EXE.
+3. Replace Code.gs with the updated source from this repository. Save. Choose
+   **Deploy > Manage deployments > Edit > Version: New version > Deploy**,
+   retaining **Execute as me** and **Who has access: Anyone**.
+   Updating the GitHub repository alone does **NOT** update the live deployment.
+4. Open the existing .../exec URL in your browser. Read-only GET must now
+   show "gateway_schema_version":3 and capability
+   "microsoft365-auth-repair/v1" in the capabilities array.
+5. In the M365 app's Preview branch, use **Diagnostics & Reports** to create
+   and review a sanitized event; tick the explicit public-Issue consent checkbox
+   and select **Send anonymously**. Check the returned Issue link in
+   https://github.com/sgennadi/Microsoft365AuthRepair/issues .
+
+**Existing Termsrv submissions are intentionally unchanged.** The M365 route
+has its own token, 12-Issues-per-UTC-day budget, six-hour event-ID cache,
+strict typed field allowlist, SHA-256 fingerprint check, and repository-specific
+GitHub Issue URL verification. The M365 app sends neither the summary
+nor usernames, hostnames, SID, paths, raw tokens or diagnostic logs. Only
+AMD64 and ARM64 are accepted as architectures for this Windows app.
+
+The anonymous public endpoint does not authenticate the person submitting
+the report. All accepted data is **unverified**, and GitHub Issues are public.
+The client never sends data automatically, never retries automatically and
+does not treat HTTP 200 as proof of a successful GitHub Issue. If a send fails,
+inspect the Issue list before retrying to avoid duplicate submissions.
+
+**Offline tests:** run node scripts/test_google_gateway.cjs in this
+repository. They cover the legacy Termsrv report paths and the new M365
+routes with fake HTTP and fake tokens; tests do not send real messages.
