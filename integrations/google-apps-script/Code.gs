@@ -243,7 +243,11 @@ const M365_ISSUES_PER_UTC_DAY = 12;
 const M365_FIELDS = Object.freeze([
   'schema', 'id', 'timestamp_utc', 'project', 'component',
   'error_type', 'code', 'level', 'version', 'platform',
-  'architecture', 'fingerprint'
+  'architecture', 'fingerprint', 'signals'
+]);
+const M365_SIGNAL_FIELDS = Object.freeze([
+  'azure_ad_joined', 'domain_joined', 'device_auth_status',
+  'azure_ad_prt', 'wam_default_set', 'broker_plugin'
 ]);
 
 function validM365Report_(input) {
@@ -274,6 +278,18 @@ function validM365Report_(input) {
       typeof r.fingerprint !== 'string' ||
       !/^[a-f0-9]{64}$/.test(r.fingerprint)) return false;
 
+  const signals = r.signals;
+  if (!signals || typeof signals !== 'object' || Array.isArray(signals) ||
+      Object.keys(signals).length !== M365_SIGNAL_FIELDS.length ||
+      Object.keys(signals).some(k => !M365_SIGNAL_FIELDS.includes(k)) ||
+      !['YES','NO','UNKNOWN'].includes(signals.azure_ad_joined) ||
+      !['YES','NO','UNKNOWN'].includes(signals.domain_joined) ||
+      !['SUCCESS','FAILED','UNKNOWN'].includes(signals.device_auth_status) ||
+      !['YES','NO','UNKNOWN'].includes(signals.azure_ad_prt) ||
+      !['YES','NO','UNKNOWN'].includes(signals.wam_default_set) ||
+      !['PRESENT','MISSING','UNKNOWN'].includes(signals.broker_plugin))
+    return false;
+
   const seen = Date.parse(r.timestamp_utc), now = Date.now();
   if (!Number.isFinite(seen) ||
       seen > now + 5 * 60 * 1000 ||
@@ -299,7 +315,13 @@ function m365IssueBody_(r) {
     '- Observed UTC: ' + r.timestamp_utc + '\n' +
     '- OS: ' + r.platform + '\n' +
     '- Architecture: ' + r.architecture + '\n' +
-    '- Fingerprint: ' + r.fingerprint + '\n\n' +
+    '- Fingerprint: ' + r.fingerprint + '\n' +
+    '- Azure AD joined: ' + r.signals.azure_ad_joined + '\n' +
+    '- Domain joined: ' + r.signals.domain_joined + '\n' +
+    '- Device authentication: ' + r.signals.device_auth_status + '\n' +
+    '- Azure AD PRT: ' + r.signals.azure_ad_prt + '\n' +
+    '- WAM default set: ' + r.signals.wam_default_set + '\n' +
+    '- AAD Broker Plugin: ' + r.signals.broker_plugin + '\n\n' +
     'Only typed allowlisted metadata. No summary, logs, paths, tokens, user IDs or device IDs.\n';
 }
 

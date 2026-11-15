@@ -181,7 +181,9 @@ const m365Report = {
   timestamp_utc: iso(), project: 'sgennadi/Microsoft365AuthRepair',
   component: m365Component, error_type: m365Type, code: m365Code,
   level: 'info', version: '1.0.1-preview.1', platform: 'Windows',
-  architecture: 'ARM64', fingerprint: m365Fingerprint
+  architecture: 'ARM64', fingerprint: m365Fingerprint,
+  signals: {azure_ad_joined:'YES', domain_joined:'YES', device_auth_status:'SUCCESS',
+    azure_ad_prt:'YES', wam_default_set:'YES', broker_plugin:'PRESENT'}
 };
 let countBefore = githubPosts.length;
 receipt = post(m365Report);
@@ -196,6 +198,8 @@ truth(receipt.ok && receipt.duplicate === true, 'M365 duplicate report gets cach
 eq(githubPosts.length, countBefore + 1, 'no duplicate GitHub Issues');
 for (const invalid of [
   change(m365Report, {summary: 'MY PRIVATE ACCOUNT'}),
+  change(m365Report, {signals:{...m365Report.signals, user:'PRIVATE'}}),
+  change(m365Report, {signals:{...m365Report.signals, azure_ad_joined:'maybe'}}),
   change(m365Report, {project: 'sgennadi/TermsrvPatcherUnified'}),
   change(m365Report, {fingerprint: 'b'.repeat(64)}),
   change(m365Report, {component: 'Entra WAM / BAD PATH'}),
