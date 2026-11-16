@@ -107,10 +107,11 @@ function truth(value, label) {
   checks++;
 }
 const health = JSON.parse(sandbox.doGet().text);
-truth(health.ok === true && health.gateway_schema_version === 3 &&
+truth(health.ok === true && health.gateway_schema_version === 4 &&
       health.capabilities.includes('universal-diagnostics/v1') &&
       health.capabilities.includes('termsrv-compatibility/v1') &&
-      health.capabilities.includes('microsoft365-auth-repair/v1'),
+      health.capabilities.includes('microsoft365-auth-repair/v1') &&
+      health.capabilities.includes('microsoft365-auth-repair/v2'),
   'read-only GET advertises both supported reporting schemas without GitHub writes');
 eq(githubPosts.length, 0, 'GET capability check never creates an Issue or comment');
 const report = compat('successful_apply', initialBody);
@@ -207,6 +208,56 @@ for (const invalid of [
   change(m365Report, {timestamp_utc: '2000-01-01T00:00:00Z'})
 ]) eq(post(invalid).error, 'invalid_evidence', 'unsafe M365 field rejected');
 eq(githubPosts.length, countBefore + 1, 'unsafe M365 attempts create no issues');
+
+const expandedFields = {
+  office_installed:'YES', office_edition:'PROPLUS_2024',
+  office_activation:'PREVIEW_KEY_PRESENT', office_wmi_records:'THREE_PLUS',
+  office_licensed_records:'ONE', office_preview_records:'ONE',
+  office_preview_key_records:'ONE', tpm_present:'YES', tpm_version:'2.0',
+  tpm_ready:'YES', bitlocker_os_protection:'OFF',
+  bitlocker_os_conversion:'FULLY_DECRYPTED', memory_integrity_runtime:'RUNNING',
+  dpapi_protection_policy:'NOT_SET', dpapi_domain_joined:'YES',
+  dpapi_writable_dc:'AVAILABLE', tpm_aik_enrollment:'NONE_RECORDED',
+  tpm_ek_cert_store:'UNKNOWN', tpm_manufacturer_class:'OTHER',
+  windows_tpm_release:'WIN11_NEWER'
+};
+const expanded = change(m365Report, {
+  id:crypto.randomUUID(), signals:{...m365Report.signals,...expandedFields}
+});
+let countBeforeExpanded = githubPosts.length;
+receipt = post(expanded);
+truth(receipt.ok && receipt.issue_url.includes('/Microsoft365AuthRepair/issues/'),
+  'already-published 26-field M365 diagnostic is accepted');
+eq(githubPosts.length, countBeforeExpanded + 1, 'expanded v1 report posts one Issue');
+truth(githubPosts.at(-1).body.body.includes('Office activation: PREVIEW_KEY_PRESENT') &&
+  githubPosts.at(-1).body.body.includes('OS BitLocker protection: OFF'),
+  'Issue contains enumerated Office and BitLocker evidence');
+const extended = change(expanded, {
+  id:crypto.randomUUID(), signals:{...expanded.signals,
+    secure_boot_state:'OFF', memory_integrity_configured:'ON',
+    device_probe_coverage:'PARTIAL'}
+});
+let countBeforeExtended = githubPosts.length;
+receipt = post(extended);
+truth(receipt.ok && receipt.issue_url.includes('/Microsoft365AuthRepair/issues/'),
+  '29-field M365 diagnostic is accepted');
+eq(githubPosts.length, countBeforeExtended + 1, 'extended v2 report posts one Issue');
+truth(githubPosts.at(-1).body.body.includes('Secure Boot: OFF') &&
+  githubPosts.at(-1).body.body.includes('Read-only provider coverage: PARTIAL'),
+  'new signal categories are rendered');
+const badExtended = [
+  { ...extended.signals, secure_boot_state:'BAD_VALUE' },
+  { ...extended.signals, device_probe_coverage:'C:\\PRIVATE\\SECRET' },
+  { ...extended.signals, tenant_id:'EXFILTRATION' },
+  { ...extended.signals, tpm_present:'PRIVATE_SERIAL' }
+];
+for (const signals of badExtended) {
+  const invalid = change(extended, {id:crypto.randomUUID(), signals});
+  eq(post(invalid).error, 'invalid_evidence', 'bad extended signal rejected');
+}
+eq(githubPosts.length, countBeforeExtended + 1,
+  'no malicious extended reports reach GitHub');
+
 properties.delete('GITHUB_M365_ISSUES_TOKEN');
 eq(post(change(m365Report, {id: crypto.randomUUID()})).error,
   'not_configured', 'M365 token must be separately configured on server');
