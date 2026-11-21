@@ -159,8 +159,8 @@ internal static class UpdateInstallBridge
     }
 
     /// <summary>
-    /// Called ONLY after a successful live GitHub check and an explicit
-    /// confirmation acknowledging that preview binaries are unsigned.
+    /// Disabled until signed-release verification is provisioned and pinned.
+    /// No GitHub-supplied hash may authorize elevated installation.
     /// </summary>
     internal static async Task PrepareAndLaunchAsync(UpdateChannel channel,
         UpdateRelease release, IProgress<UpdateProgress>? progress, CancellationToken token)
@@ -168,7 +168,6 @@ internal static class UpdateInstallBridge
         // Fail closed even if callers bypass the UI availability check.
         if (!CanInstall(out var signingReason))
             throw new System.Security.SecurityException(signingReason);
-        if (!CanInstall(out var reason)) throw new InvalidOperationException(reason);
         var options = UpdateIntegration.Options(channel);
         if (release.Repository != options.Repository || release.Rule.Architecture != "win-x64" ||
             release.Rule.Kind != PackageKind.SingleExeZip ||
