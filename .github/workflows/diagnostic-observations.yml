@@ -3,7 +3,6 @@ name: Collect optional DLL diagnostic observations (UNVERIFIED)
 on:
   issues:
     types: [opened]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,11 +13,14 @@ concurrency:
 
 jobs:
   collect:
-    # GitHub issues can be opened by anyone. This workflow treats the event
-    # body strictly as untrusted user-supplied text, never an approved patch.
+    # Only the existing gateway GitHub account can cause a CSV write.
+    # Evidence remains unverified and must never authorize a patch.
     if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'issues' && github.event.action == 'opened')
+      github.repository == 'sgennadi/TermsrvPatcherUnified' &&
+      github.event_name == 'issues' &&
+      github.event.action == 'opened' &&
+      github.event.issue.user.login == 'sgennadi' &&
+      github.event.sender.login == 'sgennadi'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
