@@ -19,6 +19,7 @@ BASE = ("windows", "release", "build", "ubr", "file", "dll", "app", "mode")
 EXTRA = ("original_sha256", "patched_sha256", "edits")
 V1 = "termsrv-success/v1"
 V2 = "termsrv-success/v2"
+GATEWAY_LOGIN = "sgennadi"  # Existing Apps Script GitHub token identity.
 OLD_COLUMNS = (
     "windows", "release", "build", "ubr", "file_name", "dll_version",
     "app_version", "mode", "first_seen_utc", "last_seen_utc", "report_count",
@@ -108,7 +109,8 @@ def apply_comment(event: dict, existing: str) -> tuple[str, bool]:
     issue, comment = event.get("issue") or {}, event.get("comment") or {}
     if issue.get("number") != 1 or "pull_request" in issue:
         return existing, False
-    if comment.get("user", {}).get("type") == "Bot":
+    if (comment.get("user", {}).get("login") != GATEWAY_LOGIN or
+            event.get("sender", {}).get("login") != GATEWAY_LOGIN):
         return existing, False
     body = comment.get("body", "")
     if not isinstance(body, str) or not body.startswith((V1 + "\n", V2 + "\n")):
@@ -153,7 +155,8 @@ def self_test() -> None:
                     "patched_sha256=" + "b" * 64,
                     "edits=0x00000028:11223344>AABBCCDD"))
     event = {"action": "created", "issue": {"number": 1},
-             "comment": {"user": {"type": "User"},
+             "sender": {"login": GATEWAY_LOGIN},
+             "comment": {"user": {"type": "User", "login": GATEWAY_LOGIN},
                          "created_at": "2026-11-09T05:00:00Z", "body": v1}}
     legacy, ok = apply_comment(event, ",".join(OLD_COLUMNS) + "\n")
     assert ok and legacy.startswith(",".join(COLUMNS))
@@ -176,7 +179,11 @@ def self_test() -> None:
         rejected, accepted = apply_comment(event, twice)
         assert not accepted and rejected == twice
     event["comment"]["body"] = v1
-    event["comment"]["user"]["type"] = "Bot"
+    event["comment"]["user"]["login"] = "untrusted-actor"
+    rejected, accepted = apply_comment(event, twice)
+    assert not accepted and rejected == twice
+    event["comment"]["user"]["login"] = GATEWAY_LOGIN
+    event["sender"]["login"] = "untrusted-actor"
     rejected, accepted = apply_comment(event, twice)
     assert not accepted and rejected == twice
     print("PASS: bounded v1/v2 compatibility schemas, SHA-256, byte ranges and CSV migration")
