@@ -16,7 +16,6 @@ import re
 import sys
 
 MARKER = "termsrv-offline/v1"
-GATEWAY_LOGIN = "sgennadi"
 FIELDS = ("architecture", "file", "dll", "app", "original_sha256",
           "original_crc32", "patched_sha256", "patched_crc32", "edits")
 COLUMNS = ("architecture", "dll_version", "app_version", "original_sha256",
@@ -73,8 +72,7 @@ def apply_event(event: dict, current: str) -> tuple[str, bool]:
     issue = event.get("issue") or {}
     comment = event.get("comment") or {}
     if (issue.get("number") != 1 or "pull_request" in issue or
-            comment.get("user", {}).get("login") != GATEWAY_LOGIN or
-            event.get("sender", {}).get("login") != GATEWAY_LOGIN):
+            comment.get("user", {}).get("type") == "Bot"):
         return current, False
     body = comment.get("body")
     if not isinstance(body, str) or not body.startswith(MARKER + "\n"):
@@ -123,8 +121,7 @@ def self_test() -> None:
         "patched_sha256=" + "b"*64, "patched_crc32=FFFFFFFF",
         "edits=0x00000040:11223344>AABBCCDD"))
     event = {"action": "created", "issue": {"number": 1},
-             "sender": {"login": GATEWAY_LOGIN},
-             "comment": {"user": {"type": "User", "login": GATEWAY_LOGIN},
+             "comment": {"user": {"type": "User"},
                          "created_at": "2026-11-09T09:00:00Z", "body": record}}
     updated, ok = apply_event(event, ",".join(COLUMNS) + "\n")
     assert ok and "x86,10.0.19041.1" in updated
@@ -140,12 +137,6 @@ def self_test() -> None:
         assert not accepted and unchanged == updated
     event["comment"]["body"] = record
     event["issue"]["number"] = 2
-    assert not apply_event(event, updated)[1]
-    event["issue"]["number"] = 1
-    event["sender"]["login"] = "outsider"
-    assert not apply_event(event, updated)[1]
-    event["sender"]["login"] = GATEWAY_LOGIN
-    event["comment"]["user"]["login"] = "outsider"
     assert not apply_event(event, updated)[1]
     print("PASS: offline CRC32, SHA-256, architecture and byte-range report parser")
 

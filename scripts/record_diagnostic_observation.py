@@ -18,7 +18,6 @@ import sys
 import uuid
 
 PROJECT = "sgennadi/TermsrvPatcherUnified"
-GATEWAY_LOGIN = "sgennadi"
 MARKER = "<!-- udx-report-id:"
 HEADER = "## Anonymous UniversalDiagnostics"
 FOOTER = "Only reviewed typed metadata. No descriptions, logs, secrets, hostnames or account identifiers."
@@ -43,9 +42,7 @@ def parse(event: dict) -> dict[str, str] | None:
     if not isinstance(event, dict) or event.get("action") != "opened":
         return None
     issue = event.get("issue")
-    if (not isinstance(issue, dict) or "pull_request" in issue or
-            issue.get("user", {}).get("login") != GATEWAY_LOGIN or
-            event.get("sender", {}).get("login") != GATEWAY_LOGIN):
+    if not isinstance(issue, dict) or "pull_request" in issue:
         return None
     number = issue.get("number")
     title, body = issue.get("title"), issue.get("body")
@@ -162,9 +159,7 @@ def self_test() -> None:
     event = {"action":"opened","issue":{"number":42,
         "title":"[Diagnostics] TermsrvPatcherUnified "+uid[:8],
         "body":body, "created_at":"2026-11-10T06:45:00Z",
-        "html_url":f"https://github.com/{PROJECT}/issues/42",
-        "user":{"login":GATEWAY_LOGIN}},
-        "sender":{"login":GATEWAY_LOGIN},
+        "html_url":f"https://github.com/{PROJECT}/issues/42"},
         "repository":{"full_name":PROJECT}}
     original = ",".join(COLUMNS)+"\n"
     updated, changed = apply_event(event, original)
@@ -194,12 +189,6 @@ def self_test() -> None:
         assert not apply_event(event, original)[1]
     event["issue"]["body"] = body
     event["issue"]["title"] = "Untrusted fake issue"
-    assert not apply_event(event, original)[1]
-    event["issue"]["title"] = "[Diagnostics] TermsrvPatcherUnified "+uid[:8]
-    event["issue"]["user"]["login"] = "outsider"
-    assert not apply_event(event, original)[1]
-    event["issue"]["user"]["login"] = GATEWAY_LOGIN
-    event["sender"]["login"] = "outsider"
     assert not apply_event(event, original)[1]
     print("PASS: strict anonymous DLL evidence format, SHA256, dedup, fail-closed unverified CSV")
 

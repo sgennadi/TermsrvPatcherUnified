@@ -3,7 +3,7 @@
 ## Scope and current limitations
 
 - GitHub release asset digests are not a substitute for an independently signed binary. Automatic/self-update must not be used with elevated trust until the installed application has an embedded signing-key pin and validates the signed EXE before any replacement.
-- Report aggregation now gates the workflow on the existing gateway's GitHub login (`sgennadi`). Use a dedicated bot identity with a narrowly scoped Issues-only token as the next step; change the allowlist when it is deployed.
+- Temporary policy: report ingestion accepts valid submissions from any GitHub user, not only `sgennadi`. Strict schema checks, bounded data, and UNVERIFIED labeling remain; this is **not authenticated provenance**. Public contributors may exhaust report quotas or pollute unverified statistics. A dedicated gateway identity and isolated ingestion pipeline remain pending.
 - Diagnostic/compatibility CSV content is UNVERIFIED evidence, never proof of successful remote access, and must not drive Apply.
 - A public anonymous Apps Script URL cannot be secured by hiding or rotating it. Exhaustion of per-day quotas remains possible; isolate projects and add upstream rate limiting or a durable queue.
 - Move the Microsoft365AuthRepair gateway to its own repo/deployment before deleting the existing code. A GitHub commit does not update live Google Apps Script deployments.
@@ -20,4 +20,4 @@ Under Settings → Rules → Rulesets, protect `main`: require reviewed pull req
 4. Bootstrap the first protected updater out-of-band; existing vulnerable/unsigned clients cannot authenticate this transition.
 5. Test malicious GitHub asset replacement, writable install folders and race conditions on a disposable Windows VM.
 
-This PR implements workflow gating and static-analysis automation; it does **not** claim release signing, DoS resistance, or runtime tests are complete.
+This PR enables static analysis and documents security risks; unrestricted report ingestion is retained temporarily at the owner's request. It does **not** claim release signing, DoS resistance, or runtime tests are complete.
