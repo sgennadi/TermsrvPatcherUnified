@@ -62,7 +62,8 @@ internal static class ReleaseSignatureVerifier
                 StateAction = 0, // WTD_STATEACTION_IGNORE
                 ProviderFlags = 0x00000040 // WTD_REVOCATION_CHECK_CHAIN
             };
-            if (WinVerifyTrust(IntPtr.Zero, ref GenericVerifyV2, ref trust) != 0)
+            var action = GenericVerifyV2;
+            if (WinVerifyTrust(IntPtr.Zero, ref action, ref trust) != 0)
             {
                 reason = "Windows rejected the executable's Authenticode signature.";
                 return false;
