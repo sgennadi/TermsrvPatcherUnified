@@ -110,13 +110,14 @@ public sealed class PortableExeTransaction
             s.LastResultCode = "INSTALL_OK";
             s.LastSeenVersion = staged.Release.Version.ToString();
             state.Write(s);
-            if (movedPriorBackup) TryDelete(priorBackup);
+            if (movedPriorBackup) RollbackFailureDiagnostics.TryDelete(options, "INSTALL_PRIOR_BACKUP_CLEANUP", priorBackup);
             TryRecordHistory(options, "INSTALL", options.InstalledVersion,
                 staged.Release.Version.ToString(), "INSTALL_OK");
             return new UpdateInstallResult(true, false, "INSTALL_OK");
         }
-        catch (Exception)
+        catch (Exception installError)
         {
+            RollbackFailureDiagnostics.Record(options, "INSTALL_PRIMARY", installError);
             // The new version must never be called healthy if post-install checks failed.
             bool restored = !replaced;
             if (replaced)
@@ -130,14 +131,15 @@ public sealed class PortableExeTransaction
                 }
                 catch (Exception rollbackException) when (rollbackException is IOException or UnauthorizedAccessException)
                 {
+                    RollbackFailureDiagnostics.Record(options, "INSTALL_RESTORE", rollbackException);
                     restored = false; // Keep all backups for technician recovery.
                 }
             }
             if (restored && movedPriorBackup && File.Exists(priorBackup))
             {
                 try { File.Move(priorBackup, backup, overwrite: true); }
-                catch (IOException) { restored = false; }
-                catch (UnauthorizedAccessException) { restored = false; }
+                catch (IOException error) { RollbackFailureDiagnostics.Record(options, "INSTALL_PRIOR_BACKUP", error); restored = false; }
+                catch (UnauthorizedAccessException error) { RollbackFailureDiagnostics.Record(options, "INSTALL_PRIOR_BACKUP", error); restored = false; }
             }
             // Hold survives any failed apply, even if the previous EXE was fully restored.
             state.Hold(restored ? "INSTALL_FAILED_RESTORED" : "ROLLBACK_REQUIRES_ATTENTION");
@@ -148,8 +150,8 @@ public sealed class PortableExeTransaction
         }
         finally
         {
-            TryDelete(next);
-            TryDelete(restore);
+            RollbackFailureDiagnostics.TryDelete(options, "INSTALL_NEXT_CLEANUP", next);
+            RollbackFailureDiagnostics.TryDelete(options, "INSTALL_RESTORE_CLEANUP", restore);
             // Never delete priorBackup on failure: it may be the last good checkpoint.
         }
     }
@@ -158,8 +160,8 @@ public sealed class PortableExeTransaction
         string next, string result)
     {
         try { new UpdateHistoryStore(options).Append(options.ProductId, action, previous, next, result); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        catch (IOException error) { RollbackFailureDiagnostics.Record(options, "INSTALL_HISTORY", error); }
+        catch (UnauthorizedAccessException error) { RollbackFailureDiagnostics.Record(options, "INSTALL_HISTORY", error); }
     }
 
     private static void RejectReparsePoint(string path)
