@@ -166,7 +166,8 @@ internal static class UpdateInstallBridge
         UpdateRelease release, IProgress<UpdateProgress>? progress, CancellationToken token)
     {
         // Fail closed even if callers bypass the UI availability check.
-        throw new System.Security.SecurityException("Unsigned GitHub releases cannot be installed with elevated privileges.");
+        if (!CanInstall(out var signingReason))
+            throw new System.Security.SecurityException(signingReason);
         if (!CanInstall(out var reason)) throw new InvalidOperationException(reason);
         var options = UpdateIntegration.Options(channel);
         if (release.Repository != options.Repository || release.Rule.Architecture != "win-x64" ||
@@ -242,7 +243,7 @@ internal static class UpdateInstallBridge
     private static async Task<int> RunHelperAsync(string jobFile)
     {
         // Defense in depth: block already-staged unsigned jobs from older clients.
-        throw new System.Security.SecurityException("Updater helper disabled until pinned signing verification is deployed.");
+        if (!CanInstall(out _)) return 8;
         // The helper intentionally runs from the protected ProgramData cache,
         // not from Program Files. Validate the helper's protected folder below,
         // and check the actual TARGET installation path separately.

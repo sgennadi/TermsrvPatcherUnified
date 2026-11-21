@@ -21,3 +21,7 @@ Under Settings → Rules → Rulesets, protect `main`: require reviewed pull req
 5. Test malicious GitHub asset replacement, writable install folders and race conditions on a disposable Windows VM.
 
 This PR enables static analysis and documents security risks; unrestricted report ingestion is retained temporarily at the owner's request. It does **not** claim release signing, DoS resistance, or runtime tests are complete.
+
+## Temporary unsigned-updater kill switch
+
+The GUI install availability check, preparation entry point and elevated helper now refuse self-update while the trusted signing key is unconfigured. This is deliberately disruptive: read-only update discovery can continue, but installation must not. The current build cannot automatically transition itself to the first signed build; bootstrap must use a separately authenticated installer. A signing-key pin and Authenticode verifier remain required before the switch is lifted.
