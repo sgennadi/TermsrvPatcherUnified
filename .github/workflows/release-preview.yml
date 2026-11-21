@@ -3,8 +3,10 @@ name: Publish Preview Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
 
+# SECURITY: Publishing unsigned binaries from an elevated updater project is disabled.
+# Re-enable only after offline signing, pinned-key verification and Windows CI gates.
+# workflow_dispatch is intentionally absent to prevent accidental release publishing.
 permissions:
   contents: read
 
@@ -14,7 +16,7 @@ concurrency:
 
 jobs:
   publish-preview:
-    if: github.repository == 'sgennadi/TermsrvPatcherUnified' && github.ref == 'refs/heads/main'
+    if: false # Release signing and pinned-key verification are not yet provisioned.
     runs-on: windows-2025
     permissions:
       contents: write
