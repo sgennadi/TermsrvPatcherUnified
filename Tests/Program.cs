@@ -1,3 +1,4 @@
+using UniversalUpdater;
 using UniversalDiagnostics.Transport;
 using System.IO;
 using System.Buffers.Binary;
