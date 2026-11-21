@@ -1,14 +1,6 @@
-## Microsoft 365 receiver v4 — extended diagnostic contract (2026-11-16)
+# Termsrv-only Google diagnostics receiver
 
-The shared Apps Script receiver now advertises `gateway_schema_version: 4` and both `microsoft365-auth-repair/v1` and `microsoft365-auth-repair/v2` capabilities. The underlying event envelope remains `universal-diagnostics/v1`. **Do not change the Apps Script URL or existing server-only PAT names.** Termsrv's original routes and rate limits are untouched.
-
-**Why this update matters:** Preview.29 already sends 26 typed Office and TPM/BitLocker signals, while the old v3 receiver accepted exactly six. This caused `GATEWAY_invalid_evidence` even with a successful GET check. This v4 receiver accepts exactly three independent M365 contracts: the original six fields, the published 26 fields, and 29 fields with additional coarse `secure_boot_state`, `memory_integrity_configured` and `device_probe_coverage`. No raw device or account data.
-
-**Google Apps Script owner deployment:** copy the new [Code.gs](Code.gs) to the current Apps Script project, **Save → Deploy → Manage deployments → Edit → New version → Deploy**. Reuse the existing deployment, URL, and script properties. The repository merge does **not** update the live deployment. Check the existing `/exec` GET afterwards for `gateway_schema_version: 4` and `microsoft365-auth-repair/v2` before sending a test report.
-
-An anonymous M365 report still requires user consent, and only allowlisted categories enter the **public GitHub Issue**. No recovery passwords, TPM firmware versions, BitLocker protectors, hostnames, UPN, tenant IDs, account IDs or raw logs are admitted. Offline regression: `node scripts/test_google_gateway.cjs`.
-
----
+The unrelated Microsoft365AuthRepair handler has moved to [Microsoft365AuthRepair PR #33](https://github.com/sgennadi/Microsoft365AuthRepair/pull/33). This source accepts only Termsrv reports. **Do not redeploy this source over the shared live Google Apps Script until Microsoft365AuthRepair has its own deployed gateway and clients are migrated.** GitHub changes do not update deployed Apps Script automatically.
 
 # Free diagnostic reports via Google Apps Script -> GitHub Issues
 
