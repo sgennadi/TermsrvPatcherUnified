@@ -1,4 +1,4 @@
-using UniversalUpdater;
+using SemanticVersion = UniversalUpdater.SemanticVersion;
 using UniversalDiagnostics.Transport;
 using System.IO;
 using System.Buffers.Binary;
