@@ -323,11 +323,22 @@ internal static class UpdateInstallBridge
         if (!ReleaseSignatureVerifier.Verify(job.ExtractedExePath, out var helperSignatureReason))
             throw new System.Security.SecurityException(
                 "Staged update failed signer verification: " + helperSignatureReason);
+        // Reject a modified staged payload before the transactional copy.
+        // PortableExeTransaction also verifies the staged and copied hashes.
+        if (!string.Equals(await ShaAsync(job.ExtractedExePath, CancellationToken.None),
+                job.ExtractedExeSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Signed staged EXE changed since preparation.");
         var transaction = new PortableExeTransaction();
         var installDir = Path.GetDirectoryName(job.TargetPath)!;
         var result = await transaction.ApplyManualAsync(options, staged,
             installDir, ExecutableName, explicitlyApproved: true,
-            async (exe, ct) => await ProbeInstalledAsync(exe, job.CandidateVersion, ct));
+            async (exe, ct) =>
+            {
+                // Verify the installed bytes, not merely the original download.
+                // A failed post-install verification triggers transactional rollback.
+                return ReleaseSignatureVerifier.Verify(exe, out _) &&
+                       await ProbeInstalledAsync(exe, job.CandidateVersion, ct);
+            });
         AuditLog.Append("EXE replacement result: " + result.Summary);
         if (result.Success)
         {
