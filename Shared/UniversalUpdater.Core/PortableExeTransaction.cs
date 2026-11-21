@@ -170,10 +170,4 @@ public sealed class PortableExeTransaction
             throw new InvalidDataException("Updater paths must not be filesystem links.");
     }
     private static bool IsSha(string? text) => text is { Length: 64 } && text.All(Uri.IsHexDigit);
-    private static void TryDelete(string file)
-    {
-        try { if (File.Exists(file)) File.Delete(file); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-    }
 }

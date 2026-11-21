@@ -32,6 +32,14 @@ internal static class UpdateInstallBridge
 
     internal static bool CanInstall(out string reason)
     {
+        // Security gate: no trusted signing key has been provisioned yet.
+        // GitHub API hashes alone do not authenticate elevated updates.
+        reason = "Self-update disabled: release signing and pinned-key verification are not configured. Install a verified release manually.";
+        return false;
+    }
+
+    private static bool LegacyCanInstallPlatformChecks(out string reason)
+    {
         if (!OperatingSystem.IsWindows() ||
             System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture !=
                 System.Runtime.InteropServices.Architecture.X64)
@@ -157,6 +165,8 @@ internal static class UpdateInstallBridge
     internal static async Task PrepareAndLaunchAsync(UpdateChannel channel,
         UpdateRelease release, IProgress<UpdateProgress>? progress, CancellationToken token)
     {
+        // Fail closed even if callers bypass the UI availability check.
+        throw new System.Security.SecurityException("Unsigned GitHub releases cannot be installed with elevated privileges.");
         if (!CanInstall(out var reason)) throw new InvalidOperationException(reason);
         var options = UpdateIntegration.Options(channel);
         if (release.Repository != options.Repository || release.Rule.Architecture != "win-x64" ||
@@ -231,6 +241,8 @@ internal static class UpdateInstallBridge
 
     private static async Task<int> RunHelperAsync(string jobFile)
     {
+        // Defense in depth: block already-staged unsigned jobs from older clients.
+        throw new System.Security.SecurityException("Updater helper disabled until pinned signing verification is deployed.");
         // The helper intentionally runs from the protected ProgramData cache,
         // not from Program Files. Validate the helper's protected folder below,
         // and check the actual TARGET installation path separately.
