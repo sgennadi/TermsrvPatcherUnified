@@ -182,6 +182,15 @@ internal static class UpdateInstallBridge
         var stage = await downloader.StageAsync(options, release, progress, token);
         token.ThrowIfCancellationRequested();
 
+        // Authenticate the actual extracted EXE independently of GitHub hashes.
+        // This is defense in depth; the disabled signing gate above remains in place
+        // until the owner provisions a trusted signing identity.
+        if (stage.ExtractedExecutablePath is not { } stagedExecutable ||
+            !ReleaseSignatureVerifier.Verify(stagedExecutable, out var signatureReason))
+            throw new System.Security.SecurityException(
+                "Refusing unsigned or untrusted release: " +
+                (stage.ExtractedExecutablePath is null ? "No staged EXE." : signatureReason));
+
         var target = Path.GetFullPath(Environment.ProcessPath!);
         var targetSha = await ShaAsync(target, token);
         var directory = CreatePrivateJobDirectory();
@@ -309,6 +318,11 @@ internal static class UpdateInstallBridge
             job.CandidateAssetSize, job.ArchiveSha256);
         var staged = new StagedPackage(release, job.ArchivePath, job.ArchiveSha256,
             job.ExtractedExePath, job.ExtractedExeSha256);
+        // Recheck at the elevated helper boundary; hashes in the job are not
+        // an authorization mechanism and the downloaded EXE is never a helper.
+        if (!ReleaseSignatureVerifier.Verify(job.ExtractedExePath, out var helperSignatureReason))
+            throw new System.Security.SecurityException(
+                "Staged update failed signer verification: " + helperSignatureReason);
         var transaction = new PortableExeTransaction();
         var installDir = Path.GetDirectoryName(job.TargetPath)!;
         var result = await transaction.ApplyManualAsync(options, staged,
