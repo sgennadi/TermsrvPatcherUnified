@@ -1,11 +1,14 @@
 using System.Runtime.InteropServices;
+using System.Formats.Asn1;
+using System.Security.Cryptography.Pkcs;
+using Microsoft.Win32.SafeHandles;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace TermsrvPatcherUnified.Core;
 
 /// <summary>
-/// Windows Authenticode trust AND an independently provisioned signer public-key pin.
+/// Authenticode PE digest and CMS signature verification with an independently pinned signer key.
 /// Never use a digest, certificate or key downloaded with the candidate release
 /// as the trust anchor. A missing pin always fails closed.
 /// </summary>
@@ -14,9 +17,6 @@ internal static class ReleaseSignatureVerifier
     // Pinned to the independently generated release-signing certificate.
     // SHA-256 of the signer SubjectPublicKeyInfo (RSA or ECDSA), hex encoded.
     internal const string PinnedSignerSpkiSha256 = "a185f90644de1c2c5ea2ae2e923eb08f93ebde4b06cc8273679a168dfa5535b9";
-
-    private static readonly Guid GenericVerifyV2 =
-        new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
 
     internal static bool Verify(string executable, out string reason)
     {
@@ -38,39 +38,45 @@ internal static class ReleaseSignatureVerifier
             return false;
         }
 
-        // WinVerifyTrust checks the PE's Authenticode digest, signer chain and
-        // Windows trust policy. A certificate's presence alone proves nothing.
-        IntPtr fileInfo = IntPtr.Zero;
-        IntPtr fileName = IntPtr.Zero;
         try
         {
-            fileName = Marshal.StringToCoTaskMemUni(Path.GetFullPath(executable));
-            var file = new WinTrustFileInfo
+            // Verify the actual PE image digest, not merely a PKCS#7 blob or
+            // the certificate attached to it. Windows ImageHlp implements the
+            // Authenticode PE hashing exclusions (checksum and certificate table).
+            using var stream = new FileStream(executable, FileMode.Open, FileAccess.Read,
+                FileShare.Read);
+            byte[] signature = ReadEmbeddedSignature(stream);
+            var cms = new SignedCms();
+            cms.Decode(signature);
+            if (cms.SignerInfos.Count != 1)
+                throw new CryptographicException("Exactly one primary signer is required.");
+            cms.CheckSignature(verifySignatureOnly: true);
+            var signer = cms.SignerInfos[0];
+            using var certificate = signer.Certificate ??
+                throw new CryptographicException("Signer certificate missing.");
+            byte[] expectedDigest = ReadAuthenticodeDigest(cms.ContentInfo.Content,
+                out var algorithm);
+            using HashAlgorithm hash = algorithm switch
             {
-                StructSize = (uint)Marshal.SizeOf<WinTrustFileInfo>(),
-                FilePath = fileName
+                "2.16.840.1.101.3.4.2.1" => SHA256.Create(),
+                "2.16.840.1.101.3.4.2.2" => SHA384.Create(),
+                "2.16.840.1.101.3.4.2.3" => SHA512.Create(),
+                _ => throw new CryptographicException("Unsupported PE digest algorithm.")
             };
-            fileInfo = Marshal.AllocHGlobal(Marshal.SizeOf<WinTrustFileInfo>());
-            Marshal.StructureToPtr(file, fileInfo, false);
-            var trust = new WinTrustData
+            var callback = new DigestCallback((data, length, _) =>
             {
-                StructSize = (uint)Marshal.SizeOf<WinTrustData>(),
-                UiChoice = 2, // WTD_UI_NONE
-                RevocationChecks = 1, // WTD_REVOKE_WHOLECHAIN
-                UnionChoice = 1, // WTD_CHOICE_FILE
-                FileInfo = fileInfo,
-                StateAction = 0, // WTD_STATEACTION_IGNORE
-                ProviderFlags = 0x00000040 // WTD_REVOCATION_CHECK_CHAIN
-            };
-            var action = GenericVerifyV2;
-            if (WinVerifyTrust(IntPtr.Zero, ref action, ref trust) != 0)
-            {
-                reason = "Windows rejected the executable's Authenticode signature.";
-                return false;
-            }
-
-            using var certificate = X509CertificateLoader.LoadCertificate(
-                X509Certificate.CreateFromSignedFile(executable).Export(X509ContentType.Cert));
+                if (length == 0) return true;
+                byte[] buffer = new byte[checked((int)length)];
+                Marshal.Copy(data, buffer, 0, buffer.Length);
+                hash.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
+                return true;
+            });
+            if (!ImageGetDigestStream(stream.SafeFileHandle, 0, callback, IntPtr.Zero))
+                throw new CryptographicException("Windows could not hash the PE image.");
+            GC.KeepAlive(callback);
+            hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+            if (!CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
+                throw new CryptographicException("Authenticode PE digest mismatch.");
             // A pinned key alone does not authorize arbitrary certificate purposes.
             // Require a currently valid code-signing certificate, not a TLS or CA cert.
             var now = DateTime.UtcNow;
@@ -123,12 +129,77 @@ internal static class ReleaseSignatureVerifier
             reason = "Release signature check failed: " + error.GetType().Name;
             return false;
         }
-        finally
-        {
-            if (fileInfo != IntPtr.Zero) Marshal.FreeHGlobal(fileInfo);
-            if (fileName != IntPtr.Zero) Marshal.FreeCoTaskMem(fileName);
-        }
     }
+
+    private static byte[] ReadEmbeddedSignature(FileStream stream)
+    {
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+        if (reader.ReadUInt16() != 0x5A4D)
+            throw new CryptographicException("Not a DOS/PE executable.");
+        stream.Position = 0x3C;
+        long pe = reader.ReadUInt32();
+        if (pe < 0x40 || pe > stream.Length - 256)
+            throw new CryptographicException("Invalid PE header.");
+        stream.Position = pe;
+        if (reader.ReadUInt32() != 0x00004550)
+            throw new CryptographicException("Invalid PE signature.");
+        stream.Position = pe + 20;
+        int optionalSize = reader.ReadUInt16();
+        long optionalStart = pe + 24;
+        if (optionalStart + optionalSize > stream.Length)
+            throw new CryptographicException("Truncated PE optional header.");
+        stream.Position = optionalStart;
+        int magic = reader.ReadUInt16();
+        int dataDirectoryOffset = magic switch { 0x10B => 96, 0x20B => 112,
+            _ => throw new CryptographicException("Unknown PE optional header.") };
+        if (optionalSize < dataDirectoryOffset + 8 * 5)
+            throw new CryptographicException("PE certificate directory missing.");
+        stream.Position = optionalStart + dataDirectoryOffset + 8 * 4;
+        long certificateOffset = reader.ReadUInt32();
+        long certificateSize = reader.ReadUInt32();
+        if (certificateOffset <= 0 || certificateSize < 8 ||
+            certificateOffset > stream.Length - certificateSize ||
+            certificateSize > 16 * 1024 * 1024)
+            throw new CryptographicException("Invalid PE certificate table.");
+        stream.Position = certificateOffset;
+        long entrySize = reader.ReadUInt32();
+        ushort revision = reader.ReadUInt16();
+        ushort type = reader.ReadUInt16();
+        if (revision != 0x0200 || type != 0x0002 ||
+            entrySize < 8 || entrySize > certificateSize ||
+            ((entrySize + 7) & ~7L) != certificateSize)
+            throw new CryptographicException("Unsupported or ambiguous PE signature table.");
+        return reader.ReadBytes(checked((int)entrySize - 8));
+    }
+
+    private static byte[] ReadAuthenticodeDigest(byte[] indirectData, out string algorithm)
+    {
+        var asn = new AsnReader(indirectData, AsnEncodingRules.BER);
+        var outer = asn.ReadSequence();
+        var data = outer.ReadSequence();
+        string type = data.ReadObjectIdentifier();
+        if (type != "1.3.6.1.4.1.311.2.1.15")
+            throw new CryptographicException("Unexpected Authenticode content type.");
+        // The optional SPC value is not used to establish trust.
+        while (data.HasData) data.ReadEncodedValue();
+        var digestInfo = outer.ReadSequence();
+        var digestAlgorithm = digestInfo.ReadSequence();
+        algorithm = digestAlgorithm.ReadObjectIdentifier();
+        while (digestAlgorithm.HasData) digestAlgorithm.ReadEncodedValue();
+        byte[] digest = digestInfo.ReadOctetString();
+        digestInfo.ThrowIfNotEmpty();
+        outer.ThrowIfNotEmpty();
+        asn.ThrowIfNotEmpty();
+        return digest;
+    }
+
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate bool DigestCallback(IntPtr data, uint length, IntPtr context);
+
+    [DllImport("imagehlp.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool ImageGetDigestStream(
+        SafeFileHandle file, uint digestLevel, DigestCallback callback, IntPtr context);
 
     private static byte[] ExportRsa(RSA key)
     {
@@ -140,34 +211,4 @@ internal static class ReleaseSignatureVerifier
         using (key) return key.ExportSubjectPublicKeyInfo();
     }
 
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct WinTrustFileInfo
-    {
-        public uint StructSize;
-        public IntPtr FilePath;
-        public IntPtr FileHandle;
-        public IntPtr KnownSubject;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct WinTrustData
-    {
-        public uint StructSize;
-        public IntPtr PolicyCallbackData;
-        public IntPtr SipClientData;
-        public uint UiChoice;
-        public uint RevocationChecks;
-        public uint UnionChoice;
-        public IntPtr FileInfo;
-        public uint StateAction;
-        public IntPtr StateData;
-        public IntPtr UrlReference;
-        public uint ProviderFlags;
-        public uint UiContext;
-        public IntPtr SignatureSettings;
-    }
-
-    [DllImport("wintrust.dll", ExactSpelling = true, PreserveSig = true)]
-    private static extern int WinVerifyTrust(
-        IntPtr window, ref Guid action, ref WinTrustData data);
 }
