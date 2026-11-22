@@ -24,6 +24,11 @@ jobs:
           $ErrorActionPreference = 'Stop'
           dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=false -o publish
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+      - name: Build independent signature regression runner
+        shell: pwsh
+        run: |
+          dotnet build Tests/TermsrvPatcher.Tests.csproj -c Release -p:RequireNSudo=false
+          if ($LASTEXITCODE -ne 0) { throw 'Verifier test runner build failed.' }
       - name: Sign and verify pinned signing identity
         shell: pwsh
         env:
@@ -93,9 +98,14 @@ jobs:
                   throw "Tampered EXE was not rejected as a hash mismatch (status: $($tamperedSignature.Status))."
                 }
                 Write-Host 'PASS: tampered EXE rejected with Authenticode hash mismatch.'
-              } finally { Remove-Item -LiteralPath $tampered -Force -ErrorAction SilentlyContinue }
-              Write-Host 'PASS: EXE signed with independently pinned release key. No release published.'
-              Write-Host 'NOTE: Self-signed certificates are not Windows-trusted on ordinary clients; production verifier remains disabled.'
+              } finally { }
+              # Validate the real release signer using the same PE/CMS verifier used by the updater.
+              # The runner also rejects tampered binaries and a mismatched signer pin.
+              dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --authenticode-qa $exe $tampered $env:TPU_PIN
+              if ($LASTEXITCODE -ne 0) { throw 'Pinned release signer regression failed.' }
+              Write-Host 'PASS: real release signer accepted, tampered EXE and wrong pin rejected. No release published.'
+              Remove-Item -LiteralPath $tampered -Force -ErrorAction SilentlyContinue
+              Write-Host 'NOTE: Windows may show Unknown Publisher for the self-signed certificate.'
             } finally { $cert.Dispose() }
           } finally {
             Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
