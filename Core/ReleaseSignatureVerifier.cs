@@ -71,6 +71,31 @@ internal static class ReleaseSignatureVerifier
 
             using var certificate = X509CertificateLoader.LoadCertificate(
                 X509Certificate.CreateFromSignedFile(executable).Export(X509ContentType.Cert));
+            // A pinned key alone does not authorize arbitrary certificate purposes.
+            // Require a currently valid code-signing certificate, not a TLS or CA cert.
+            var now = DateTime.UtcNow;
+            if (now < certificate.NotBefore.ToUniversalTime() ||
+                now > certificate.NotAfter.ToUniversalTime())
+            {
+                reason = "Release signing certificate is expired or not yet valid.";
+                return false;
+            }
+            var ekuExtensions = certificate.Extensions.OfType<X509EnhancedKeyUsageExtension>().ToArray();
+            if (ekuExtensions.Length != 1 ||
+                !ekuExtensions[0].EnhancedKeyUsages.Cast<Oid>()
+                    .Any(oid => oid.Value == "1.3.6.1.5.5.7.3.3"))
+            {
+                reason = "Release certificate does not permit code signing.";
+                return false;
+            }
+            var keyUsage = certificate.Extensions.OfType<X509KeyUsageExtension>().ToArray();
+            if (keyUsage.Length > 1 ||
+                (keyUsage.Length == 1 &&
+                 (keyUsage[0].KeyUsages & X509KeyUsageFlags.DigitalSignature) == 0))
+            {
+                reason = "Release certificate is not authorized for digital signatures.";
+                return false;
+            }
             byte[] spki = certificate.GetRSAPublicKey() is { } rsa
                 ? ExportRsa(rsa)
                 : certificate.GetECDsaPublicKey() is { } ecdsa
