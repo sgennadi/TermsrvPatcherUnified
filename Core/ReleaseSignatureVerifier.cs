@@ -89,7 +89,9 @@ internal static class ReleaseSignatureVerifier
             GC.KeepAlive(callback);
             hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
             if (!CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
-                throw new CryptographicException("Authenticode PE digest mismatch.");
+                throw new CryptographicException("Authenticode PE digest mismatch (expected " +
+                    Convert.ToHexString(expectedDigest) + ", computed " +
+                    Convert.ToHexString(hash.Hash!) + ").");
             verificationStage = "checking signer certificate and pin";
             // A pinned key alone does not authorize arbitrary certificate purposes.
             // Require a currently valid code-signing certificate, not a TLS or CA cert.
