@@ -73,7 +73,7 @@ internal static class ReleaseSignatureVerifier
                 "2.16.840.1.101.3.4.2.3" => SHA512.Create(),
                 _ => throw new CryptographicException("Unsupported PE digest algorithm.")
             };
-            var callback = new DigestCallback((data, length, _) =>
+            var callback = new DigestCallback((_, data, length) =>
             {
                 if (length == 0) return true;
                 byte[] buffer = new byte[checked((int)length)];
@@ -84,7 +84,7 @@ internal static class ReleaseSignatureVerifier
             verificationStage = "hashing PE image";
             stream.Position = 0;
             if (!ImageGetDigestStream(stream.SafeFileHandle, 0, callback, IntPtr.Zero))
-                throw new CryptographicException("Windows could not hash the PE image.");
+                throw new CryptographicException("Windows could not hash the PE image (Win32 " + Marshal.GetLastWin32Error() + ").");
             GC.KeepAlive(callback);
             hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
             if (!CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
@@ -211,7 +211,8 @@ internal static class ReleaseSignatureVerifier
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
-    private delegate bool DigestCallback(IntPtr data, uint length, IntPtr context);
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private delegate bool DigestCallback(IntPtr context, IntPtr data, uint length);
 
     [DllImport("imagehlp.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
