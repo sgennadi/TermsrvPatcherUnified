@@ -10,7 +10,10 @@ jobs:
   check-signing-configuration:
     runs-on: ubuntu-latest
     steps:
-      - name: Check public SPKI pin format only
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check public SPKI pin and source consistency
         shell: bash
         env:
           TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
@@ -22,7 +25,7 @@ jobs:
           python - <<'PY'
           import os, pathlib, re, sys
           source = pathlib.Path("Core/ReleaseSignatureVerifier.cs").read_text(encoding="utf-8")
-          match = re.search(r'PinnedSignerSpkiSha256\\s*=\\s*"([0-9a-fA-F]{64})"', source)
+          match = re.search(r'PinnedSignerSpkiSha256\s*=\s*"([0-9a-fA-F]{64})"', source)
           expected = os.environ["TPU_SIGNER_SPKI_SHA256"]
           if not match or match.group(1).lower() != expected.lower():
               sys.exit("::error::Source signer SPKI pin differs from the independently configured repository variable.")
