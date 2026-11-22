@@ -1,0 +1,65 @@
+name: Protected signing smoke test (no release)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sign-smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish isolated smoke executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=false -o publish
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+      - name: Sign and verify pinned signing identity
+        shell: pwsh
+        env:
+          TPU_PFX_BASE64: ${{ secrets.TPU_SIGNING_PFX_BASE64 }}
+          TPU_PFX_PASSWORD: ${{ secrets.TPU_SIGNING_PFX_PASSWORD }}
+          TPU_PIN: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:TPU_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:TPU_PFX_PASSWORD)) { throw 'Missing release-signing environment secrets.' }
+          if ($env:TPU_PIN -notmatch '^[a-fA-F0-9]{64}$') { throw 'Missing public SPKI pin.' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:TPU_PFX_BASE64))
+            $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            $cert = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile($pfx, $env:TPU_PFX_PASSWORD, $flags)
+            try {
+              if (-not $cert.HasPrivateKey) { throw 'PFX has no private key.' }
+              $rsa = $cert.GetRSAPublicKey()
+              if ($null -eq $rsa) { throw 'Expected RSA signing key.' }
+              try { $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($rsa.ExportSubjectPublicKeyInfo())).ToLowerInvariant() }
+              finally { $rsa.Dispose() }
+              if ($actual -ne $env:TPU_PIN.ToLowerInvariant()) { throw 'PFX public key does not match pinned SPKI.' }
+              $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction Stop |
+                Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+                Sort-Object FullName -Descending | Select-Object -First 1
+              if (-not $sdk) { throw 'Windows SDK signtool.exe not found.' }
+              $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+              & $sdk.FullName sign /fd SHA256 /f $pfx /p $env:TPU_PFX_PASSWORD $exe
+              if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+              $signed = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($exe)
+              if ($signed.GetCertHashString() -ne $cert.Thumbprint) { throw 'Unexpected signing certificate.' }
+              Write-Host 'PASS: EXE signed with independently pinned release key. No release published.'
+              Write-Host 'NOTE: Self-signed certificates are not Windows-trusted on ordinary clients; production verifier remains disabled.'
+            } finally { $cert.Dispose() }
+          } finally {
+            Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:TPU_PFX_BASE64 -ErrorAction SilentlyContinue
+            Remove-Item Env:TPU_PFX_PASSWORD -ErrorAction SilentlyContinue
+          }
