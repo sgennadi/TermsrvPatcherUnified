@@ -1,3 +1,14 @@
+using SemanticVersion = UniversalUpdater.SemanticVersion;
+using UniversalDiagnostics.Transport;
+using System.IO;
+using System.Buffers.Binary;
+using System.Net;
+using System.Net.Http;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using TermsrvPatcherUnified.Core;
+
 if (args is ["--authenticode-qa", var signedExe, var tamperedExe, var spkiPin])
 {
     if (!ReleaseSignatureVerifier.VerifyWithPin(signedExe, spkiPin, out var acceptedReason))
@@ -9,17 +20,6 @@ if (args is ["--authenticode-qa", var signedExe, var tamperedExe, var spkiPin])
     Console.WriteLine("PASS: valid self-signed EXE accepted; tampered EXE and wrong signer rejected.");
     return;
 }
-
-using SemanticVersion = UniversalUpdater.SemanticVersion;
-using UniversalDiagnostics.Transport;
-using System.IO;
-using System.Buffers.Binary;
-using System.Net;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using TermsrvPatcherUnified.Core;
 
 if (args is ["--pattern-inspection-qa"])
 {
