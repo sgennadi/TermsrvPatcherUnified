@@ -41,7 +41,7 @@ jobs:
             $cert = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile($pfx, $env:TPU_PFX_PASSWORD, $flags)
             try {
               if (-not $cert.HasPrivateKey) { throw 'PFX has no private key.' }
-              $rsa = $cert.GetRSAPublicKey()
+              $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
               if ($null -eq $rsa) { throw 'Expected RSA signing key.' }
               try { $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($rsa.ExportSubjectPublicKeyInfo())).ToLowerInvariant() }
               finally { $rsa.Dispose() }
