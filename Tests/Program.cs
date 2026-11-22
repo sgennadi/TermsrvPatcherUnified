@@ -1,3 +1,15 @@
+if (args is ["--authenticode-qa", var signedExe, var tamperedExe, var spkiPin])
+{
+    if (!ReleaseSignatureVerifier.VerifyWithPin(signedExe, spkiPin, out var acceptedReason))
+        throw new Exception("Valid self-signed EXE rejected: " + acceptedReason);
+    if (ReleaseSignatureVerifier.VerifyWithPin(tamperedExe, spkiPin, out _))
+        throw new Exception("Tampered EXE accepted.");
+    if (ReleaseSignatureVerifier.VerifyWithPin(signedExe, new string('0', 64), out _))
+        throw new Exception("Wrong signer key accepted.");
+    Console.WriteLine("PASS: valid self-signed EXE accepted; tampered EXE and wrong signer rejected.");
+    return;
+}
+
 using SemanticVersion = UniversalUpdater.SemanticVersion;
 using UniversalDiagnostics.Transport;
 using System.IO;

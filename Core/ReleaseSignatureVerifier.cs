@@ -20,14 +20,20 @@ internal static class ReleaseSignatureVerifier
 
     internal static bool Verify(string executable, out string reason)
     {
+        return VerifyWithPin(executable, PinnedSignerSpkiSha256, out reason);
+    }
+
+    // Test-only entry point: production always uses the compiled-in pin.
+    internal static bool VerifyWithPin(string executable, string signerSpkiSha256, out string reason)
+    {
         reason = "Release signature verification failed.";
         if (!OperatingSystem.IsWindows())
         {
             reason = "Windows Authenticode verification requires Windows.";
             return false;
         }
-        if (PinnedSignerSpkiSha256.Length != 64 ||
-            !PinnedSignerSpkiSha256.All(Uri.IsHexDigit))
+        if (signerSpkiSha256.Length != 64 ||
+            !signerSpkiSha256.All(Uri.IsHexDigit))
         {
             reason = "No independently trusted release signing key is provisioned.";
             return false;
@@ -71,6 +77,7 @@ internal static class ReleaseSignatureVerifier
                 hash.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
                 return true;
             });
+            stream.Position = 0;
             if (!ImageGetDigestStream(stream.SafeFileHandle, 0, callback, IntPtr.Zero))
                 throw new CryptographicException("Windows could not hash the PE image.");
             GC.KeepAlive(callback);
@@ -112,7 +119,7 @@ internal static class ReleaseSignatureVerifier
                 reason = "Unsupported release signing public key.";
                 return false;
             }
-            var expected = Convert.FromHexString(PinnedSignerSpkiSha256);
+            var expected = Convert.FromHexString(signerSpkiSha256);
             var actual = SHA256.HashData(spki);
             if (!CryptographicOperations.FixedTimeEquals(actual, expected))
             {
@@ -169,7 +176,10 @@ internal static class ReleaseSignatureVerifier
             entrySize < 8 || entrySize > certificateSize ||
             ((entrySize + 7) & ~7L) != certificateSize)
             throw new CryptographicException("Unsupported or ambiguous PE signature table.");
-        return reader.ReadBytes(checked((int)entrySize - 8));
+        byte[] result = reader.ReadBytes(checked((int)entrySize - 8));
+        if (result.Length != entrySize - 8)
+            throw new CryptographicException("Truncated Authenticode signature.");
+        return result;
     }
 
     private static byte[] ReadAuthenticodeDigest(byte[] indirectData, out string algorithm)
