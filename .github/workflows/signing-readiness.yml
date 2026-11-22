@@ -1,6 +1,9 @@
 name: Signing configuration readiness (no key access)
 
 on:
+  pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
