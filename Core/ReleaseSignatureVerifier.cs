@@ -82,8 +82,9 @@ internal static class ReleaseSignatureVerifier
                 return true;
             });
             verificationStage = "hashing PE image";
+            // Include resources, debug information and complete import metadata in the PE digest.
             stream.Position = 0;
-            if (!ImageGetDigestStream(stream.SafeFileHandle, 0, callback, IntPtr.Zero))
+            if (!ImageGetDigestStream(stream.SafeFileHandle, 0x07, callback, IntPtr.Zero))
                 throw new CryptographicException("Windows could not hash the PE image (Win32 " + Marshal.GetLastWin32Error() + ").");
             GC.KeepAlive(callback);
             hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
