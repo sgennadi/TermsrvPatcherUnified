@@ -11,9 +11,9 @@ namespace TermsrvPatcherUnified.Core;
 /// </summary>
 internal static class ReleaseSignatureVerifier
 {
-    // Provision only after the offline signing identity has been established.
+    // Pinned to the independently generated release-signing certificate.
     // SHA-256 of the signer SubjectPublicKeyInfo (RSA or ECDSA), hex encoded.
-    internal const string PinnedSignerSpkiSha256 = "";
+    internal const string PinnedSignerSpkiSha256 = "a185f90644de1c2c5ea2ae2e923eb08f93ebde4b06cc8273679a168dfa5535b9";
 
     private static readonly Guid GenericVerifyV2 =
         new("00AAC56B-CD44-11d0-8CC2-00C04FC295EE");
