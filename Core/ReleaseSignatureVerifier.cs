@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Formats.Asn1;
 using System.Security.Cryptography.Pkcs;
 using System.Security.Cryptography;
