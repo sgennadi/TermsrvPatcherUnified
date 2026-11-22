@@ -1,7 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Formats.Asn1;
 using System.Security.Cryptography.Pkcs;
-using Microsoft.Win32.SafeHandles;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
@@ -67,49 +66,11 @@ internal static class ReleaseSignatureVerifier
             byte[] expectedDigest = ReadAuthenticodeDigest(cms.ContentInfo.Content,
                 out var algorithm);
             verificationStage = "hashing PE image";
-            // ImageHlp flags change which PE regions are included. Probe every
-            // documented combination in QA, but accept only an exact digest match.
-            // No fallback to a signature-only or certificate-only verification.
-            var digestCandidates = new List<string>();
-            bool digestMatches = false;
-            for (uint flags = 0; flags <= 7; flags++)
-            {
-                using HashAlgorithm hash = algorithm switch
-                {
-                    "2.16.840.1.101.3.4.2.1" => SHA256.Create(),
-                    "2.16.840.1.101.3.4.2.2" => SHA384.Create(),
-                    "2.16.840.1.101.3.4.2.3" => SHA512.Create(),
-                    _ => throw new CryptographicException("Unsupported PE digest algorithm.")
-                };
-                var callback = new DigestCallback((_, data, length) =>
-                {
-                    if (length == 0) return true;
-                    byte[] buffer = new byte[checked((int)length)];
-                    Marshal.Copy(data, buffer, 0, buffer.Length);
-                    hash.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
-                    return true;
-                });
-                stream.Position = 0;
-                bool hashed = ImageGetDigestStream(stream.SafeFileHandle, flags, callback, IntPtr.Zero);
-                int win32Error = Marshal.GetLastWin32Error();
-                GC.KeepAlive(callback);
-                if (!hashed)
-                {
-                    digestCandidates.Add(flags + ": Win32 " + win32Error);
-                    continue;
-                }
-                hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-                if (CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
-                {
-                    digestMatches = true;
-                    break;
-                }
-                digestCandidates.Add(flags + ": " + Convert.ToHexString(hash.Hash!));
-            }
-            if (!digestMatches)
+            byte[] computedDigest = ComputeAuthenticodePeDigest(stream, algorithm);
+            if (!CryptographicOperations.FixedTimeEquals(computedDigest, expectedDigest))
                 throw new CryptographicException("Authenticode PE digest mismatch (expected " +
-                    Convert.ToHexString(expectedDigest) + "; flags 0..7: " +
-                    string.Join(", ", digestCandidates) + ").");
+                    Convert.ToHexString(expectedDigest) + ", computed " +
+                    Convert.ToHexString(computedDigest) + ").");
             verificationStage = "checking signer certificate and pin";
             // A pinned key alone does not authorize arbitrary certificate purposes.
             // Require a currently valid code-signing certificate, not a TLS or CA cert.
@@ -164,6 +125,90 @@ internal static class ReleaseSignatureVerifier
                 (error is CryptographicException ? " (" + error.Message + ")" : "");
             return false;
         }
+    }
+
+    // Authenticode PE hashing follows the PE/COFF specification: checksum and
+    // certificate directory entry are skipped; sections are hashed by file offset,
+    // followed by remaining non-certificate overlay bytes.
+    private static byte[] ComputeAuthenticodePeDigest(FileStream stream, string algorithm)
+    {
+        using HashAlgorithm hash = algorithm switch
+        {
+            "2.16.840.1.101.3.4.2.1" => SHA256.Create(),
+            "2.16.840.1.101.3.4.2.2" => SHA384.Create(),
+            "2.16.840.1.101.3.4.2.3" => SHA512.Create(),
+            _ => throw new CryptographicException("Unsupported PE digest algorithm.")
+        };
+        using var reader = new BinaryReader(stream, System.Text.Encoding.UTF8, leaveOpen: true);
+        stream.Position = 0x3C;
+        long pe = reader.ReadUInt32();
+        stream.Position = pe + 6;
+        int sectionCount = reader.ReadUInt16();
+        stream.Position = pe + 20;
+        int optionalSize = reader.ReadUInt16();
+        long optional = pe + 24;
+        stream.Position = optional;
+        ushort magic = reader.ReadUInt16();
+        int directoryStart = magic switch
+        {
+            0x10B => 96, 0x20B => 112,
+            _ => throw new CryptographicException("Unsupported PE optional header.")
+        };
+        if (optionalSize < directoryStart + 40 || sectionCount > 96)
+            throw new CryptographicException("Invalid PE header layout.");
+        stream.Position = optional + 60;
+        uint headersSize = reader.ReadUInt32();
+        long checksumOffset = optional + 64;
+        long securityDirectoryOffset = optional + directoryStart + 32;
+        stream.Position = securityDirectoryOffset;
+        long certOffset = reader.ReadUInt32();
+        long certSize = reader.ReadUInt32();
+        if (headersSize > stream.Length || securityDirectoryOffset + 8 > headersSize ||
+            certOffset < headersSize || certSize < 8 || certOffset > stream.Length - certSize)
+            throw new CryptographicException("Invalid Authenticode PE layout.");
+        void Append(long start, long length)
+        {
+            if (start < 0 || length < 0 || start > stream.Length - length)
+                throw new CryptographicException("PE hash range outside file.");
+            stream.Position = start;
+            byte[] buffer = new byte[65536];
+            while (length > 0)
+            {
+                int count = stream.Read(buffer, 0, (int)Math.Min(length, buffer.Length));
+                if (count <= 0) throw new EndOfStreamException();
+                hash.TransformBlock(buffer, 0, count, buffer, 0);
+                length -= count;
+            }
+        }
+        Append(0, checksumOffset);
+        Append(checksumOffset + 4, securityDirectoryOffset - checksumOffset - 4);
+        Append(securityDirectoryOffset + 8, headersSize - securityDirectoryOffset - 8);
+        long sectionTable = optional + optionalSize;
+        var sections = new List<(long Start, long Length)>();
+        for (int i = 0; i < sectionCount; i++)
+        {
+            stream.Position = sectionTable + i * 40L + 16;
+            long size = reader.ReadUInt32();
+            long offset = reader.ReadUInt32();
+            if (size != 0) sections.Add((offset, size));
+        }
+        long lastSectionEnd = headersSize;
+        foreach (var section in sections.OrderBy(x => x.Start))
+        {
+            if (section.Start < lastSectionEnd || section.Start > stream.Length - section.Length ||
+                section.Start + section.Length > certOffset)
+                throw new CryptographicException("Overlapping or invalid PE sections.");
+            Append(section.Start, section.Length);
+            lastSectionEnd = section.Start + section.Length;
+        }
+        // The certificate table is not included in the digest. Hash only overlay
+        // bytes outside that table, including any bytes following it.
+        if (certOffset > lastSectionEnd)
+            Append(lastSectionEnd, certOffset - lastSectionEnd);
+        if (certOffset + certSize < stream.Length)
+            Append(certOffset + certSize, stream.Length - certOffset - certSize);
+        hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        return hash.Hash!;
     }
 
     private static byte[] ReadEmbeddedSignature(FileStream stream)
