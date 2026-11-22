@@ -1,0 +1,116 @@
+name: Protected signing smoke test (no release)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sign-smoke:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2025
+    environment: release-signing
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Publish isolated smoke executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=false -o publish
+          if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
+      - name: Build independent signature regression runner
+        shell: pwsh
+        run: |
+          dotnet build Tests/TermsrvPatcher.Tests.csproj -c Release -p:RequireNSudo=false
+          if ($LASTEXITCODE -ne 0) { throw 'Verifier test runner build failed.' }
+      - name: Sign and verify pinned signing identity
+        shell: pwsh
+        env:
+          TPU_PFX_BASE64: ${{ secrets.TPU_SIGNING_PFX_BASE64 }}
+          TPU_PFX_PASSWORD: ${{ secrets.TPU_SIGNING_PFX_PASSWORD }}
+          TPU_PIN: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:TPU_PFX_BASE64) -or [string]::IsNullOrWhiteSpace($env:TPU_PFX_PASSWORD)) { throw 'Missing release-signing environment secrets.' }
+          if ($env:TPU_PIN -notmatch '^[a-fA-F0-9]{64}$') { throw 'Missing public SPKI pin.' }
+          $pfx = Join-Path $env:RUNNER_TEMP 'signing.pfx'
+          try {
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:TPU_PFX_BASE64))
+            $flags = [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+            $cert = [System.Security.Cryptography.X509Certificates.X509CertificateLoader]::LoadPkcs12FromFile($pfx, $env:TPU_PFX_PASSWORD, $flags)
+            try {
+              if (-not $cert.HasPrivateKey) { throw 'PFX has no private key.' }
+              $now = [DateTime]::UtcNow
+              if ($now -lt $cert.NotBefore.ToUniversalTime() -or $now -gt $cert.NotAfter.ToUniversalTime()) {
+                throw 'Release signing certificate is outside its validity period.'
+              }
+              $eku = @($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' })
+              if ($eku.Count -ne 1) { throw 'Code signing EKU extension is missing or ambiguous.' }
+              $ekuDecoded = [System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension]::new($eku[0], $eku[0].Critical)
+              if (-not @($ekuDecoded.EnhancedKeyUsages | Where-Object { $_.Value -eq '1.3.6.1.5.5.7.3.3' }).Count) {
+                throw 'Certificate is not authorized for code signing.'
+              }
+              $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+              if ($null -eq $rsa) { throw 'Expected RSA signing key.' }
+              try { $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($rsa.ExportSubjectPublicKeyInfo())).ToLowerInvariant() }
+              finally { $rsa.Dispose() }
+              if ($actual -ne $env:TPU_PIN.ToLowerInvariant()) { throw 'PFX public key does not match pinned SPKI.' }
+              $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction Stop |
+                Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+                Sort-Object FullName -Descending | Select-Object -First 1
+              if (-not $sdk) { throw 'Windows SDK signtool.exe not found.' }
+              $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+              & $sdk.FullName sign /fd SHA256 /f $pfx /p $env:TPU_PFX_PASSWORD $exe
+              if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+              $signed = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($exe)
+              if ($signed.GetCertHashString() -ne $cert.Thumbprint) { throw 'Unexpected signing certificate.' }
+              $signature = Get-AuthenticodeSignature -LiteralPath $exe
+              if ($null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Thumbprint -ne $cert.Thumbprint) {
+                throw 'Authenticode signature does not identify the pinned signer.'
+              }
+              if ($signature.Status -eq [System.Management.Automation.SignatureStatus]::NotSigned -or
+                  $signature.Status -eq [System.Management.Automation.SignatureStatus]::HashMismatch) {
+                throw 'Authenticode signature is missing or the executable hash mismatches.'
+              }
+              # A self-signed certificate can produce NotTrusted on a clean runner.
+              # This smoke test is NOT a substitute for full cryptographic signature verification.
+              # Change a signed, hashed PE header byte in a disposable copy.
+              # This must never be accepted as a valid Authenticode signature.
+              $tampered = Join-Path $env:RUNNER_TEMP 'tampered-release.exe'
+              Copy-Item -LiteralPath $exe -Destination $tampered -Force
+              try {
+                $stream = [IO.File]::Open($tampered, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite)
+                try {
+                  $stream.Position = 0x40
+                  $original = $stream.ReadByte()
+                  if ($original -lt 0) { throw 'PE file too small for tamper test.' }
+                  $stream.Position = 0x40
+                  $stream.WriteByte([byte]($original -bxor 1))
+                } finally { $stream.Dispose() }
+                $tamperedSignature = Get-AuthenticodeSignature -LiteralPath $tampered
+                if ($tamperedSignature.Status -ne [System.Management.Automation.SignatureStatus]::HashMismatch) {
+                  throw "Tampered EXE was not rejected as a hash mismatch (status: $($tamperedSignature.Status))."
+                }
+                Write-Host 'PASS: tampered EXE rejected with Authenticode hash mismatch.'
+              } finally {
+                # Keep the tampered fixture for the independent verifier below.
+              }
+              # Validate the real release signer using the same PE/CMS verifier used by the updater.
+              # The runner also rejects tampered binaries and a mismatched signer pin.
+              dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --authenticode-qa $exe $tampered $env:TPU_PIN
+              if ($LASTEXITCODE -ne 0) { throw 'Pinned release signer regression failed.' }
+              Write-Host 'PASS: real release signer accepted, tampered EXE and wrong pin rejected. No release published.'
+              Remove-Item -LiteralPath $tampered -Force -ErrorAction SilentlyContinue
+              Write-Host 'NOTE: Windows may show Unknown Publisher for the self-signed certificate.'
+            } finally { $cert.Dispose() }
+          } finally {
+            Remove-Item -LiteralPath $pfx -Force -ErrorAction SilentlyContinue
+            Remove-Item Env:TPU_PFX_BASE64 -ErrorAction SilentlyContinue
+            Remove-Item Env:TPU_PFX_PASSWORD -ErrorAction SilentlyContinue
+          }

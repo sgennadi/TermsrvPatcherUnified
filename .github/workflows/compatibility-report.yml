@@ -1,4 +1,4 @@
-name: Aggregate approved successful-fix versions
+name: Aggregate unverified successful-fix reports
 
 on:
   issue_comment:
@@ -47,5 +47,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -- data/successful-fixes.csv data/offline-fixes.csv
-          git commit -m "chore: aggregate reviewed DLL compatibility metadata"
+          git commit -m "chore: aggregate unverified DLL compatibility metadata"
           git push origin HEAD:main

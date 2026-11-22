@@ -48,8 +48,9 @@ public sealed class ManualRollbackService
             TryRecordHistory(options, "ROLLBACK", "MANUAL_ROLLBACK");
             return new UpdateInstallResult(true, true, "MANUAL_ROLLBACK");
         }
-        catch (Exception)
+        catch (Exception originalError)
         {
+            RollbackFailureDiagnostics.Record(options, "MANUAL_PRIMARY", originalError);
             if (replaced && File.Exists(snapshot))
             {
                 try
@@ -58,8 +59,8 @@ public sealed class ManualRollbackService
                     File.Replace(restore, target, null, ignoreMetadataErrors: false);
                     restored = true;
                 }
-                catch (IOException) { }
-                catch (UnauthorizedAccessException) { }
+                catch (IOException error) { RollbackFailureDiagnostics.Record(options, "MANUAL_RESTORE", error); }
+                catch (UnauthorizedAccessException error) { RollbackFailureDiagnostics.Record(options, "MANUAL_RESTORE", error); }
             }
             state.Hold(restored || !replaced ? "ROLLBACK_ABORTED" : "ROLLBACK_REQUIRES_ATTENTION");
             TryRecordHistory(options, "ROLLBACK", restored || !replaced ? "ROLLBACK_ABORTED" : "ROLLBACK_REQUIRES_ATTENTION");
@@ -68,27 +69,21 @@ public sealed class ManualRollbackService
         }
         finally
         {
-            TryDelete(candidate);
-            TryDelete(restore);
+            RollbackFailureDiagnostics.TryDelete(options, "MANUAL_CANDIDATE_CLEANUP", candidate);
+            RollbackFailureDiagnostics.TryDelete(options, "MANUAL_RESTORE_CLEANUP", restore);
             // Preserve snapshot on incomplete recovery for a technician to inspect.
-            if (replaced && restored) TryDelete(snapshot);
+            if (replaced && restored) RollbackFailureDiagnostics.TryDelete(options, "MANUAL_SNAPSHOT_CLEANUP", snapshot);
         }
     }
     private static void TryRecordHistory(UpdateOptions options, string operation, string result)
     {
         try { new UpdateHistoryStore(options).Append(options.ProductId, operation, "", "", result); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
+        catch (IOException error) { RollbackFailureDiagnostics.Record(options, "MANUAL_HISTORY", error); }
+        catch (UnauthorizedAccessException error) { RollbackFailureDiagnostics.Record(options, "MANUAL_HISTORY", error); }
     }
     private static void RejectLink(string path)
     {
         if ((File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("Rollback paths must be real files/directories.");
-    }
-    private static void TryDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
     }
 }

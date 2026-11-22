@@ -1,0 +1,27 @@
+# Security remediation (2026-11-21)
+
+## Scope and current limitations
+
+- GitHub release asset digests are not a substitute for an independently signed binary. Automatic/self-update must not be used with elevated trust until the installed application has an embedded signing-key pin and validates the signed EXE before any replacement.
+- Temporary policy: report ingestion accepts valid submissions from any GitHub user, not only `sgennadi`. Strict schema checks, bounded data, and UNVERIFIED labeling remain; this is **not authenticated provenance**. Public contributors may exhaust report quotas or pollute unverified statistics. A dedicated gateway identity and isolated ingestion pipeline remain pending.
+- Diagnostic/compatibility CSV content is UNVERIFIED evidence, never proof of successful remote access, and must not drive Apply.
+- A public anonymous Apps Script URL cannot be secured by hiding or rotating it. Exhaustion of per-day quotas remains possible; isolate projects and add upstream rate limiting or a durable queue.
+- Move the Microsoft365AuthRepair gateway to its own repo/deployment before deleting the existing code. A GitHub commit does not update live Google Apps Script deployments.
+
+## GitHub owner settings required
+
+Under Settings → Rules → Rulesets, protect `main`: require reviewed pull requests, passing CI and CodeQL, block direct or force pushes, prevent bypasses except a tightly scoped maintenance identity, and protect release tags. The current repository has `main.protected=false`; source-controlled workflows cannot enforce admin rules.
+
+## Release signing owner steps (not yet complete)
+
+1. Provision an offline code-signing key outside GitHub, GitHub Actions and the Apps Script gateway.
+2. Sign the release EXE using Authenticode and timestamp it.
+3. Pin the signing public key in the already trusted updater; require both signature validation and matching pinned signer before staging, replacement, SYSTEM worker refresh and rollback use.
+4. Bootstrap the first protected updater out-of-band; existing vulnerable/unsigned clients cannot authenticate this transition.
+5. Test malicious GitHub asset replacement, writable install folders and race conditions on a disposable Windows VM.
+
+This PR enables static analysis and documents security risks; unrestricted report ingestion is retained temporarily at the owner's request. It does **not** claim release signing, DoS resistance, or runtime tests are complete.
+
+## Temporary unsigned-updater kill switch
+
+The GUI install availability check, preparation entry point and elevated helper now refuse self-update while the trusted signing key is unconfigured. This is deliberately disruptive: read-only update discovery can continue, but installation must not. The current build cannot automatically transition itself to the first signed build; bootstrap must use a separately authenticated installer. A signing-key pin and Authenticode verifier remain required before the switch is lifted.

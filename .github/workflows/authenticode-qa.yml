@@ -1,0 +1,53 @@
+name: Self-signed Authenticode verifier regression (no secrets)
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticode-qa:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build isolated verifier test runner
+        shell: pwsh
+        run: |
+          dotnet build Tests/TermsrvPatcher.Tests.csproj -c Release -p:RequireNSudo=false
+          if ($LASTEXITCODE -ne 0) { throw 'Test runner build failed.' }
+      - name: Generate ephemeral code-signing identity and sign disposable PE
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $cert = New-SelfSignedCertificate -Subject 'CN=TPU Ephemeral QA Only' -Type CodeSigningCert -KeyAlgorithm RSA -KeyLength 3072 -HashAlgorithm SHA256 -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(2)
+          try {
+            $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+            try { $pin = [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($rsa.ExportSubjectPublicKeyInfo())).ToLowerInvariant() }
+            finally { $rsa.Dispose() }
+            $sdk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse |
+              Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } | Sort-Object FullName -Descending | Select-Object -First 1
+            if (-not $sdk) { throw 'signtool.exe unavailable.' }
+            $source = Join-Path $env:RUNNER_TEMP 'signed-qa.exe'
+            Copy-Item "$env:WINDIR\System32\notepad.exe" $source
+            & $sdk.FullName sign /sha1 $cert.Thumbprint /s My /fd SHA256 $source
+            if ($LASTEXITCODE -ne 0) { throw 'Ephemeral signing failed.' }
+            $tampered = Join-Path $env:RUNNER_TEMP 'tampered-qa.exe'
+            Copy-Item $source $tampered
+            $stream = [IO.File]::Open($tampered, 'Open', 'ReadWrite')
+            try {
+              $stream.Position = 0x40
+              $original = $stream.ReadByte()
+              $stream.Position = 0x40
+              $stream.WriteByte([byte]($original -bxor 1))
+            } finally { $stream.Dispose() }
+            dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --authenticode-qa $source $tampered $pin
+            if ($LASTEXITCODE -ne 0) { throw 'Authenticode verifier regression failed.' }
+          } finally {
+            Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
+          }

@@ -1,3 +1,4 @@
+using SemanticVersion = UniversalUpdater.SemanticVersion;
 using UniversalDiagnostics.Transport;
 using System.IO;
 using System.Buffers.Binary;
@@ -7,6 +8,18 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using TermsrvPatcherUnified.Core;
+
+if (args is ["--authenticode-qa", var signedExe, var tamperedExe, var spkiPin])
+{
+    if (!ReleaseSignatureVerifier.VerifyWithPin(signedExe, spkiPin, out var acceptedReason))
+        throw new Exception("Valid self-signed EXE rejected: " + acceptedReason);
+    if (ReleaseSignatureVerifier.VerifyWithPin(tamperedExe, spkiPin, out _))
+        throw new Exception("Tampered EXE accepted.");
+    if (ReleaseSignatureVerifier.VerifyWithPin(signedExe, new string('0', 64), out _))
+        throw new Exception("Wrong signer key accepted.");
+    Console.WriteLine("PASS: valid self-signed EXE accepted; tampered EXE and wrong signer rejected.");
+    return;
+}
 
 if (args is ["--pattern-inspection-qa"])
 {
@@ -88,6 +101,21 @@ void Expect<TException>(Action action, string message) where TException : Except
     catch (TException) { threw = true; }
     Ensure(threw, message);
 }
+
+// Security regression: unsigned GitHub release metadata cannot authorize a
+// privileged self-update. Both GUI and helper use this fail-closed gate.
+Ensure(!UpdateInstallBridge.CanInstall(out var disabledUpdateReason) &&
+       disabledUpdateReason.Contains("signing", StringComparison.OrdinalIgnoreCase),
+    "unsigned self-update must remain disabled until a pinned signing key is provisioned");
+Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.6"), "1.0.7"),
+    "older release must never replace a newer installed release");
+Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.7"), "1.0.7"),
+    "same-version release replay must be rejected");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8"), "1.0.7"),
+    "newer version ordering remains valid independently of the signing gate");
 
 // Regression: current installed DLL state and ability to Revert are
 // independent facts. None of these pure tests accesses the system DLL.

@@ -216,22 +216,12 @@ public partial class MainWindow : Window
             currentDllClassification = installed;
             AdvancedDllStateText.Text = installed.Headline;
             AdvancedDllEvidenceText.Text = installed.Evidence;
-            AdvancedDllStateText.Foreground = installed.Kind switch
-            {
-                InstalledDllKind.Patched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
-                InstalledDllKind.NotPatched => new SolidColorBrush(Color.FromRgb(40, 88, 157)),
-                _ => new SolidColorBrush(Color.FromRgb(160, 92, 14))
-            };
+            AdvancedDllStateText.Foreground = InstalledDllStatusPresentation.BrushFor(installed.Kind);
             StatusText.Text = "Automatic signature result: " + autoPlan.State +
                 " | " + autoPlan.Description;
             StatusText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
             AutoSimpleStatus.Text = installed.Headline;
-            AutoSimpleStatus.Foreground = installed.Kind switch
-            {
-                InstalledDllKind.Patched => new SolidColorBrush(Color.FromRgb(11, 135, 76)),
-                InstalledDllKind.NotPatched => new SolidColorBrush(Color.FromRgb(40, 88, 157)),
-                _ => new SolidColorBrush(Color.FromRgb(160, 92, 14))
-            };
+            AutoSimpleStatus.Foreground = InstalledDllStatusPresentation.BrushFor(installed.Kind);
             AutoSimpleProfile.Text = string.IsNullOrWhiteSpace(autoPlan.ProfileId)
                 ? "Detected pattern: none"
                 : "Detected pattern: " + autoPlan.ProfileId;

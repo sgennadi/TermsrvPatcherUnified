@@ -32,6 +32,14 @@ internal static class UpdateInstallBridge
 
     internal static bool CanInstall(out string reason)
     {
+        // Security gate: no trusted signing key has been provisioned yet.
+        // GitHub API hashes alone do not authenticate elevated updates.
+        reason = "Self-update disabled: release signing and pinned-key verification are not configured. Install a verified release manually.";
+        return false;
+    }
+
+    private static bool LegacyCanInstallPlatformChecks(out string reason)
+    {
         if (!OperatingSystem.IsWindows() ||
             System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture !=
                 System.Runtime.InteropServices.Architecture.X64)
@@ -151,13 +159,15 @@ internal static class UpdateInstallBridge
     }
 
     /// <summary>
-    /// Called ONLY after a successful live GitHub check and an explicit
-    /// confirmation acknowledging that preview binaries are unsigned.
+    /// Disabled until signed-release verification is provisioned and pinned.
+    /// No GitHub-supplied hash may authorize elevated installation.
     /// </summary>
     internal static async Task PrepareAndLaunchAsync(UpdateChannel channel,
         UpdateRelease release, IProgress<UpdateProgress>? progress, CancellationToken token)
     {
-        if (!CanInstall(out var reason)) throw new InvalidOperationException(reason);
+        // Fail closed even if callers bypass the UI availability check.
+        if (!CanInstall(out var signingReason))
+            throw new System.Security.SecurityException(signingReason);
         var options = UpdateIntegration.Options(channel);
         if (release.Repository != options.Repository || release.Rule.Architecture != "win-x64" ||
             release.Rule.Kind != PackageKind.SingleExeZip ||
@@ -171,6 +181,15 @@ internal static class UpdateInstallBridge
         using var downloader = new UpdateDownloader();
         var stage = await downloader.StageAsync(options, release, progress, token);
         token.ThrowIfCancellationRequested();
+
+        // Authenticate the actual extracted EXE independently of GitHub hashes.
+        // This is defense in depth; the disabled signing gate above remains in place
+        // until the owner provisions a trusted signing identity.
+        if (stage.ExtractedExecutablePath is not { } stagedExecutable)
+            throw new System.Security.SecurityException("Refusing update: no staged EXE.");
+        if (!ReleaseSignatureVerifier.Verify(stagedExecutable, out var signatureReason))
+            throw new System.Security.SecurityException(
+                "Refusing unsigned or untrusted release: " + signatureReason);
 
         var target = Path.GetFullPath(Environment.ProcessPath!);
         var targetSha = await ShaAsync(target, token);
@@ -231,6 +250,8 @@ internal static class UpdateInstallBridge
 
     private static async Task<int> RunHelperAsync(string jobFile)
     {
+        // Defense in depth: block already-staged unsigned jobs from older clients.
+        if (!CanInstall(out _)) return 8;
         // The helper intentionally runs from the protected ProgramData cache,
         // not from Program Files. Validate the helper's protected folder below,
         // and check the actual TARGET installation path separately.
@@ -297,11 +318,27 @@ internal static class UpdateInstallBridge
             job.CandidateAssetSize, job.ArchiveSha256);
         var staged = new StagedPackage(release, job.ArchivePath, job.ArchiveSha256,
             job.ExtractedExePath, job.ExtractedExeSha256);
+        // Recheck at the elevated helper boundary; hashes in the job are not
+        // an authorization mechanism and the downloaded EXE is never a helper.
+        if (!ReleaseSignatureVerifier.Verify(job.ExtractedExePath, out var helperSignatureReason))
+            throw new System.Security.SecurityException(
+                "Staged update failed signer verification: " + helperSignatureReason);
+        // Reject a modified staged payload before the transactional copy.
+        // PortableExeTransaction also verifies the staged and copied hashes.
+        if (!string.Equals(await ShaAsync(job.ExtractedExePath, CancellationToken.None),
+                job.ExtractedExeSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Signed staged EXE changed since preparation.");
         var transaction = new PortableExeTransaction();
         var installDir = Path.GetDirectoryName(job.TargetPath)!;
         var result = await transaction.ApplyManualAsync(options, staged,
             installDir, ExecutableName, explicitlyApproved: true,
-            async (exe, ct) => await ProbeInstalledAsync(exe, job.CandidateVersion, ct));
+            async (exe, ct) =>
+            {
+                // Verify the installed bytes, not merely the original download.
+                // A failed post-install verification triggers transactional rollback.
+                return ReleaseSignatureVerifier.Verify(exe, out _) &&
+                       await ProbeInstalledAsync(exe, job.CandidateVersion, ct);
+            });
         AuditLog.Append("EXE replacement result: " + result.Summary);
         if (result.Success)
         {

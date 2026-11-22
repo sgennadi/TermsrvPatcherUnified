@@ -9,8 +9,7 @@ const crypto = require('node:crypto');
 const githubPosts = [];
 const cache = new Map();
 const properties = new Map([
-  ['GITHUB_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND'],
-  ['GITHUB_M365_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND']
+  ['GITHUB_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND']
 ]);
 const iso = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
 const githubResponse = (status, json) => ({
@@ -60,8 +59,7 @@ const sandbox = {
         html_url: 'https://github.com/sgennadi/TermsrvPatcherUnified/issues/1#issuecomment-' + (++commentNumber)
       });
     assert.ok(url.endsWith('/issues'), 'only the approved API may be used');
-    const repo = url === 'https://api.github.com/repos/sgennadi/Microsoft365AuthRepair/issues'
-      ? 'Microsoft365AuthRepair' : 'TermsrvPatcherUnified';
+    const repo = 'TermsrvPatcherUnified';
     assert.equal(url, 'https://api.github.com/repos/sgennadi/' + repo + '/issues');
     return githubResponse(201, {
       html_url: 'https://github.com/sgennadi/' + repo + '/issues/' + (++issueNumber)
@@ -107,11 +105,9 @@ function truth(value, label) {
   checks++;
 }
 const health = JSON.parse(sandbox.doGet().text);
-truth(health.ok === true && health.gateway_schema_version === 4 &&
+truth(health.ok === true && health.gateway_schema_version === 5 &&
       health.capabilities.includes('universal-diagnostics/v1') &&
-      health.capabilities.includes('termsrv-compatibility/v1') &&
-      health.capabilities.includes('microsoft365-auth-repair/v1') &&
-      health.capabilities.includes('microsoft365-auth-repair/v2'),
+      health.capabilities.includes('termsrv-compatibility/v1'),
   'read-only GET advertises both supported reporting schemas without GitHub writes');
 eq(githubPosts.length, 0, 'GET capability check never creates an Issue or comment');
 const report = compat('successful_apply', initialBody);
@@ -171,97 +167,9 @@ truth(receipt.ok && receipt.issue_url.endsWith('/issues/501') && !receipt.commen
   'legacy anonymous diagnostics still creates its own Issue');
 eq(githubPosts.length, 3, 'legacy issue path unchanged');
 
-const m365Component = 'EntraWAMBroker';
-const m365Type = 'USER_REPORT';
-const m365Code = 'WAM_REVIEW';
-const m365Fingerprint = crypto.createHash('sha256')
-  .update(['sgennadi/Microsoft365AuthRepair', m365Component, m365Type, m365Code]
-    .map(x => x.toLowerCase()).join('|')).digest('hex');
-const m365Report = {
-  schema: 'universal-diagnostics/v1', id: crypto.randomUUID(),
-  timestamp_utc: iso(), project: 'sgennadi/Microsoft365AuthRepair',
-  component: m365Component, error_type: m365Type, code: m365Code,
-  level: 'info', version: '1.0.1-preview.1', platform: 'Windows',
-  architecture: 'ARM64', fingerprint: m365Fingerprint,
-  signals: {azure_ad_joined:'YES', domain_joined:'YES', device_auth_status:'SUCCESS',
-    azure_ad_prt:'YES', wam_default_set:'YES', broker_plugin:'PRESENT'}
-};
-let countBefore = githubPosts.length;
-receipt = post(m365Report);
-truth(receipt.ok && /^https:\/\/github\.com\/sgennadi\/Microsoft365AuthRepair\/issues\/[0-9]+$/.test(receipt.issue_url),
-  'strict universal M365 report routes to its own GitHub repository');
-eq(githubPosts.length, countBefore + 1, 'M365 report creates exactly one Issue');
-truth(githubPosts.at(-1).url === 'https://api.github.com/repos/sgennadi/Microsoft365AuthRepair/issues' &&
-  !githubPosts.at(-1).body.body.includes('private'),
-  'M365 route has its own GitHub API target, no free-form metadata');
-receipt = post(m365Report);
-truth(receipt.ok && receipt.duplicate === true, 'M365 duplicate report gets cached receipt');
-eq(githubPosts.length, countBefore + 1, 'no duplicate GitHub Issues');
-for (const invalid of [
-  change(m365Report, {summary: 'MY PRIVATE ACCOUNT'}),
-  change(m365Report, {signals:{...m365Report.signals, user:'PRIVATE'}}),
-  change(m365Report, {signals:{...m365Report.signals, azure_ad_joined:'maybe'}}),
-  change(m365Report, {project: 'sgennadi/TermsrvPatcherUnified'}),
-  change(m365Report, {fingerprint: 'b'.repeat(64)}),
-  change(m365Report, {component: 'Entra WAM / BAD PATH'}),
-  change(m365Report, {architecture: 'Other'}),
-  change(m365Report, {timestamp_utc: '2000-01-01T00:00:00Z'})
-]) eq(post(invalid).error, 'invalid_evidence', 'unsafe M365 field rejected');
-eq(githubPosts.length, countBefore + 1, 'unsafe M365 attempts create no issues');
-
-const expandedFields = {
-  office_installed:'YES', office_edition:'PROPLUS_2024',
-  office_activation:'PREVIEW_KEY_PRESENT', office_wmi_records:'THREE_PLUS',
-  office_licensed_records:'ONE', office_preview_records:'ONE',
-  office_preview_key_records:'ONE', tpm_present:'YES', tpm_version:'2.0',
-  tpm_ready:'YES', bitlocker_os_protection:'OFF',
-  bitlocker_os_conversion:'FULLY_DECRYPTED', memory_integrity_runtime:'RUNNING',
-  dpapi_protection_policy:'NOT_SET', dpapi_domain_joined:'YES',
-  dpapi_writable_dc:'AVAILABLE', tpm_aik_enrollment:'NONE_RECORDED',
-  tpm_ek_cert_store:'UNKNOWN', tpm_manufacturer_class:'OTHER',
-  windows_tpm_release:'WIN11_NEWER'
-};
-const expanded = change(m365Report, {
-  id:crypto.randomUUID(), signals:{...m365Report.signals,...expandedFields}
-});
-let countBeforeExpanded = githubPosts.length;
-receipt = post(expanded);
-truth(receipt.ok && receipt.issue_url.includes('/Microsoft365AuthRepair/issues/'),
-  'already-published 26-field M365 diagnostic is accepted');
-eq(githubPosts.length, countBeforeExpanded + 1, 'expanded v1 report posts one Issue');
-truth(githubPosts.at(-1).body.body.includes('Office activation: PREVIEW_KEY_PRESENT') &&
-  githubPosts.at(-1).body.body.includes('OS BitLocker protection: OFF'),
-  'Issue contains enumerated Office and BitLocker evidence');
-const extended = change(expanded, {
-  id:crypto.randomUUID(), signals:{...expanded.signals,
-    secure_boot_state:'OFF', memory_integrity_configured:'ON',
-    device_probe_coverage:'PARTIAL'}
-});
-let countBeforeExtended = githubPosts.length;
-receipt = post(extended);
-truth(receipt.ok && receipt.issue_url.includes('/Microsoft365AuthRepair/issues/'),
-  '29-field M365 diagnostic is accepted');
-eq(githubPosts.length, countBeforeExtended + 1, 'extended v2 report posts one Issue');
-truth(githubPosts.at(-1).body.body.includes('Secure Boot: OFF') &&
-  githubPosts.at(-1).body.body.includes('Read-only provider coverage: PARTIAL'),
-  'new signal categories are rendered');
-const badExtended = [
-  { ...extended.signals, secure_boot_state:'BAD_VALUE' },
-  { ...extended.signals, device_probe_coverage:'C:\\PRIVATE\\SECRET' },
-  { ...extended.signals, tenant_id:'EXFILTRATION' },
-  { ...extended.signals, tpm_present:'PRIVATE_SERIAL' }
-];
-for (const signals of badExtended) {
-  const invalid = change(extended, {id:crypto.randomUUID(), signals});
-  eq(post(invalid).error, 'invalid_evidence', 'bad extended signal rejected');
-}
-eq(githubPosts.length, countBeforeExtended + 1,
-  'no malicious extended reports reach GitHub');
-
-properties.delete('GITHUB_M365_ISSUES_TOKEN');
-eq(post(change(m365Report, {id: crypto.randomUUID()})).error,
-  'not_configured', 'M365 token must be separately configured on server');
-properties.set('GITHUB_M365_ISSUES_TOKEN', 'FAKE_TEST_ONLY_NEVER_SEND');
+eq(post({...diagnostic, id:crypto.randomUUID(), project:'sgennadi/Microsoft365AuthRepair'}).error,
+   'invalid_evidence', 'foreign project payload rejected');
+eq(githubPosts.length, 3, 'foreign project cannot create GitHub issues');
 
 const beforeMissingPat = githubPosts.length;
 properties.delete('GITHUB_ISSUES_TOKEN');

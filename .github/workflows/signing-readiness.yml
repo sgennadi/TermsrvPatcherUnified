@@ -1,0 +1,38 @@
+name: Signing configuration readiness (no key access)
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-signing-configuration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check public SPKI pin and source consistency
+        shell: bash
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          if [[ ! "$TPU_SIGNER_SPKI_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "::error::Set repository variable TPU_SIGNER_SPKI_SHA256 to the signing key's 64-character SPKI SHA-256."
+            exit 1
+          fi
+          python - <<'PY'
+          import os, pathlib, re, sys
+          source = pathlib.Path("Core/ReleaseSignatureVerifier.cs").read_text(encoding="utf-8")
+          match = re.search(r'PinnedSignerSpkiSha256\s*=\s*"([0-9a-fA-F]{64})"', source)
+          expected = os.environ["TPU_SIGNER_SPKI_SHA256"]
+          if not match or match.group(1).lower() != expected.lower():
+              sys.exit("::error::Source signer SPKI pin differs from the independently configured repository variable.")
+          print("PASS: source pin matches the independent repository variable.")
+          PY
+          echo "Public signing key pin is configured and matches source."
+          echo "No signing secret is accessed by this workflow."
