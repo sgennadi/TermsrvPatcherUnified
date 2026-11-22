@@ -66,32 +66,50 @@ internal static class ReleaseSignatureVerifier
             verificationStage = "parsing Authenticode indirect data";
             byte[] expectedDigest = ReadAuthenticodeDigest(cms.ContentInfo.Content,
                 out var algorithm);
-            using HashAlgorithm hash = algorithm switch
-            {
-                "2.16.840.1.101.3.4.2.1" => SHA256.Create(),
-                "2.16.840.1.101.3.4.2.2" => SHA384.Create(),
-                "2.16.840.1.101.3.4.2.3" => SHA512.Create(),
-                _ => throw new CryptographicException("Unsupported PE digest algorithm.")
-            };
-            var callback = new DigestCallback((_, data, length) =>
-            {
-                if (length == 0) return true;
-                byte[] buffer = new byte[checked((int)length)];
-                Marshal.Copy(data, buffer, 0, buffer.Length);
-                hash.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
-                return true;
-            });
             verificationStage = "hashing PE image";
-            // Include resources, debug information and complete import metadata in the PE digest.
-            stream.Position = 0;
-            if (!ImageGetDigestStream(stream.SafeFileHandle, 0x07, callback, IntPtr.Zero))
-                throw new CryptographicException("Windows could not hash the PE image (Win32 " + Marshal.GetLastWin32Error() + ").");
-            GC.KeepAlive(callback);
-            hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
-            if (!CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
+            // ImageHlp flags change which PE regions are included. Probe every
+            // documented combination in QA, but accept only an exact digest match.
+            // No fallback to a signature-only or certificate-only verification.
+            var digestCandidates = new List<string>();
+            bool digestMatches = false;
+            for (uint flags = 0; flags <= 7; flags++)
+            {
+                using HashAlgorithm hash = algorithm switch
+                {
+                    "2.16.840.1.101.3.4.2.1" => SHA256.Create(),
+                    "2.16.840.1.101.3.4.2.2" => SHA384.Create(),
+                    "2.16.840.1.101.3.4.2.3" => SHA512.Create(),
+                    _ => throw new CryptographicException("Unsupported PE digest algorithm.")
+                };
+                var callback = new DigestCallback((_, data, length) =>
+                {
+                    if (length == 0) return true;
+                    byte[] buffer = new byte[checked((int)length)];
+                    Marshal.Copy(data, buffer, 0, buffer.Length);
+                    hash.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
+                    return true;
+                });
+                stream.Position = 0;
+                bool hashed = ImageGetDigestStream(stream.SafeFileHandle, flags, callback, IntPtr.Zero);
+                int win32Error = Marshal.GetLastWin32Error();
+                GC.KeepAlive(callback);
+                if (!hashed)
+                {
+                    digestCandidates.Add(flags + ": Win32 " + win32Error);
+                    continue;
+                }
+                hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+                if (CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
+                {
+                    digestMatches = true;
+                    break;
+                }
+                digestCandidates.Add(flags + ": " + Convert.ToHexString(hash.Hash!));
+            }
+            if (!digestMatches)
                 throw new CryptographicException("Authenticode PE digest mismatch (expected " +
-                    Convert.ToHexString(expectedDigest) + ", computed " +
-                    Convert.ToHexString(hash.Hash!) + ").");
+                    Convert.ToHexString(expectedDigest) + "; flags 0..7: " +
+                    string.Join(", ", digestCandidates) + ").");
             verificationStage = "checking signer certificate and pin";
             // A pinned key alone does not authorize arbitrary certificate purposes.
             // Require a currently valid code-signing certificate, not a TLS or CA cert.
