@@ -44,6 +44,7 @@ internal static class ReleaseSignatureVerifier
             return false;
         }
 
+        string verificationStage = "opening PE";
         try
         {
             // Verify the actual PE image digest, not merely a PKCS#7 blob or
@@ -52,14 +53,17 @@ internal static class ReleaseSignatureVerifier
             using var stream = new FileStream(executable, FileMode.Open, FileAccess.Read,
                 FileShare.Read);
             byte[] signature = ReadEmbeddedSignature(stream);
+            verificationStage = "decoding PKCS#7";
             var cms = new SignedCms();
             cms.Decode(signature);
             if (cms.SignerInfos.Count != 1)
                 throw new CryptographicException("Exactly one primary signer is required.");
+            verificationStage = "verifying CMS signature";
             cms.CheckSignature(verifySignatureOnly: true);
             var signer = cms.SignerInfos[0];
             using var certificate = signer.Certificate ??
                 throw new CryptographicException("Signer certificate missing.");
+            verificationStage = "parsing Authenticode indirect data";
             byte[] expectedDigest = ReadAuthenticodeDigest(cms.ContentInfo.Content,
                 out var algorithm);
             using HashAlgorithm hash = algorithm switch
@@ -77,6 +81,7 @@ internal static class ReleaseSignatureVerifier
                 hash.TransformBlock(buffer, 0, buffer.Length, buffer, 0);
                 return true;
             });
+            verificationStage = "hashing PE image";
             stream.Position = 0;
             if (!ImageGetDigestStream(stream.SafeFileHandle, 0, callback, IntPtr.Zero))
                 throw new CryptographicException("Windows could not hash the PE image.");
@@ -84,6 +89,7 @@ internal static class ReleaseSignatureVerifier
             hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
             if (!CryptographicOperations.FixedTimeEquals(hash.Hash!, expectedDigest))
                 throw new CryptographicException("Authenticode PE digest mismatch.");
+            verificationStage = "checking signer certificate and pin";
             // A pinned key alone does not authorize arbitrary certificate purposes.
             // Require a currently valid code-signing certificate, not a TLS or CA cert.
             var now = DateTime.UtcNow;
@@ -133,7 +139,7 @@ internal static class ReleaseSignatureVerifier
                                       CryptographicException or ArgumentException or
                                       NotSupportedException or System.Security.SecurityException)
         {
-            reason = "Release signature check failed: " + error.GetType().Name;
+            reason = "Release signature check failed at " + verificationStage + ": " + error.GetType().Name;
             return false;
         }
     }
