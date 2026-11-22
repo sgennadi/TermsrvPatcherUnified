@@ -139,7 +139,8 @@ internal static class ReleaseSignatureVerifier
                                       CryptographicException or ArgumentException or
                                       NotSupportedException or System.Security.SecurityException)
         {
-            reason = "Release signature check failed at " + verificationStage + ": " + error.GetType().Name;
+            reason = "Release signature check failed at " + verificationStage + ": " + error.GetType().Name +
+                (error is CryptographicException ? " (" + error.Message + ")" : "");
             return false;
         }
     }
