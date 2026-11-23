@@ -129,3 +129,12 @@ jobs:
           ./scripts/verify_signed_release_archives.ps1
           if ($LASTEXITCODE -ne 0) { throw 'Signed archive verification failed.' }
           Write-Host 'PASS: signed portable and updater archives verified; no release published.'
+
+      - name: Exercise signed EXE transaction, backup, rollback and tamper rejection
+        shell: pwsh
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 1.0.7
+          if ($LASTEXITCODE -ne 0) { throw 'Signed EXE transaction regression failed.' }
