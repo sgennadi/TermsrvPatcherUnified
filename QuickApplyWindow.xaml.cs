@@ -247,7 +247,7 @@ public partial class QuickApplyWindow : Window
                 QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
                 QuickShareReportButton.Visibility = Visibility.Visible;
                 QuickCancelButton.Content = "Close";
-                Dispatcher.BeginInvoke(new Action(() => OfferReportAfterSuccessfulApply()));
+                _ = Dispatcher.BeginInvoke(new Action(() => OfferReportAfterSuccessfulApply()));
                 return;
             }
 
