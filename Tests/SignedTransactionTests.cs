@@ -33,9 +33,11 @@ internal static class SignedTransactionTests
                 var dir = Path.Combine(root, name);
                 Directory.CreateDirectory(dir);
                 var target = Path.Combine(dir, "TermsrvPatcherUnified.exe");
-                // The old executable is a disposable copy of the same signed EXE.
-                // This tests the transaction and recovery, NOT two-version upgrade policy.
-                File.Copy(candidate, target);
+                // Old installation is a disposable synthetic x64 PE; new payload is genuinely signed.
+                // This exercises the transaction but not the privileged production helper.
+                // A distinct disposable old x64 PE is required: the transaction rejects
+                // same-version/same-hash replay before invoking its health probe.
+                File.WriteAllBytes(target, OldX64Fixture());
                 var oldHash = Hash(target);
                 var rule = new UpdateAssetRule("win-x64", "TermsrvPatcherUnified-update-win-x64.zip",
                     PackageKind.SingleExeZip, "TermsrvPatcherUnified.exe");
@@ -43,13 +45,13 @@ internal static class SignedTransactionTests
                 {
                     ProductId = "SignedTransactionQA" + name,
                     Repository = "sgennadi/TermsrvPatcherUnified",
-                    InstalledVersion = version,
+                    InstalledVersion = "0.1.0-preview.1",
                     Architecture = "win-x64",
                     Channel = UpdateChannel.Prerelease,
                     StateDirectory = Path.Combine(root, name + "-state"),
                     Assets = [rule]
                 };
-                var stagedDir = Path.Combine(root, name + "-staged");
+                var stagedDir = Path.Combine(UpdateStateStore.GetStagingRoot(options), Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(stagedDir);
                 var staged = Path.Combine(stagedDir, "TermsrvPatcherUnified.exe");
                 File.Copy(candidate, staged);
@@ -85,10 +87,23 @@ internal static class SignedTransactionTests
                     throw new Exception("Signed transaction backup/commit failed.");
             }
             Console.WriteLine("PASS: signed archive transaction, backup, failed-probe rollback and signer check.");
-            Console.WriteLine("LIMIT: same-version signed fixture; no elevated helper or two-version upgrade exercised.");
+            Console.WriteLine("LIMIT: synthetic old PE; no elevated helper or two-version signed upgrade exercised.");
             return 0;
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    private static byte[] OldX64Fixture()
+    {
+        var bytes = new byte[4096];
+        bytes[0] = 0x4d;
+        bytes[1] = 0x5a;
+        System.Buffers.Binary.BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(0x3c, 4), 0x80);
+        bytes[0x80] = 0x50;
+        bytes[0x81] = 0x45;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(0x84, 2), 0x8664);
+        bytes[0x200] = 0x42;
+        return bytes;
     }
 
     private static string Hash(string path) =>
