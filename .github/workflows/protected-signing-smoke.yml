@@ -21,6 +21,13 @@ jobs:
       - name: Stage and verify official NSudo 8.2 x64
         shell: pwsh
         run: ./scripts/prepare-nsudo.ps1
+      - name: Publish disposable older signed-upgrade fixture
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Build a different assembly version from the same audited source, never an untrusted download.
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:Version=1.0.6 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish-old
+          if ($LASTEXITCODE -ne 0) { throw 'Old-version fixture publish failed.' }
       - name: Publish production-equivalent smoke executable
         shell: pwsh
         run: |
@@ -71,6 +78,17 @@ jobs:
               $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
               & $sdk.FullName sign /fd SHA256 /f $pfx /p $env:TPU_PFX_PASSWORD $exe
               if ($LASTEXITCODE -ne 0) { throw 'Authenticode signing failed.' }
+              $oldExe = Join-Path $PWD 'publish-old/TermsrvPatcherUnified.exe'
+              & $sdk.FullName sign /fd SHA256 /f $pfx /p $env:TPU_PFX_PASSWORD $oldExe
+              if ($LASTEXITCODE -ne 0) { throw 'Old-version fixture signing failed.' }
+              $oldSignature = Get-AuthenticodeSignature -LiteralPath $oldExe
+              if ($null -eq $oldSignature.SignerCertificate -or $oldSignature.SignerCertificate.Thumbprint -ne $cert.Thumbprint -or
+                  $oldSignature.Status -in @([System.Management.Automation.SignatureStatus]::NotSigned, [System.Management.Automation.SignatureStatus]::HashMismatch)) {
+                throw 'Old signed fixture failed signer or digest verification.'
+              }
+              if ((Get-FileHash -LiteralPath $oldExe -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash) {
+                throw 'Old and new signed fixture bytes unexpectedly match.'
+              }
               $signed = [System.Security.Cryptography.X509Certificates.X509Certificate]::CreateFromSignedFile($exe)
               if ($signed.GetCertHashString() -ne $cert.Thumbprint) { throw 'Unexpected signing certificate.' }
               $signature = Get-AuthenticodeSignature -LiteralPath $exe
@@ -138,3 +156,5 @@ jobs:
           $ErrorActionPreference = 'Stop'
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 1.0.7
           if ($LASTEXITCODE -ne 0) { throw 'Signed EXE transaction regression failed.' }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 1.0.7 publish-old/TermsrvPatcherUnified.exe 1.0.6
+          if ($LASTEXITCODE -ne 0) { throw 'Two-signed-version transaction regression failed.' }
