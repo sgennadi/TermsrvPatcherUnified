@@ -136,6 +136,31 @@ jobs:
             Remove-Item Env:TPU_PFX_PASSWORD -ErrorAction SilentlyContinue
           }
 
+      - name: Reject untrusted helper jobs without touching installed executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Run the real signed GUI executable headlessly with the production helper argument.
+          # A job outside the protected ProgramData root must fail closed, even on an
+          # elevated runner. Never create a valid update job or modify termsrv.dll.
+          $exe = (Resolve-Path 'publish/TermsrvPatcherUnified.exe').Path
+          $before = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+          $invalidJob = Join-Path $env:RUNNER_TEMP 'untrusted-update-job.json'
+          [IO.File]::WriteAllText($invalidJob, '{}')
+          try {
+            $process = Start-Process -FilePath $exe -ArgumentList @('--update-helper', ('"' + $invalidJob + '"')) -PassThru -Wait -WindowStyle Hidden
+            if ($process.ExitCode -eq 0) { throw 'Untrusted helper job was accepted.' }
+            if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $before) {
+              throw 'Helper rejection changed the signed executable.'
+            }
+            if (-not (Test-Path -LiteralPath $invalidJob)) {
+              throw 'Rejected external job file was unexpectedly consumed.'
+            }
+            Write-Host "PASS: signed production helper rejected an untrusted job (exit $($process.ExitCode)); signed EXE unchanged."
+          } finally {
+            Remove-Item -LiteralPath $invalidJob -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Package signed smoke EXE and verify both archives without publishing
         shell: pwsh
         env:
