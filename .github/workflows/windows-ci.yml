@@ -138,6 +138,42 @@ jobs:
           if ($healthy.ExitCode -ne 0) { throw "Updater health probe failed: $($healthy.ExitCode)" }
           $wrong = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($wrong.ExitCode -eq 0) { throw 'Updater accepted an incorrect version.' }
+      - name: Verify disposable two-version EXE identity (no secrets, no DLL writes)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The standard published EXE above is versioned by VERSION/project metadata.
+          # Create a separate older binary from the audited source, not a download.
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:Version=1.0.6 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish-old
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable older-version publish failed.' }
+          # Preview suffixes belong to the release channel, not AssemblyVersion.
+          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          if ([version]$currentVersion -le [version]'1.0.6') {
+            throw "Expected current source assembly to be newer than disposable 1.0.6 fixture: $currentVersion."
+          }
+          $cases = @(
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.6'; Success = $true },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentVersion; Success = $true },
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentVersion; Success = $false },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.6'; Success = $false }
+          )
+          $old = (Resolve-Path 'publish-old/TermsrvPatcherUnified.exe').Path
+          $new = (Resolve-Path 'publish/TermsrvPatcherUnified.exe').Path
+          if ((Get-FileHash -LiteralPath $old -Algorithm SHA256).Hash -eq (Get-FileHash -LiteralPath $new -Algorithm SHA256).Hash) {
+            throw 'Two published versions unexpectedly have identical executable bytes.'
+          }
+          foreach ($case in $cases) {
+            $exe = (Resolve-Path $case.Path).Path
+            $before = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+            $probe = Start-Process -FilePath $exe -ArgumentList @('--update-probe', $case.Version) -PassThru -Wait -WindowStyle Hidden
+            if (($probe.ExitCode -eq 0) -ne $case.Success) {
+              throw "EXE identity probe returned unexpected exit $($probe.ExitCode) for $($case.Path), version $($case.Version)."
+            }
+            if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $before) {
+              throw "EXE changed during offline version probe: $($case.Path)."
+            }
+            Write-Host "PASS: $($case.Path) with expected version $($case.Version), expected success=$($case.Success)."
+          }
       - name: Repeat protected SYSTEM Session 0 probe twice (no DLL writes)
         shell: pwsh
         run: |

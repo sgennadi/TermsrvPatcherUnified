@@ -142,9 +142,14 @@ jobs:
           $ErrorActionPreference = 'Stop'
           # Exercise the actual packaged WPF startup probe, not only the test
           # runner. Never invoke the GUI, RDP patching, or an updater job.
+          # Prerelease metadata is separate from the numeric assembly identity.
+          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          if ([version]$currentVersion -le [version]'1.0.6') {
+            throw "Signed-current version must be newer than 1.0.6: $currentVersion."
+          }
           $cases = @(
-            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.7' },
-            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.7' }
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.6' },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentVersion }
           )
           foreach ($case in $cases) {
             $exe = (Resolve-Path $case.Path).Path
@@ -158,11 +163,25 @@ jobs:
             }
             Write-Host "PASS: signed packaged startup probe $($case.Path), exit 0; executable unchanged."
           }
-          # Wrong version must be rejected by the actual signed binary.
-          $newExe = (Resolve-Path 'publish/TermsrvPatcherUnified.exe').Path
-          $wrong = Start-Process -FilePath $newExe -ArgumentList @('--update-probe', '0.0.0') -PassThru -Wait -WindowStyle Hidden
-          if ($wrong.ExitCode -eq 0) { throw 'Wrong-version startup probe was accepted.' }
-          Write-Host "PASS: signed packaged startup probe rejected wrong version (exit $($wrong.ExitCode))."
+          # Both signed executable identities must reject each other's version,
+          # and an invalid version, without modifying the actual EXE.
+          $negativeCases = @(
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentVersion },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.6' },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '0.0.0' }
+          )
+          foreach ($case in $negativeCases) {
+            $exe = (Resolve-Path $case.Path).Path
+            $before = (Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
+            $wrong = Start-Process -FilePath $exe -ArgumentList @('--update-probe', $case.Version) -PassThru -Wait -WindowStyle Hidden
+            if ($wrong.ExitCode -eq 0) {
+              throw "Signed executable accepted a wrong version: $($case.Path) / $($case.Version)."
+            }
+            if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne $before) {
+              throw "Wrong-version probe modified signed executable: $($case.Path)."
+            }
+            Write-Host "PASS: signed packaged startup probe rejected $($case.Version) for $($case.Path)."
+          }
 
       - name: Reject untrusted helper jobs without touching installed executable
         shell: pwsh
@@ -207,7 +226,11 @@ jobs:
           TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
         run: |
           $ErrorActionPreference = 'Stop'
-          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 1.0.7
+          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          if ([version]$currentVersion -le [version]'1.0.6') {
+            throw "Signed transaction must upgrade disposable fixture 1.0.6 to a newer version."
+          }
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentVersion
           if ($LASTEXITCODE -ne 0) { throw 'Signed EXE transaction regression failed.' }
-          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 1.0.7 publish-old/TermsrvPatcherUnified.exe 1.0.6
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentVersion publish-old/TermsrvPatcherUnified.exe 1.0.6
           if ($LASTEXITCODE -ne 0) { throw 'Two-signed-version transaction regression failed.' }

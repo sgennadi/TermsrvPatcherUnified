@@ -120,9 +120,11 @@ check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").rea
       "shared updater notification controller referenced")
 check("UniversalDiagnosticsEmbedded.Capture" in (ROOT / "Core/DiagnosticsBridge.cs").read_text(encoding="utf-8"),
       "embedded diagnostics Capture method referenced")
-check("Version = \"" + release_version + "\"" in
-      (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
-      "updater version matches application")
+updater_source = (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8")
+check("Version = GetAssemblyVersion()" in updater_source and
+      "typeof(UpdateIntegration).Assembly.GetName().Version" in updater_source and
+      "<Version>" + release_version + "</Version>" in project,
+      "updater version derives from the application assembly version")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
 check('level="asInvoker"' in (ROOT / "app.manifest").read_text(encoding="utf-8"),
