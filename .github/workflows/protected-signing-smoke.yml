@@ -117,3 +117,15 @@ jobs:
             Remove-Item Env:TPU_PFX_BASE64 -ErrorAction SilentlyContinue
             Remove-Item Env:TPU_PFX_PASSWORD -ErrorAction SilentlyContinue
           }
+
+      - name: Package signed smoke EXE and verify both archives without publishing
+        shell: pwsh
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/package_preview.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Signed smoke ZIP packaging failed.' }
+          ./scripts/verify_signed_release_archives.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Signed archive verification failed.' }
+          Write-Host 'PASS: signed portable and updater archives verified; no release published.'
