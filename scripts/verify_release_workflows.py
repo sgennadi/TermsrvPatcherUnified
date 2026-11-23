@@ -74,22 +74,12 @@ for channel, filename in WORKFLOWS.items():
     )
     assert "gh release create " in steps[published].get("run", "")
     assert source.count("gh release create ") == 1, f"{filename}: multiple publish commands"
-    if channel == "PREVIEW":
-        # Existing behavior: update only release notes for a published Preview;
-        # never replace an asset, retag, or republish the signed executable.
-        assert source.count("gh release edit ") == 1, (
-            f"{filename}: expected one notes-only Preview edit"
-        )
-        assert "gh release edit $tag --repo $env:GITHUB_REPOSITORY --notes-file release-notes.txt" in source, (
-            f"{filename}: Preview edits must change notes only"
-        )
-        assert "published assets retained unchanged" in source, (
-            f"{filename}: preservation of published assets is required"
-        )
-    else:
-        assert "gh release edit " not in source, (
-            f"{filename}: Stable releases must not modify existing publications"
-        )
+    # Existing releases may predate mandatory signing. Never relabel an old
+    # unsigned Preview as "signed" by editing its public release notes.
+    # Treat an existing tag as immutable, including notes and assets.
+    assert "gh release edit " not in source, (
+        f"{filename}: existing published release must remain immutable"
+    )
     assert "unsigned Windows x64" not in source, f"{filename}: stale unsigned release notes"
     assert "Version = GetAssemblyVersion()" in source and (
         "typeof(UpdateIntegration).Assembly.GetName().Version" in source
