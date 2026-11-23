@@ -173,7 +173,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $tag = $env:RELEASE_TAG
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
-          $releaseExists = $LASTEXITCODE -eq 0
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Existing $tag Preview release retained unchanged."
+            exit 0
+          }
           $notes = @(
             '1. Show current DLL STATUS: PATCHED, NOT PATCHED or UNKNOWN on startup.'
             '2. Show Revert readiness independently from patch state and backup presence.'
@@ -187,13 +190,6 @@ jobs:
             'CI performs no protected DLL writes or real RDP authentication.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8
-          if ($releaseExists) {
-            # Refresh the user-facing notes only; retain the published tag and binaries.
-            gh release edit $tag --repo $env:GITHUB_REPOSITORY --notes-file release-notes.txt
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            Write-Host "Updated notes for $tag; published assets retained unchanged."
-            exit 0
-          }
           gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify published updater release assets
