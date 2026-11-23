@@ -169,6 +169,12 @@ jobs:
         if: env.PUBLISH_STABLE == 'true'
         shell: pwsh
         run: ./scripts/package_preview.ps1
+      - name: Verify signed executable inside both packaged ZIP assets
+        if: env.PUBLISH_STABLE == 'true'
+        shell: pwsh
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: ./scripts/verify_signed_release_archives.ps1
       - name: Publish Stable release only after all gates
         if: env.PUBLISH_STABLE == 'true'
         shell: pwsh
@@ -186,7 +192,7 @@ jobs:
             '4. Require a fresh status check after Apply/Revert, including SYSTEM scheduled jobs.'
             '5. Keep the Firewall/RDP Doctor improvements, approved updates and rollback.'
             ''
-            'TermsrvPatcherUnified 1.0.7 Stable - unsigned Windows x64.'
+            'TermsrvPatcherUnified 1.0.7 Stable - signed Windows x64.'
             'Installation and protected operations require administrator approval.'
             'Matching DLL bytes do not prove successful remote sign-in or Microsoft licensing.'
             'Synthetic Windows CI and harmless SYSTEM/Session 0 tests do not replace real RDP testing.'

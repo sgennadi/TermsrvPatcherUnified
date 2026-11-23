@@ -160,7 +160,13 @@ jobs:
         if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         run: ./scripts/package_preview.ps1
-      - name: Publish explicit unsigned prerelease only
+      - name: Verify signed executable inside both packaged ZIP assets
+        if: env.PUBLISH_PREVIEW == 'true'
+        shell: pwsh
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: ./scripts/verify_signed_release_archives.ps1
+      - name: Publish signed prerelease only
         if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
         env:
@@ -177,7 +183,7 @@ jobs:
             '4. Invalidate old status after Apply/Revert until a fresh Check Status.'
             '5. Add pure classification and WPF layout regressions; no DLL changes by status checks.'
             ''
-            'TermsrvPatcherUnified 1.0.7-preview.1 - unsigned Windows x64.'
+            'TermsrvPatcherUnified 1.0.7-preview.1 - signed Windows x64.'
             'Stable 1.0.6 remains Latest Stable; installation requires explicit administrator approval.'
             'Matching replacement bytes do not independently confirm a functional RDP connection or Microsoft licensing.'
             'CI performs no protected DLL writes or real RDP authentication.'
