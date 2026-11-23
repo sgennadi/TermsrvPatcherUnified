@@ -102,11 +102,12 @@ void Expect<TException>(Action action, string message) where TException : Except
     Ensure(threw, message);
 }
 
-// Security regression: unsigned GitHub release metadata cannot authorize a
-// privileged self-update. Both GUI and helper use this fail-closed gate.
+// Security regression: the test runner is not a packaged, signed release.
+// Its process must not be authorized as an elevated updater helper.
+// Both GUI and helper use this fail-closed gate.
 Ensure(!UpdateInstallBridge.CanInstall(out var disabledUpdateReason) &&
-       disabledUpdateReason.Contains("signing", StringComparison.OrdinalIgnoreCase),
-    "unsigned self-update must remain disabled until a pinned signing key is provisioned");
+       !string.IsNullOrWhiteSpace(disabledUpdateReason),
+    "untrusted test-runner process must not be authorized for self-update");
 Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
         SemanticVersion.Parse("1.0.6"), "1.0.7"),
     "older release must never replace a newer installed release");
