@@ -51,7 +51,7 @@ internal static class SignedTransactionTests
                     StateDirectory = Path.Combine(root, name + "-state"),
                     Assets = [rule]
                 };
-                var stagedDir = Path.Combine(UpdateStateStore.GetStagingRoot(options), Guid.NewGuid().ToString("N"));
+                var stagedDir = Path.Combine(options.StateDirectory!, options.ProductId, "staging", Guid.NewGuid().ToString("N"));
                 Directory.CreateDirectory(stagedDir);
                 var staged = Path.Combine(stagedDir, "TermsrvPatcherUnified.exe");
                 File.Copy(candidate, staged);
