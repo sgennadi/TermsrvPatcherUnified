@@ -36,11 +36,11 @@ try {
             $actual = [Convert]::ToHexString(
                 [System.Security.Cryptography.SHA256]::HashData($rsa.ExportSubjectPublicKeyInfo()))
         } finally { $rsa.Dispose() }
-        if ($actual -ne $env:TPU_PIN.ToUpperInvariant()) {
+        if ($actual -ne ($env:TPU_PIN).ToUpperInvariant()) {
             throw 'PFX public key does not match pinned SPKI SHA-256.'
         }
 
-        $sdkRoot = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)) 'Windows Kits\10\bin'
+        $sdkRoot = Join-Path ([Environment]::GetFolderPath([System.Environment+SpecialFolder]::ProgramFilesX86)) 'Windows Kits\10\bin'
         $sdk = Get-ChildItem -LiteralPath $sdkRoot -Filter signtool.exe -Recurse -ErrorAction Stop |
             Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
             Sort-Object FullName -Descending | Select-Object -First 1
