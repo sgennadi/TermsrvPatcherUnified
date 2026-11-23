@@ -18,11 +18,14 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-      - name: Publish isolated smoke executable
+      - name: Stage and verify official NSudo 8.2 x64
+        shell: pwsh
+        run: ./scripts/prepare-nsudo.ps1
+      - name: Publish production-equivalent smoke executable
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=false -o publish
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish
           if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
       - name: Build independent signature regression runner
         shell: pwsh
