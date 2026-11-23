@@ -135,6 +135,80 @@ jobs:
           if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
           $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }
+      - name: Refuse unsigned or unpinned release executable
+        if: env.PUBLISH_PREVIEW == 'true'
+        shell: pwsh
+        env:
+          TPU_PIN: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Join-Path $PWD 'publish/TermsrvPatcherUnified.exe'
+          if ($env:TPU_PIN -notmatch '^[a-fA-F0-9]{64}
+        if: env.PUBLISH_PREVIEW == 'true'
+        shell: pwsh
+        run: ./scripts/package_preview.ps1
+      - name: Publish explicit unsigned prerelease only
+        if: env.PUBLISH_PREVIEW == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tag = $env:RELEASE_TAG
+          $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
+          $releaseExists = $LASTEXITCODE -eq 0
+          $notes = @(
+            '1. Show current DLL STATUS: PATCHED, NOT PATCHED or UNKNOWN on startup.'
+            '2. Show Revert readiness independently from patch state and backup presence.'
+            '3. Reject stale or conflicting signature/recovery SHA-256 and version evidence.'
+            '4. Invalidate old status after Apply/Revert until a fresh Check Status.'
+            '5. Add pure classification and WPF layout regressions; no DLL changes by status checks.'
+            ''
+            'TermsrvPatcherUnified 1.0.7-preview.1 - unsigned Windows x64.'
+            'Stable 1.0.6 remains Latest Stable; installation requires explicit administrator approval.'
+            'Matching replacement bytes do not independently confirm a functional RDP connection or Microsoft licensing.'
+            'CI performs no protected DLL writes or real RDP authentication.'
+          )
+          Set-Content release-notes.txt -Value $notes -Encoding utf8
+          if ($releaseExists) {
+            # Refresh the user-facing notes only; retain the published tag and binaries.
+            gh release edit $tag --repo $env:GITHUB_REPOSITORY --notes-file release-notes.txt
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            Write-Host "Updated notes for $tag; published assets retained unchanged."
+            exit 0
+          }
+          gh release create $tag TermsrvPatcherUnified-win-x64.zip TermsrvPatcherUnified-update-win-x64.zip SHA256SUMS.txt --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --title "TermsrvPatcherUnified $env:RELEASE_VERSION (Preview)" --notes-file release-notes.txt --prerelease --latest=false
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify published updater release assets
+        if: env.PUBLISH_PREVIEW == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name')
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to read back the published GitHub release.' }
+          $expected = @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip', 'SHA256SUMS.txt')
+          $unexpected = @(Compare-Object -ReferenceObject $expected -DifferenceObject $assets)
+          if ($unexpected.Count -ne 0) {
+            throw ('Published release asset set does not match exactly the three required files: ' + ($unexpected | Out-String))
+          }
+          Write-Host ('PASS: exactly three release assets verified for ' + $env:RELEASE_TAG)
+) { throw 'Release signer SPKI pin is missing.' }
+          if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'Release executable is missing.' }
+          $signature = Get-AuthenticodeSignature -LiteralPath $exe
+          if ($null -eq $signature.SignerCertificate -or
+              $signature.Status -in @([System.Management.Automation.SignatureStatus]::NotSigned,
+                                      [System.Management.Automation.SignatureStatus]::HashMismatch)) {
+            throw 'Release executable has no valid Authenticode signature.'
+          }
+          $cert = $signature.SignerCertificate
+          $rsa = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+          if ($null -eq $rsa) { throw 'Release signer is not an RSA key.' }
+          try {
+            $actual = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($rsa.ExportSubjectPublicKeyInfo()))
+          } finally { $rsa.Dispose() }
+          if ($actual -ne $env:TPU_PIN) { throw 'Release signer does not match pinned SPKI.' }
+          Write-Host 'PASS: signed release executable matches configured signer pin.'
       - name: Package exact two-file portable ZIP and one-EXE updater ZIP
         if: env.PUBLISH_PREVIEW == 'true'
         shell: pwsh
