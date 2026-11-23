@@ -32,10 +32,19 @@ internal static class UpdateInstallBridge
 
     internal static bool CanInstall(out string reason)
     {
-        // Security gate: no trusted signing key has been provisioned yet.
-        // GitHub API hashes alone do not authenticate elevated updates.
-        reason = "Self-update disabled: release signing and pinned-key verification are not configured. Install a verified release manually.";
-        return false;
+        // Require a verified, signed CURRENT executable before permitting an
+        // elevated updater helper. The downloaded candidate is independently
+        // verified before staging, by the helper, and after installation.
+        // GitHub-supplied hashes are never treated as signing authority.
+        if (!LegacyCanInstallPlatformChecks(out reason))
+            return false;
+        if (!ReleaseSignatureVerifier.Verify(Environment.ProcessPath!, out var signatureReason))
+        {
+            reason = "Self-update requires a trusted signed installation: " + signatureReason;
+            return false;
+        }
+        reason = "";
+        return true;
     }
 
     private static bool LegacyCanInstallPlatformChecks(out string reason)
@@ -159,8 +168,8 @@ internal static class UpdateInstallBridge
     }
 
     /// <summary>
-    /// Disabled until signed-release verification is provisioned and pinned.
-    /// No GitHub-supplied hash may authorize elevated installation.
+    /// Requires independently pinned Authenticode verification of the current
+    /// helper and downloaded release. GitHub hashes alone never authorize elevation.
     /// </summary>
     internal static async Task PrepareAndLaunchAsync(UpdateChannel channel,
         UpdateRelease release, IProgress<UpdateProgress>? progress, CancellationToken token)
@@ -183,8 +192,6 @@ internal static class UpdateInstallBridge
         token.ThrowIfCancellationRequested();
 
         // Authenticate the actual extracted EXE independently of GitHub hashes.
-        // This is defense in depth; the disabled signing gate above remains in place
-        // until the owner provisions a trusted signing identity.
         if (stage.ExtractedExecutablePath is not { } stagedExecutable)
             throw new System.Security.SecurityException("Refusing update: no staged EXE.");
         if (!ReleaseSignatureVerifier.Verify(stagedExecutable, out var signatureReason))
