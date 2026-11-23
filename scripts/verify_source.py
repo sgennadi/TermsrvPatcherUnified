@@ -465,7 +465,6 @@ for channel, label in (("stable", "STABLE"), ("preview", "PREVIEW")):
     signer = publisher.find("      - name: Sign release EXE")
     package = publisher.find("      - name: Package exact two-file portable ZIP")
     archive = publisher.find("      - name: Verify exact signed EXE in both release archives")
-    publish = publisher.find("      - name: Publish " )
     if channel == "stable":
         publish = publisher.find("      - name: Publish Stable release only after all gates")
     else:
@@ -478,9 +477,9 @@ for channel, label in (("stable", "STABLE"), ("preview", "PREVIEW")):
           "RELEASE_ASSEMBLY_VERSION" in publisher and
           "unsigned Windows x64" not in publisher,
           f"{channel} publisher uses compiled version and signed release notes")
-    roots = re.findall(r"(?m)^([^\\s#][^\\n]*)$", publisher)
+    roots = re.findall(r"(?m)^([^\s#][^\n]*)$", publisher)
     check(all(line.split(":", 1)[0] in
               {"name", "on", "permissions", "concurrency", "jobs"} for line in roots)
-          and "\\t" not in publisher,
+          and "\t" not in publisher,
           f"{channel} publisher has no stray top-level fragments or tab-indented YAML")
 print("PASS: preview.8 updater transaction and offscreen GUI smoke guards.")
