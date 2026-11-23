@@ -21,6 +21,12 @@ if (args is ["--authenticode-qa", var signedExe, var tamperedExe, var spkiPin])
     return;
 }
 
+if (args is ["--signed-transaction-qa", var signedArchive2, var signerPin2, var version2, var oldSignedExe, var oldVersion])
+{
+    Environment.ExitCode = SignedTransactionTests.Run(signedArchive2, signerPin2, version2, oldSignedExe, oldVersion);
+    return;
+}
+
 if (args is ["--signed-transaction-qa", var signedArchive, var signerPin, var version])
 {
     Environment.ExitCode = SignedTransactionTests.Run(signedArchive, signerPin, version);

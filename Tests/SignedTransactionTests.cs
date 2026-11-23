@@ -9,7 +9,7 @@ using UniversalUpdater;
 
 internal static class SignedTransactionTests
 {
-    internal static int Run(string zip, string pin, string version)
+    internal static int Run(string zip, string pin, string version, string? oldSignedExe = null, string oldVersion = "0.1.0-preview.1")
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         var root = Path.Combine(Path.GetTempPath(), "tpu-signed-transaction-" + Guid.NewGuid().ToString("N"));
@@ -27,6 +27,15 @@ internal static class SignedTransactionTests
             if (!ReleaseSignatureVerifier.VerifyWithPin(candidate, pin, out var reason))
                 throw new Exception("Candidate signer rejected: " + reason);
             var candidateHash = Hash(candidate);
+            if (oldSignedExe is not null)
+            {
+                if (!ReleaseSignatureVerifier.VerifyWithPin(oldSignedExe, pin, out var oldReason))
+                    throw new Exception("Old signed fixture rejected: " + oldReason);
+                if (SemanticVersion.Parse(oldVersion) >= SemanticVersion.Parse(version))
+                    throw new Exception("Old signed fixture version must be lower than candidate.");
+                if (Hash(oldSignedExe) == candidateHash)
+                    throw new Exception("Signed old and new fixtures must contain different bytes.");
+            }
             foreach (var failProbe in new[] { false, true })
             {
                 var name = failProbe ? "rollback" : "success";
@@ -37,7 +46,8 @@ internal static class SignedTransactionTests
                 // This exercises the transaction but not the privileged production helper.
                 // A distinct disposable old x64 PE is required: the transaction rejects
                 // same-version/same-hash replay before invoking its health probe.
-                File.WriteAllBytes(target, OldX64Fixture());
+                if (oldSignedExe is null) File.WriteAllBytes(target, OldX64Fixture());
+                else File.Copy(oldSignedExe, target);
                 var oldHash = Hash(target);
                 var rule = new UpdateAssetRule("win-x64", "TermsrvPatcherUnified-update-win-x64.zip",
                     PackageKind.SingleExeZip, "TermsrvPatcherUnified.exe");
@@ -45,7 +55,7 @@ internal static class SignedTransactionTests
                 {
                     ProductId = "SignedTransactionQA" + name,
                     Repository = "sgennadi/TermsrvPatcherUnified",
-                    InstalledVersion = "0.1.0-preview.1",
+                    InstalledVersion = oldVersion,
                     Architecture = "win-x64",
                     Channel = UpdateChannel.Prerelease,
                     StateDirectory = Path.Combine(root, name + "-state"),
@@ -87,7 +97,9 @@ internal static class SignedTransactionTests
                     throw new Exception("Signed transaction backup/commit failed.");
             }
             Console.WriteLine("PASS: signed archive transaction, backup, failed-probe rollback and signer check.");
-            Console.WriteLine("LIMIT: synthetic old PE; no elevated helper or two-version signed upgrade exercised.");
+            Console.WriteLine(oldSignedExe is null
+                ? "LIMIT: synthetic old PE; no elevated helper or two-version signed upgrade exercised."
+                : "PASS: distinct signed old and new executables with ordered versions; privileged helper not exercised.");
             return 0;
         }
         finally { Directory.Delete(root, recursive: true); }
