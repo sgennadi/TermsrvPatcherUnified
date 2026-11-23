@@ -146,10 +146,15 @@ jobs:
           # Create a separate older binary from the audited source, not a download.
           dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:Version=1.0.6 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish-old
           if ($LASTEXITCODE -ne 0) { throw 'Disposable older-version publish failed.' }
+          # Preview suffixes belong to the release channel, not AssemblyVersion.
+          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          if ([version]$currentVersion -le [version]'1.0.6') {
+            throw "Expected current source assembly to be newer than disposable 1.0.6 fixture: $currentVersion."
+          }
           $cases = @(
             @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.6'; Success = $true },
-            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.7'; Success = $true },
-            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.7'; Success = $false },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentVersion; Success = $true },
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentVersion; Success = $false },
             @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.6'; Success = $false }
           )
           $old = (Resolve-Path 'publish-old/TermsrvPatcherUnified.exe').Path
