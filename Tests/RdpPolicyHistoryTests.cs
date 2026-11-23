@@ -238,7 +238,7 @@ internal static class RdpPolicyHistoryTests
                "blank-password explanations distinguish both LSA DWORD values and unknown source");
 
         Verify(RdpLocalAdvancedSettings.ParseValue(allowedPort!, "3389") == 3389 &&
-               RdpLocalAdvancedSettings.ParseValue(allowedPort, "65535") == 65535,
+               RdpLocalAdvancedSettings.ParseValue(allowedPort!, "65535") == 65535,
                "numeric port editor accepts exact valid values");
         bool refusedPort = false;
         try { RdpLocalAdvancedSettings.ParseValue(allowedPort!, "65536"); }
