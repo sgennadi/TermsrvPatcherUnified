@@ -438,4 +438,48 @@ check("ProbeWorkerArgument" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"
 check((ROOT / "Tests/UiSmokeTests.cs").exists(), "offscreen WPF layout smoke exists")
 check("--ui-smoke" in (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8"), "Windows CI runs offscreen WPF layout smoke")
 check("HasMutatingRights" in (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8"), "safe Program Files ACL write-rights test")
+# Enforce a fail-closed release publisher structure even while publication is
+# disabled. This catches the accidental duplicated/truncated workflow fragments
+# that previously survived as YAML literal block text.
+signing_source = (ROOT / "scripts/sign_release_exe.ps1").read_text(encoding="utf-8")
+check("TPU_PFX_BASE64" in signing_source and
+      "TPU_PFX_PASSWORD" in signing_source and
+      "TPU_PIN" in signing_source and
+      "Get-AuthenticodeSignature" in signing_source and
+      "--authenticode-qa" in signing_source and
+      "HashMismatch" in signing_source,
+      "shared release-signing helper enforces pinned key and tamper rejection")
+for channel, label in (("stable", "STABLE"), ("preview", "PREVIEW")):
+    publisher = (ROOT / f".github/workflows/release-{channel}.yml").read_text(encoding="utf-8")
+    step_names = re.findall(r"(?m)^      - name: (.+)$", publisher)
+    check(len(step_names) == len(set(step_names)) and len(step_names) >= 10,
+          f"{channel} publisher has no duplicated or missing named steps")
+    check("    if: false # Release signing" in publisher and
+          "workflow_dispatch:" not in publisher and
+          "environment: release-signing" in publisher,
+          f"{channel} publisher stays disabled and uses protected signing environment")
+    check(publisher.count("gh release create ") == 1 and
+          "persist-credentials: false" in publisher and
+          "if: env.PUBLISH_" + label + " == 'true'" in publisher,
+          f"{channel} publisher has one guarded release creation and no persisted Git credential")
+    signer = publisher.find("      - name: Sign release EXE")
+    package = publisher.find("      - name: Package exact two-file portable ZIP")
+    archive = publisher.find("      - name: Verify exact signed EXE in both release archives")
+    if channel == "stable":
+        publish = publisher.find("      - name: Publish Stable release only after all gates")
+    else:
+        publish = publisher.find("      - name: Publish signed Preview release only after all gates")
+    check(0 < signer < package < archive < publish and
+          "scripts/sign_release_exe.ps1" in publisher and
+          "scripts/verify_signed_release_archives.ps1" in publisher,
+          f"{channel} publisher checks signed EXE and ZIPs before publication")
+    check("Version = GetAssemblyVersion()" in publisher and
+          "RELEASE_ASSEMBLY_VERSION" in publisher and
+          "unsigned Windows x64" not in publisher,
+          f"{channel} publisher uses compiled version and signed release notes")
+    roots = re.findall(r"(?m)^([^\s#][^\n]*)$", publisher)
+    check(all(line.split(":", 1)[0] in
+              {"name", "on", "permissions", "concurrency", "jobs"} for line in roots)
+          and "\t" not in publisher,
+          f"{channel} publisher has no stray top-level fragments or tab-indented YAML")
 print("PASS: preview.8 updater transaction and offscreen GUI smoke guards.")
