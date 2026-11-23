@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 using System.IO.Compression;
 using System.Security.Cryptography;
 using TermsrvPatcherUnified.Core;
@@ -60,7 +64,7 @@ internal static class SignedTransactionTests
                 var package = new StagedPackage(release, stagedZip, Hash(stagedZip), staged, candidateHash);
                 var probes = 0;
                 var result = new PortableExeTransaction().ApplyManualAsync(options, package,
-                    dir, "TermsrvPatcherUnified.exe", explicitlyApproved: true, (installed, _) =>
+                    dir, "TermsrvPatcherUnified.exe", explicitlyApproved: true, (installed, cancellationToken) =>
                     {
                         probes++;
                         return Task.FromResult(ReleaseSignatureVerifier.VerifyWithPin(installed, pin, out _) &&
