@@ -7,7 +7,19 @@ namespace TermsrvPatcherUnified.Core;
 internal sealed class UpdateIntegration : IDisposable
 {
     public const string Repository = "sgennadi/TermsrvPatcherUnified";
-    public const string Version = "1.0.7";
+    // Read the actual compiled assembly version. A disposable 1.0.6 fixture must
+    // identify itself as 1.0.6 even when built from current 1.0.7 sources.
+    // This also prevents updater/UI version drift after future releases.
+    public static readonly string Version = GetAssemblyVersion();
+
+    private static string GetAssemblyVersion()
+    {
+        var version = typeof(UpdateIntegration).Assembly.GetName().Version
+            ?? throw new InvalidOperationException("Application assembly version is missing.");
+        if (version.Major < 0 || version.Minor < 0 || version.Build < 0)
+            throw new InvalidOperationException("Application assembly version is incomplete.");
+        return $"{version.Major}.{version.Minor}.{version.Build}";
+    }
     private readonly Dictionary<UpdateChannel, UpdateNotificationController> controllers = new();
 
     public UpdateIntegration()
