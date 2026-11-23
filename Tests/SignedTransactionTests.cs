@@ -73,8 +73,8 @@ internal static class SignedTransactionTests
                             Hash(installed) == candidateHash && !failProbe);
                     }).GetAwaiter().GetResult();
                 var state = new UpdateStateStore(options).Read();
-                if (probes != 1 || Hash(target) != oldHash)
-                    throw new Exception("Signed transaction changed unexpected target bytes or skipped health probe.");
+                if (probes != 1 || Hash(target) != (failProbe ? oldHash : candidateHash))
+                    throw new Exception("Signed transaction target digest or health probe count is incorrect for " + name + ".");
                 if (failProbe)
                 {
                     if (result.Success || !result.RolledBack || !state.FailureHold ||
