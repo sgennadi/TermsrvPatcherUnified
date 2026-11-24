@@ -108,3 +108,43 @@ for channel, filename in WORKFLOWS.items():
 for script in ("scripts/sign_release_exe.ps1", "scripts/verify_signed_release_archives.ps1"):
     assert (ROOT / script).is_file(), f"Missing security gate script: {script}"
 print("PASS: both release verification scripts are present; no release was published")
+
+# The signing smoke workflow may retain a disposable QA package only when
+# explicitly requested. Never publish a release or expose the old fixture,
+# raw signing material, working directories, or unverified archives.
+smoke_file = ROOT / '.github/workflows/protected-signing-smoke.yml'
+smoke_source = smoke_file.read_text(encoding='utf-8')
+smoke = yaml.load(smoke_source, Loader=yaml.BaseLoader)
+assert set(smoke['on']) == {'workflow_dispatch'}
+assert smoke['on']['workflow_dispatch']['inputs']['retain_qa_package'] == {
+    'description': 'Retain signed QA ZIPs for authorized acceptance tests (not a release)',
+    'type': 'boolean', 'default': 'false', 'required': 'false',
+}
+assert smoke['permissions'] == {'contents': 'read'}
+assert set(smoke['jobs']) == {'sign-smoke'}
+smoke_job = smoke['jobs']['sign-smoke']
+assert smoke_job['if'] == "github.ref == 'refs/heads/main'"
+assert smoke_job['environment'] == 'release-signing'
+assert 'permissions' not in smoke_job
+smoke_steps = smoke_job['steps']
+uploads = [i for i, step in enumerate(smoke_steps)
+           if step.get('uses', '').startswith('actions/upload-artifact@')]
+assert uploads == [len(smoke_steps) - 1]
+upload = smoke_steps[-1]
+recheck = smoke_steps[-2]
+assert upload['uses'] == 'actions/upload-artifact@v7'
+assert upload['if'] == recheck['if'] == '${{ inputs.retain_qa_package == true }}'
+assert 'env' not in upload
+assert recheck['name'] == 'Reverify final signed QA package and manifest'
+assert './scripts/verify_signed_release_archives.ps1' in recheck['run']
+assert 'Get-FileHash -LiteralPath $name -Algorithm SHA256' in recheck['run']
+assert 'Final signed QA checksum manifest mismatch' in recheck['run']
+assert '--signed-transaction-qa' in smoke_steps[-3]['run']
+assert upload['with'] == {
+    'name': 'signed-qa-${{ github.sha }}',
+    'path': 'TermsrvPatcherUnified-win-x64.zip\nTermsrvPatcherUnified-update-win-x64.zip\nSHA256SUMS.txt\n',
+    'if-no-files-found': 'error', 'retention-days': '3',
+    'compression-level': '0', 'include-hidden-files': 'false',
+}
+assert 'gh release ' not in smoke_source
+print('PASS: protected signed QA artifact is explicit opt-in, final-step only, exact files, three-day retention; no publication')

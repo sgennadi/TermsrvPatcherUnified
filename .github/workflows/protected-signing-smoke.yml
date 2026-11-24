@@ -2,6 +2,12 @@ name: Protected signing smoke test (no release)
 
 on:
   workflow_dispatch:
+    inputs:
+      retain_qa_package:
+        description: 'Retain signed QA ZIPs for authorized acceptance tests (not a release)'
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -236,3 +242,37 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Signed EXE transaction regression failed.' }
           dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentReleaseVersion publish-old/TermsrvPatcherUnified.exe 1.0.6
           if ($LASTEXITCODE -ne 0) { throw 'Two-signed-version transaction regression failed.' }
+
+      - name: Reverify final signed QA package and manifest
+        if: ${{ inputs.retain_qa_package == true }}
+        shell: pwsh
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/verify_signed_release_archives.ps1
+          python scripts/verify_update_package.py --full TermsrvPatcherUnified-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Invalid final portable ZIP.' }
+          python scripts/verify_update_package.py TermsrvPatcherUnified-update-win-x64.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Invalid final updater ZIP.' }
+          $expected = @(foreach ($name in @('TermsrvPatcherUnified-win-x64.zip', 'TermsrvPatcherUnified-update-win-x64.zip')) {
+            '{0}  {1}' -f (Get-FileHash -LiteralPath $name -Algorithm SHA256).Hash.ToLowerInvariant(), $name
+          })
+          $manifest = @(Get-Content -LiteralPath 'SHA256SUMS.txt')
+          if ($manifest.Count -ne 2 -or (Compare-Object -ReferenceObject $expected -DifferenceObject $manifest -CaseSensitive)) {
+            throw 'Final signed QA checksum manifest mismatch.'
+          }
+          Write-Host 'PASS: only verified QA ZIPs and checksum manifest may be retained.'
+      - name: Retain explicitly requested signed QA package (no release)
+        if: ${{ inputs.retain_qa_package == true }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: signed-qa-${{ github.sha }}
+          path: |
+            TermsrvPatcherUnified-win-x64.zip
+            TermsrvPatcherUnified-update-win-x64.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0
+          include-hidden-files: false
