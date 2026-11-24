@@ -6,7 +6,7 @@
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
 
-**Source version 1.0.8 — release preparation (not published).** The latest downloadable Stable remains 1.0.7. The new signed updater requires a trusted, project-signed current executable and candidate; legacy unsigned installations must transition manually to an independently verified signed release when it becomes available. A GitHub checksum alone is not proof of publisher identity. Publication remains disabled pending the release gates in [Security](SECURITY.md).
+**Source version 1.0.9 — Stable candidate preparation (not published).** The latest downloadable Stable remains 1.0.7. The new signed updater requires a trusted, project-signed current executable and candidate; legacy unsigned installations must transition manually to an independently verified signed release when it becomes available. A GitHub checksum alone is not proof of publisher identity. The compact interface now refreshes its read-only DLL and recovery status automatically after completed Apply/Revert ([PR #85](https://github.com/sgennadi/TermsrvPatcherUnified/pull/85)). Automatic publication remains disabled pending the release gates in [Security](SECURITY.md); the frozen 1.0.8 QA artifact does not contain this fix.
 
 ## What's new in Stable 1.0.7
 
