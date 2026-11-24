@@ -20,6 +20,9 @@ public partial class QuickApplyWindow : Window
     private readonly DispatcherTimer statusTimer;
     private bool checking;
     private bool queued;
+    private bool closed;
+    private bool completionRefreshInProgress;
+    private string? ignoredPreviousJobId;
     private string? activeJobId;
     private bool autoTaskLoading;
     private bool autoTaskChanging;
@@ -41,8 +44,14 @@ public partial class QuickApplyWindow : Window
             () => IsActive && !checking && !queued && !autoTaskChanging && !autoUpdateChanging);
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        statusTimer.Tick += (_, _) => RefreshJobStatus();
-        Closed += (_, _) => { statusTimer.Stop(); autoUpdateCoordinator.Dispose(); updates.Dispose(); };
+        statusTimer.Tick += async (_, _) => await RefreshJobStatusAsync();
+        Closed += (_, _) =>
+        {
+            closed = true;
+            statusTimer.Stop();
+            autoUpdateCoordinator.Dispose();
+            updates.Dispose();
+        };
         foreach (var channel in new[] { UpdateChannel.Stable, UpdateChannel.Prerelease })
             updates.Get(channel).NoticeChanged += (_, _) =>
                 Dispatcher.BeginInvoke(RefreshUpdateIndicator);
@@ -70,7 +79,7 @@ public partial class QuickApplyWindow : Window
 
     private async Task CheckAsync()
     {
-        if (checking || queued) return;
+        if (closed || checking || queued) return;
         checking = true;
         currentInstalledStatus = null;
         QuickApplyButton.IsEnabled = false;
@@ -79,6 +88,8 @@ public partial class QuickApplyWindow : Window
         QuickNoBackupCheck.IsEnabled = false;
         QuickStatusText.Text = "Inspecting current DLL and recovery...";
         QuickDllStateText.Text = "DLL STATUS: CHECKING...";
+        QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
+        QuickRevertStateText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
         QuickDllEvidenceText.Text = "Reading current installed DLL bytes and exact signatures.";
         QuickRevertStateText.Text = "Revert: checking separately...";
         QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 46, 90));
@@ -106,6 +117,7 @@ public partial class QuickApplyWindow : Window
                     throw new InvalidOperationException("Installed DLL changed during Check Status.");
                 return (os, candidate, recovery, recoveryInspectionFailed);
             });
+            if (closed) return;
             plan = result.candidate;
             revertPlan = result.recovery;
             QuickSystemText.Text = result.os.Display;
@@ -149,10 +161,11 @@ public partial class QuickApplyWindow : Window
                         : "Apply uses a separate one-shot SYSTEM task when run over RDP.")
                     : installed.Kind == InstalledDllKind.Unknown
                         ? "Review exact signatures under Advanced. No automatic Apply or Revert is enabled."
-                        : "Use Check Status after Windows Update or any completed Apply/Revert.");
+                        : "Use Check Status at any time to inspect the current DLL, including after Windows Update.");
         }
         catch (Exception e)
         {
+            if (closed) return;
             plan = null;
             revertPlan = null;
             currentInstalledStatus = null;
@@ -161,6 +174,8 @@ public partial class QuickApplyWindow : Window
             QuickDllStateText.Text = "DLL STATUS: UNKNOWN";
             QuickDllEvidenceText.Text = "Inspection failed. No current-file status is confirmed.";
             QuickRevertStateText.Text = "Revert: NOT VERIFIED";
+            QuickRevertStateText.Foreground = new SolidColorBrush(Color.FromRgb(100, 116, 139));
+            BackupOptionChanged(this, new RoutedEventArgs());
             QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(160, 92, 14));
             QuickStatusText.Text = "Automatic check could not complete";
             QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(185, 28, 28));
@@ -169,10 +184,24 @@ public partial class QuickApplyWindow : Window
         finally
         {
             checking = false;
-            QuickCheckButton.IsEnabled = !queued;
-            QuickNoBackupCheck.IsEnabled = !queued;
-            RefreshJobStatus();
+            if (!closed)
+            {
+                QuickCheckButton.IsEnabled = !queued;
+                QuickNoBackupCheck.IsEnabled = !queued;
+                await RefreshJobStatusAsync();
+            }
         }
+    }
+
+    // Use the same read-only inspection as Check Status. The completion
+    // result is historical evidence, never a substitute for the current DLL.
+    // Suppress nested polling while CheckAsync is refreshing the controls.
+    internal async Task RefreshAfterCompletionAsync(Func<Task> checkCurrentDll)
+    {
+        if (closed || completionRefreshInProgress) return;
+        completionRefreshInProgress = true;
+        try { await checkCurrentDll(); }
+        finally { completionRefreshInProgress = false; }
     }
 
     private async void Apply_Click(object sender, RoutedEventArgs e)
@@ -207,6 +236,7 @@ public partial class QuickApplyWindow : Window
                 MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
 
+        bool refreshAfterLocalApply = false;
         checking = true;
         QuickApplyButton.IsEnabled = false;
         QuickRevertButton.IsEnabled = false;
@@ -223,6 +253,7 @@ public partial class QuickApplyWindow : Window
             if (mode == SessionKind.Console)
             {
                 QuickStatusText.Text = "Applying from the local console...";
+                string? previousJobId = IsolatedApplyExecutor.ReadLatestStatus()?.Id;
                 var approvedPlan = plan;
                 await Task.Run(() =>
                 {
@@ -236,18 +267,16 @@ public partial class QuickApplyWindow : Window
                     engine.Apply(fresh, createBackup: createFullBackup);
                 });
                 completedAppliedPlan = approvedPlan;
+                activeJobId = null;
+                ignoredPreviousJobId = previousJobId;
+                refreshAfterLocalApply = true;
                 plan = null;
+                revertPlan = null;
                 currentInstalledStatus = null;
-                QuickDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
-                QuickDllEvidenceText.Text = "Protected Apply finished. Press Check Status to confirm current DLL bytes.";
-                QuickRevertStateText.Text = "Revert: recheck after Apply";
-                QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
-                QuickStatusText.Text = "Apply completed and verified";
-                QuickHelpText.Text = "Local console operation succeeded. Use Check to verify DLL state.";
-                QuickStatusText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
-                QuickShareReportButton.Visibility = Visibility.Visible;
+                QuickLastJobText.Text = "Last local Apply: completed and verified (operation result).";
+                QuickLastJobText.Foreground = new SolidColorBrush(Color.FromRgb(11, 135, 76));
+                QuickShareReportButton.Visibility = Visibility.Collapsed;
                 QuickCancelButton.Content = "Close";
-                _ = Dispatcher.BeginInvoke(new Action(() => OfferReportAfterSuccessfulApply()));
                 return;
             }
 
@@ -258,7 +287,7 @@ public partial class QuickApplyWindow : Window
             queued = true;
             currentInstalledStatus = null;
             QuickDllStateText.Text = "DLL STATUS: OPERATION PENDING";
-            QuickDllEvidenceText.Text = "SYSTEM Apply is queued; current DLL status must be rechecked after completion.";
+            QuickDllEvidenceText.Text = "SYSTEM Apply is queued; current DLL status will be checked after completion.";
             QuickRevertStateText.Text = "Revert: recheck after Apply";
             QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
             QuickStatusText.Text = "Queued independently of RDP";
@@ -282,16 +311,28 @@ public partial class QuickApplyWindow : Window
         finally
         {
             checking = false;
-            QuickCheckButton.IsEnabled = !queued;
-            QuickNoBackupCheck.IsEnabled = !queued;
-            if (!queued && plan is { State: PatchState.Ready } &&
-                currentInstalledStatus?.CanOfferAutomaticApply == true)
-                QuickApplyButton.IsEnabled = SystemInfo.IsAdministrator() &&
-                                             NsudoDevilModeScope.IsBundled;
-            if (!queued && revertPlan is not null &&
-                currentInstalledStatus?.CanOfferAutomaticRevert == true)
-                QuickRevertButton.IsEnabled = SystemInfo.IsAdministrator() &&
-                                              NsudoDevilModeScope.IsBundled;
+            if (!closed && refreshAfterLocalApply)
+            {
+                await RefreshAfterCompletionAsync(CheckAsync);
+                if (!closed)
+                {
+                    QuickShareReportButton.Visibility = Visibility.Visible;
+                    OfferReportAfterSuccessfulApply();
+                }
+            }
+            else if (!closed)
+            {
+                QuickCheckButton.IsEnabled = !queued;
+                QuickNoBackupCheck.IsEnabled = !queued;
+                if (!queued && plan is { State: PatchState.Ready } &&
+                    currentInstalledStatus?.CanOfferAutomaticApply == true)
+                    QuickApplyButton.IsEnabled = SystemInfo.IsAdministrator() &&
+                                                 NsudoDevilModeScope.IsBundled;
+                if (!queued && revertPlan is not null &&
+                    currentInstalledStatus?.CanOfferAutomaticRevert == true)
+                    QuickRevertButton.IsEnabled = SystemInfo.IsAdministrator() &&
+                                                  NsudoDevilModeScope.IsBundled;
+            }
         }
     }
 
@@ -330,6 +371,7 @@ public partial class QuickApplyWindow : Window
                 MessageBoxButton.YesNo, MessageBoxImage.Warning,
                 MessageBoxResult.No) != MessageBoxResult.Yes)
             return;
+        bool refreshAfterLocalRevert = false;
         checking = true;
         QuickApplyButton.IsEnabled = false;
         QuickRevertButton.IsEnabled = false;
@@ -344,29 +386,27 @@ public partial class QuickApplyWindow : Window
             if (mode == SessionKind.Console)
             {
                 QuickStatusText.Text = "Restoring exact original DLL from local console...";
+                string? previousJobId = IsolatedApplyExecutor.ReadLatestStatus()?.Id;
                 await Task.Run(() =>
                 {
                     using var engine = new TermsrvEngine(null);
                     engine.RevertAutomatic(approved);
                 });
+                refreshAfterLocalRevert = true;
+                completedAppliedPlan = null;
+                activeJobId = null;
+                ignoredPreviousJobId = previousJobId;
                 revertPlan = null;
                 plan = null;
                 currentInstalledStatus = null;
-                QuickDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
-                QuickDllEvidenceText.Text = "Revert completed. Press Check Status to examine the currently installed DLL.";
-                QuickRevertStateText.Text = "Revert: verify result with fresh Check";
-                QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
-                QuickStatusText.Text = sourceFree
-                    ? "Catalog reconstruction completed; result SHA-256 verified"
-                    : "Revert completed and original SHA-256 verified";
-                // Green means authenticated recovery success; a catalog-based
-                // reconstruction is not proof of an authentic Windows original.
-                QuickStatusText.Foreground = sourceFree
+                QuickShareReportButton.Visibility = Visibility.Collapsed;
+                QuickLastJobText.Text = sourceFree
+                    ? "Last local Revert: catalog reconstruction completed; authenticity of Windows DLL NOT established. Validate using Windows servicing tools."
+                    : "Last local Revert: completed and original SHA-256 verified (operation result).";
+                // A catalog reconstruction is not an authenticated original.
+                QuickLastJobText.Foreground = sourceFree
                     ? new SolidColorBrush(Color.FromRgb(160, 92, 14))
                     : new SolidColorBrush(Color.FromRgb(11, 135, 76));
-                QuickHelpText.Text = sourceFree
-                    ? "Authenticity of Windows DLL is NOT established. Validate using Windows servicing tools."
-                    : "Protected original restored. Use Check to refresh state.";
                 QuickCancelButton.Content = "Close";
                 return;
             }
@@ -376,7 +416,7 @@ public partial class QuickApplyWindow : Window
             queued = true;
             currentInstalledStatus = null;
             QuickDllStateText.Text = "DLL STATUS: OPERATION PENDING";
-            QuickDllEvidenceText.Text = "SYSTEM Revert is queued; wait for completion and run Check Status.";
+            QuickDllEvidenceText.Text = "SYSTEM Revert is queued; current DLL status will be checked after completion.";
             QuickRevertStateText.Text = "Revert: operation pending";
             QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
             QuickStatusText.Text = "Revert queued independently of RDP";
@@ -398,11 +438,16 @@ public partial class QuickApplyWindow : Window
         finally
         {
             checking = false;
-            QuickCheckButton.IsEnabled = !queued;
-            QuickNoBackupCheck.IsEnabled = !queued;
-            if (!queued && revertPlan is not null &&
-                currentInstalledStatus?.CanOfferAutomaticRevert == true)
-                QuickRevertButton.IsEnabled = true;
+            if (!closed && refreshAfterLocalRevert)
+                await RefreshAfterCompletionAsync(CheckAsync);
+            else if (!closed)
+            {
+                QuickCheckButton.IsEnabled = !queued;
+                QuickNoBackupCheck.IsEnabled = !queued;
+                if (!queued && revertPlan is not null &&
+                    currentInstalledStatus?.CanOfferAutomaticRevert == true)
+                    QuickRevertButton.IsEnabled = true;
+            }
         }
     }
 
@@ -423,14 +468,16 @@ public partial class QuickApplyWindow : Window
             : new SolidColorBrush(Color.FromRgb(100, 116, 139));
     }
 
-    private void RefreshJobStatus()
+    private async Task RefreshJobStatusAsync()
     {
-        if (checking || reportDialogOpen) return;
+        if (closed || checking || reportDialogOpen || completionRefreshInProgress) return;
         var status = IsolatedApplyExecutor.ReadLatestStatus();
         if (activeJobId is null && completedAppliedPlan is not null && !queued)
             return; // Preserve local console Apply's report option.
         if (status is null || activeJobId is not null &&
-            !status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase)) return;
+            !status.Id.Equals(activeJobId, StringComparison.OrdinalIgnoreCase) ||
+            !queued && status.State is not ("Queued" or "Running") &&
+            string.Equals(ignoredPreviousJobId, status.Id, StringComparison.OrdinalIgnoreCase)) return;
 
         bool isRevert = status.Details.Contains("Revert", StringComparison.OrdinalIgnoreCase);
         // A durable SYSTEM status is not sufficient on its own; the report
@@ -447,7 +494,8 @@ public partial class QuickApplyWindow : Window
             ("Queued" or "Running" or "Succeeded" or "AlreadyPatched" or
              "Failed" or "Unconfirmed")
             ? "Last " + (isRevert ? "Revert" : "Apply") + " task " + status.Id[..8] +
-              ": " + status.State + " (recorded; Check confirms current DLL)."
+              ": " + status.State + " (recorded operation result; current DLL status is checked separately)." +
+              (status.State == "Failed" ? " Local failure: " + status.Details : "")
             : "";
         QuickLastJobText.Foreground = status.State == "Succeeded"
             ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
@@ -462,7 +510,7 @@ public partial class QuickApplyWindow : Window
             queued = true;
             currentInstalledStatus = null;
             QuickDllStateText.Text = "DLL STATUS: OPERATION IN PROGRESS";
-            QuickDllEvidenceText.Text = "A protected task may change the DLL. Current status will require a fresh Check.";
+            QuickDllEvidenceText.Text = "A protected task may change the DLL. Current status will be checked automatically after completion.";
             QuickRevertStateText.Text = "Revert: unavailable while task is active";
             QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(160, 92, 14));
             QuickApplyButton.IsEnabled = false;
@@ -482,30 +530,14 @@ public partial class QuickApplyWindow : Window
         {
             queued = false;
             currentInstalledStatus = null;
-            QuickDllStateText.Text = "DLL STATUS: CHECK REQUIRED";
-            QuickDllEvidenceText.Text = "The protected task finished. Check Status reads the currently installed DLL.";
-            QuickRevertStateText.Text = "Revert: recheck recovery after task completion";
-            QuickDllStateText.Foreground = new SolidColorBrush(Color.FromRgb(40, 88, 157));
-            QuickCheckButton.IsEnabled = true;
-            QuickNoBackupCheck.IsEnabled = true;
-            QuickStatusText.Text = status.State switch
-            {
-                "Succeeded" => isRevert ? "Revert completed and verified" :
-                    "Apply completed and verified",
-                "AlreadyPatched" => "Already patched",
-                "Failed" => isRevert ? "Revert failed" : "Apply failed",
-                _ => "Check job status in Advanced"
-            };
-            QuickHelpText.Text = status.State == "Failed"
-                ? "Local failure type: " + status.Details +
-                  ". Check operations.log and RDP health."
-                : status.Details;
-            QuickStatusText.Foreground = status.State == "Succeeded"
-                ? new SolidColorBrush(Color.FromRgb(11, 135, 76))
-                : status.State == "Failed"
-                    ? new SolidColorBrush(Color.FromRgb(185, 28, 28))
-                    : new SolidColorBrush(Color.FromRgb(11, 46, 90));
+            QuickShareReportButton.Visibility = Visibility.Collapsed;
             QuickCancelButton.Content = "Close";
+            // Await a fresh read-only inspection before displaying the report
+            // offer or enabling controls from the new classification.
+            await RefreshAfterCompletionAsync(CheckAsync);
+            if (closed) return;
+            QuickShareReportButton.Visibility = verifiedOfferCandidate
+                ? Visibility.Visible : Visibility.Collapsed;
         }
 
         // This also runs on startup AFTER reconnect, when the in-memory plan
