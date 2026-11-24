@@ -14,7 +14,7 @@ public partial class ModernConfirmDialog : Window
     public ModernConfirmDialog()
     {
         InitializeComponent();
-        Title = "Review and confirm — " + UpdateIntegration.Version;
+        Title = "Review and confirm — " + UpdateIntegration.InstalledReleaseVersion;
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
     }
 
@@ -25,7 +25,7 @@ public partial class ModernConfirmDialog : Window
         var dialog = new ModernConfirmDialog
         {
             Owner = owner,
-            Title = heading + " — " + UpdateIntegration.Version
+            Title = heading + " — " + UpdateIntegration.InstalledReleaseVersion
         };
         dialog.HeadingText.Text = heading;
         dialog.DescriptionText.Text = description;

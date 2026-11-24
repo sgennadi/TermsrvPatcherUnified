@@ -21,7 +21,7 @@ public partial class SuccessfulFixWindow : Window
         unified = new UnifiedApplyReport(metadata);
         submission = unified.Compatibility;
         settings = DirectReportingSettings.Load();
-        Title = "Unified Apply report - " + UpdateIntegration.Version;
+        Title = "Unified Apply report - " + UpdateIntegration.InstalledReleaseVersion;
         Preview.Text = unified.ReviewedText;
         ReportHeading.Text = "Apply completed - unified report";
         ReportExplanation.Text =
@@ -51,7 +51,7 @@ public partial class SuccessfulFixWindow : Window
             "This DLL was changed OFFLINE and was not installed or tested in Remote Desktop. " +
             "Only the offline compatibility observation is shared. It is UNVERIFIED. " +
             "There is no consent option for unattended reports from offline copies.";
-        Title = "Offline DLL report - " + UpdateIntegration.Version;
+        Title = "Offline DLL report - " + UpdateIntegration.InstalledReleaseVersion;
         InitializeAvailability();
     }
 

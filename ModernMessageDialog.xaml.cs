@@ -16,7 +16,7 @@ public partial class ModernMessageDialog : Window
     public ModernMessageDialog()
     {
         InitializeComponent();
-        Title = "Message — " + UpdateIntegration.Version;
+        Title = "Message — " + UpdateIntegration.InstalledReleaseVersion;
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
     }
 
@@ -28,7 +28,7 @@ public partial class ModernMessageDialog : Window
     {
         var dialog = new ModernMessageDialog
         {
-            Title = caption + " — " + UpdateIntegration.Version
+            Title = caption + " — " + UpdateIntegration.InstalledReleaseVersion
         };
         if (owner is not null && owner.IsVisible)
             dialog.Owner = owner;
@@ -89,7 +89,7 @@ public partial class ModernMessageDialog : Window
         var dialog = new ModernMessageDialog
         {
             Owner = owner,
-            Title = heading + " — " + UpdateIntegration.Version
+            Title = heading + " — " + UpdateIntegration.InstalledReleaseVersion
         };
         dialog.HeadingText.Text = heading;
         dialog.BodyText.Text = message;
