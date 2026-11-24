@@ -109,7 +109,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python scripts/record_diagnostic_observation.py --self-test
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: env.PUBLISH_STABLE == 'true'
         with:
           node-version: '24'
