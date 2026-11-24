@@ -27,7 +27,7 @@ internal sealed record OfflineFixMetadata(
     {
         var p = result.Preview;
         var metadata = new OfflineFixMetadata(p.Architecture, p.FileVersion,
-            UpdateIntegration.Version,
+            UpdateIntegration.InstalledReleaseVersion,
             p.OriginalSha256, p.OriginalCrc32,
             result.FinalSha256, result.FinalCrc32,
             p.Plan.Edits.OrderBy(x => x.Offset)
