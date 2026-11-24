@@ -59,7 +59,7 @@ jobs:
           TPU_GITHUB_OAUTH_CLIENT_ID: ${{ vars.TPU_GITHUB_OAUTH_CLIENT_ID }}
         run: |
           ./scripts/Configure-Reporting.ps1 -FromEnvironment
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         if: env.PUBLISH_PREVIEW == 'true'
         with:
           node-version: '24'
