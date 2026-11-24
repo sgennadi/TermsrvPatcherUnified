@@ -1,3 +1,11 @@
+## 1.0.9 — Stable candidate preparation (unpublished)
+
+- [UI refresh PR #85](https://github.com/sgennadi/TermsrvPatcherUnified/pull/85) passed [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655764), [CodeQL](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655772), [Authenticode regression](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655769) and [signing readiness](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655988). These runs belong to the UI fix, not a signed 1.0.9 release.
+- Operator-reported physical Windows 11 25H2 / 26200.6899 testing of 1.0.8 confirmed Apply, actual RDP connectivity, automatic report-window closing, diagnostic receipt ([#84](https://github.com/sgennadi/TermsrvPatcherUnified/issues/84)) and Revert. No independent Windows VM acceptance or new-candidate validation is inferred from these reports.
+- After the 1.0.9 candidate is merged and its main CI checks pass, the owner can run **Protected signing smoke test (no release)** on main with `retain_qa_package` selected, under the existing protected signing environment. Check the exact candidate commit, signed archive hashes, EXE version and pinned signer. Do not use the old frozen 1.0.8 package or its version-specific promotion workflow for 1.0.9.
+- A new candidate-bound acceptance record, genuinely completed authorized isolated VM/recovery tests and a separately reviewed protected promotion for the exact signed artifact are required before public Stable publication. The existing manual owner and environment approval boundaries remain unchanged.
+- The latest published Stable is 1.0.7. No new tag or release is created by candidate preparation.
+
 ## 1.0.8 — protected promotion plan (unpublished)
 
 - Candidate and automated results are frozen at `f6b19322599db57d80fa68e3903fdb498e33c59f`; see [acceptance issue #82](https://github.com/sgennadi/TermsrvPatcherUnified/issues/82). All five automated gates passed. The retained artifact is 14893070061 from run 45332770728, expires 2026-11-27 05:24 UTC. Actual independent Windows VM acceptance and recovery are still outstanding.
