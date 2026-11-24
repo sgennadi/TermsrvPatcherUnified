@@ -150,6 +150,24 @@ check("MainVersionText" in main and
       "UpdateIntegration.InstalledReleaseVersion" in
           (ROOT / "QuickApplyWindow.xaml.cs").read_text(encoding="utf-8"),
       "Simple and Advanced UI display full installed release identity")
+updates_ui = (ROOT / "UpdateCenterWindow.xaml.cs").read_text(encoding="utf-8")
+check("UpdateIntegration.InstalledReleaseVersion" in updates_ui and
+      "!UpdateIntegration.InstalledReleaseVersion.Contains('-'" in updates_ui and
+      "INSTALL UNSIGNED" not in updates_ui and
+      "This executable is unsigned" not in updates_ui and
+      "A pinned Authenticode signature is mandatory" in updates_ui and
+      "Unknown Publisher" in updates_ui,
+      "Preview selector uses full installed version and signed-updater warnings reflect enforced trust")
+about_ui = (ROOT / "AboutWindow.xaml.cs").read_text(encoding="utf-8")
+check("UpdateIntegration.InstalledReleaseVersion" in about_ui and
+      "UpdateIntegration.InstalledReleaseVersion" in
+          (ROOT / "QuickApplyWindow.xaml.cs").read_text(encoding="utf-8"),
+      "About and compact windows show the complete release identity")
+check(all("UpdateIntegration.InstalledReleaseVersion" in
+          (ROOT / name).read_text(encoding="utf-8") for name in
+          ("Core/AutoReapplyScheduler.cs", "Core/SuccessfulFixPublisher.cs",
+           "Core/OfflineFixMetadata.cs", "Core/DiagnosticsBridge.cs")),
+      "scheduler and approved diagnostics preserve exact Preview release identity")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
 check('level="asInvoker"' in (ROOT / "app.manifest").read_text(encoding="utf-8"),
