@@ -125,6 +125,31 @@ check("Version = GetAssemblyVersion()" in updater_source and
       "typeof(UpdateIntegration).Assembly.GetName().Version" in updater_source and
       "<Version>" + release_version + "</Version>" in project,
       "updater version derives from the application assembly version")
+check("InstalledReleaseVersion = GetInstalledReleaseVersion()" in updater_source and
+      "AssemblyInformationalVersionAttribute" in updater_source and
+      "releaseText = informational.Split('+', 2)[0]" in updater_source and
+      "InstalledVersion = InstalledReleaseVersion" in updater_source,
+      "installed updater SemVer retains Preview suffix, verifies assembly numeric identity")
+bridge = (ROOT / "Core/UpdateInstallBridge.cs").read_text(encoding="utf-8")
+check("expectedVersion, UpdateIntegration.InstalledReleaseVersion" in bridge and
+      "job.CandidateVersion" in bridge and "IsUpgradeCandidate(next, options.InstalledVersion)" in bridge,
+      "health probe and updater compare full installed and candidate release identities")
+ci_source = (ROOT / ".github/workflows/windows-ci.yml").read_text(encoding="utf-8")
+check("Verify built Preview and Stable EXE full SemVer probes" in ci_source and
+      "-p:Version=$previewVersion" in ci_source and
+      "-p:Version=$stableVersion" in ci_source and
+      "Version = $currentReleaseVersion" in ci_source,
+      "Windows CI checks same-numeric Preview and Stable built EXE release identities")
+sign_smoke = (ROOT / ".github/workflows/protected-signing-smoke.yml").read_text(encoding="utf-8")
+check("$currentReleaseVersion" in sign_smoke and
+      "--signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentReleaseVersion" in sign_smoke,
+      "protected signed-EXE smoke uses full release tag rather than numeric identity")
+check("MainVersionText" in main and
+      "UpdateIntegration.InstalledReleaseVersion" in
+          (ROOT / "MainWindow.xaml.cs").read_text(encoding="utf-8") and
+      "UpdateIntegration.InstalledReleaseVersion" in
+          (ROOT / "QuickApplyWindow.xaml.cs").read_text(encoding="utf-8"),
+      "Simple and Advanced UI display full installed release identity")
 check("--inspect-file" in (ROOT / "App.xaml.cs").read_text(encoding="utf-8"),
       "read-only CLI is wired")
 check('level="asInvoker"' in (ROOT / "app.manifest").read_text(encoding="utf-8"),
