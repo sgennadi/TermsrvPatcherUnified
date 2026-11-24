@@ -47,6 +47,8 @@ public partial class MainWindow : Window
     public MainWindow(bool offlineStartup = false)
     {
         InitializeComponent();
+        Title = "TermsrvPatcherUnified " + UpdateIntegration.InstalledReleaseVersion;
+        MainVersionText.Text = UpdateIntegration.InstalledReleaseVersion + "  |  Windows x64";
         independentReportTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         independentReportTimer.Tick += (_, _) => RefreshIndependentReportOffer();
         autoUpdateCoordinator = new AutoUpdateGuiCoordinator(this, updates,

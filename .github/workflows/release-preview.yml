@@ -140,7 +140,7 @@ jobs:
           Write-Host "PASS: checked EXE ProductVersion $sourceVersion for protected report recovery."
           $inspect = Start-Process -FilePath $exe -ArgumentList ('--inspect-file "{0}" --report "{1}"' -f $sample,$report) -Wait -PassThru
           if ($inspect.ExitCode -ne 0 -or -not (Test-Path $report)) { throw 'Read-only inspection failed.' }
-          $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_ASSEMBLY_VERSION -Wait -PassThru
+          $probe = Start-Process -FilePath $exe -ArgumentList '--update-probe', $env:RELEASE_VERSION -Wait -PassThru
           if ($probe.ExitCode -ne 0) { throw "Update health probe failed: $($probe.ExitCode)" }
           $bad = Start-Process -FilePath $exe -ArgumentList '--update-probe', '0.0.0' -Wait -PassThru
           if ($bad.ExitCode -eq 0) { throw 'The health probe accepted a wrong version.' }

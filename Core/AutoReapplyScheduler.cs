@@ -229,7 +229,7 @@ internal static class AutoReapplyScheduler
         var existing = ReadWorkerState();
         if (!current.Installed || !current.Enabled || existing is null)
             SaveWorkerState(new WorkerState(Schema, HashFile(dll), "Armed",
-                DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
+                DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.InstalledReleaseVersion));
 
         RegisterTask();
         var confirmed = ReadStatus();
@@ -308,10 +308,10 @@ internal static class AutoReapplyScheduler
             {
                 // Missing/corrupted state must not authorize an unattended patch.
                 SaveWorkerState(new WorkerState(Schema, beforeSha, "State recreated; no Apply",
-                    DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
+                    DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.InstalledReleaseVersion));
                 return 9;
             }
-            if (!NeedsInspection(beforeSha, UpdateIntegration.Version, saved.LastObservedSha256,
+            if (!NeedsInspection(beforeSha, UpdateIntegration.InstalledReleaseVersion, saved.LastObservedSha256,
                     saved.RuntimeVersion))
                 return 0;
 
@@ -330,7 +330,7 @@ internal static class AutoReapplyScheduler
                         StringComparison.OrdinalIgnoreCase))
                     throw new IOException("Scheduled Apply did not produce the verified DLL hash.");
                 SaveWorkerState(new WorkerState(Schema, verified, "Applied verified automatic profile",
-                    DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.Version));
+                    DateTimeOffset.UtcNow.ToString("O"), UpdateIntegration.InstalledReleaseVersion));
                 AuditLog.Append("Auto reapply after DLL change succeeded. Profile=" + plan.ProfileId);
                 // Headless, opt-in and best effort; network errors never change Apply success.
                 AutoCompatibilityReporting.TrySendAfterVerifiedAutoReapply(os, plan, verified);
@@ -341,7 +341,7 @@ internal static class AutoReapplyScheduler
             // DLL with the same binary/pattern database on each scheduled run.
             SaveWorkerState(new WorkerState(Schema, beforeSha,
                 "Skipped: " + plan.State, DateTimeOffset.UtcNow.ToString("O"),
-                UpdateIntegration.Version));
+                UpdateIntegration.InstalledReleaseVersion));
             AuditLog.Append("Auto reapply skipped after DLL change: " + plan.State);
             return plan.State == PatchState.AlreadyPatched ? 0 : 10;
         }

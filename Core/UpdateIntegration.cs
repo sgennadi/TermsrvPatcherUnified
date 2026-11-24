@@ -1,4 +1,5 @@
 using UniversalUpdater;
+using System.Reflection;
 
 namespace TermsrvPatcherUnified.Core;
 
@@ -11,6 +12,10 @@ internal sealed class UpdateIntegration : IDisposable
     // identify itself as 1.0.6 even when built from current 1.0.7 sources.
     // This also prevents updater/UI version drift after future releases.
     public static readonly string Version = GetAssemblyVersion();
+    // AssemblyVersion has only numeric components. Preserve the release channel
+    // and prerelease sequence from the SDK-generated informational version for
+    // updater ordering and the installed EXE health probe.
+    public static readonly string InstalledReleaseVersion = GetInstalledReleaseVersion();
 
     private static string GetAssemblyVersion()
     {
@@ -19,6 +24,23 @@ internal sealed class UpdateIntegration : IDisposable
         if (version.Major < 0 || version.Minor < 0 || version.Build < 0)
             throw new InvalidOperationException("Application assembly version is incomplete.");
         return $"{version.Major}.{version.Minor}.{version.Build}";
+    }
+
+    private static string GetInstalledReleaseVersion()
+    {
+        var informational = typeof(UpdateIntegration).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (string.IsNullOrWhiteSpace(informational))
+            throw new InvalidOperationException("Application release identity is missing.");
+        // SDK builds may append +SourceRevisionId; build metadata does not
+        // affect SemVer ordering and is not part of GitHub's release tag.
+        var releaseText = informational.Split('+', 2)[0];
+        if (!SemanticVersion.TryParse(releaseText, out var release))
+            throw new InvalidOperationException("Application release identity is invalid.");
+        var numeric = $"{release.Major}.{release.Minor}.{release.Patch}";
+        if (!string.Equals(numeric, Version, StringComparison.Ordinal))
+            throw new InvalidOperationException("Release identity and executable assembly version disagree.");
+        return release.ToString();
     }
     private readonly Dictionary<UpdateChannel, UpdateNotificationController> controllers = new();
 
@@ -34,7 +56,7 @@ internal sealed class UpdateIntegration : IDisposable
     {
         ProductId = "TermsrvPatcherUnified",
         Repository = Repository,
-        InstalledVersion = Version,
+        InstalledVersion = InstalledReleaseVersion,
         Architecture = "win-x64",
         Channel = channel,
         StateDirectory = Path.Combine(

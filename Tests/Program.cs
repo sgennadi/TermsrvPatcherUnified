@@ -129,6 +129,28 @@ Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
 Ensure(UpdateInstallBridge.IsUpgradeCandidate(
         SemanticVersion.Parse("1.0.8"), "1.0.7"),
     "newer version ordering remains valid independently of the signing gate");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.1"), "1.0.7"),
+    "a newer prerelease may upgrade an older Stable when explicitly selected");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.2"), "1.0.8-preview.1"),
+    "a later Preview must upgrade an earlier Preview of the same numeric version");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8"), "1.0.8-preview.2"),
+    "Stable must be allowed to replace Preview with the same numeric version");
+Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.2"), "1.0.8"),
+    "Preview must never downgrade a same-numeric installed Stable");
+Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.1"), "1.0.8-preview.2"),
+    "an earlier Preview must never replace a newer Preview");
+Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Stable).InstalledVersion ==
+       UpdateIntegration.InstalledReleaseVersion &&
+       UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease).InstalledVersion ==
+       UpdateIntegration.InstalledReleaseVersion,
+    "both updater channels compare candidates to the actual installed release SemVer");
+Ensure(UpdateIntegration.InstalledReleaseVersion.Split('-', 2)[0] == UpdateIntegration.Version,
+    "installed SemVer numeric triplet must agree with assembly version");
 
 // Regression: current installed DLL state and ability to Revert are
 // independent facts. None of these pure tests accesses the system DLL.
@@ -516,7 +538,7 @@ var anonymousEvent = new
         error_type = "InvalidOperationException",
         code = "0x80131509",
         level = "error",
-        version = UpdateIntegration.Version,
+        version = UpdateIntegration.InstalledReleaseVersion,
         platform = "Windows",
         architecture = "AMD64",
         fingerprint = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
@@ -604,7 +626,7 @@ var invalidAnonymousRecord = JsonSerializer.Serialize(new {
         timestamp_utc = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
         project = DiagnosticsBridge.Project,
         component = "Application", error_type = "USER_REPORT", code = "MANUAL",
-        level = "error", version = UpdateIntegration.Version,
+        level = "error", version = UpdateIntegration.InstalledReleaseVersion,
         platform = "Windows", architecture = "AMD64",
         fingerprint = new string('0', 64)
     }
@@ -674,7 +696,7 @@ Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease)
     "Updater points to exact single-EXE GitHub asset");
 Ensure(UpdateInstallBridge.Probe("0.1.0-preview.6") != 0,
     "Version-mismatched update probes are rejected");
-Ensure(UpdateInstallBridge.Probe(UpdateIntegration.Version) is 0 or 5,
+Ensure(UpdateInstallBridge.Probe(UpdateIntegration.InstalledReleaseVersion) is 0 or 5,
     "Update probe returns only explicit success or unavailable");
 // Successful-fix v2 is opt-in: original/result SHA-256 and exact modified ranges.
 var detailed = SuccessfulFixMetadata.FromSuccessfulApply(
@@ -686,7 +708,7 @@ Ensure(successBody.StartsWith("termsrv-success/v2\n", StringComparison.Ordinal),
 Ensure(successBody.Contains("windows=Windows 11\n", StringComparison.Ordinal) &&
        successBody.Contains("build=26100\n", StringComparison.Ordinal) &&
        successBody.Contains("dll=1.0\n", StringComparison.Ordinal) &&
-       successBody.Contains("app=" + UpdateIntegration.Version + "\n", StringComparison.Ordinal),
+       successBody.Contains("app=" + UpdateIntegration.InstalledReleaseVersion + "\n", StringComparison.Ordinal),
     "report contains expected Windows, DLL and application versions");
 Ensure(successBody.Contains("original_sha256=" + ready.OriginalSha256, StringComparison.Ordinal) &&
        successBody.Contains("patched_sha256=" + SystemInfo.Sha256(ready.PatchedBytes!), StringComparison.Ordinal),

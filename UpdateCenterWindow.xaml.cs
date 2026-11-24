@@ -18,8 +18,9 @@ public partial class UpdateCenterWindow : Window
         InitializeComponent();
         this.updates = updates;
         automaticOffer = offerStableAutomatically;
-        InstalledText.Text = $"Installed: {UpdateIntegration.Version} | Windows x64";
-        if (offerStableAutomatically || !UpdateIntegration.Version.Contains('-', StringComparison.Ordinal))
+        Title = "Updates — " + UpdateIntegration.InstalledReleaseVersion;
+        InstalledText.Text = $"Installed: {UpdateIntegration.InstalledReleaseVersion} | Windows x64";
+        if (offerStableAutomatically || !UpdateIntegration.InstalledReleaseVersion.Contains('-', StringComparison.Ordinal))
             StableChannelButton.IsChecked = true;
         else
             PreviewChannelButton.IsChecked = true;
@@ -132,12 +133,13 @@ public partial class UpdateCenterWindow : Window
                 (reason ?? ""), "Install unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
-        var warning = "INSTALL UNSIGNED " +
+        var warning = "INSTALL VERIFIED " +
             (channel == UpdateChannel.Stable ? "STABLE " : "PREVIEW ") +
             release.Version + "?\n\n" +
-            "The release originates from this project's GitHub repository. The updater " +
-            "checks the SHA-256 digest published by GitHub, ZIP structure and x64 PE format. " +
-            "This is NOT a digital publisher signature.\n\n" +
+            "The updater requires a valid Authenticode signature from its independently pinned " +
+            "project signing key, as well as the GitHub release SHA-256, ZIP structure and x64 PE checks. " +
+            "The signing certificate may be self-signed and Windows may show Unknown Publisher; " +
+            "a GitHub checksum by itself is not an authenticity guarantee.\n\n" +
             "The existing EXE will be backed up; the app will close, replace the EXE and " +
             "run a health probe. If the probe fails, a rollback is attempted. " +
             "Install only on a computer you administer. Local Desktop and Downloads paths are supported; network and linked paths are blocked.\n\nProceed?";
@@ -149,8 +151,8 @@ public partial class UpdateCenterWindow : Window
                 " | " + channel + " | Windows x64",
             warning,
             "Install update",
-            "This executable is unsigned. SHA-256 and ZIP verification do not " +
-            "replace a trusted publisher signature. Installation is always manual.",
+            "A pinned Authenticode signature is mandatory; Windows may still display " +
+            "Unknown Publisher for a self-signed certificate. Installation is always manual.",
             diagnosticReport: false))
             return;
         installing = true;

@@ -61,7 +61,7 @@ internal sealed record SuccessfulFixMetadata(
             details.Name, details.DisplayVersion, details.Build, details.Ubr,
             CanonicalDllVersion(plan.FileVersion) ??
                 throw new InvalidDataException("DLL version contains unsupported resource metadata."),
-            UpdateIntegration.Version, plan.IsManual ? "manual" : "automatic",
+            UpdateIntegration.InstalledReleaseVersion, plan.IsManual ? "manual" : "automatic",
             plan.OriginalSha256.ToLowerInvariant(), SystemInfo.Sha256(plan.PatchedBytes),
             plan.Edits.Select(edit => new ChangedBytes(edit.Offset,
                 Convert.ToHexString(edit.Expected), Convert.ToHexString(edit.Replacement)))

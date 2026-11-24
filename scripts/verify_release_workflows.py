@@ -95,6 +95,12 @@ for channel, filename in WORKFLOWS.items():
         "typeof(UpdateIntegration).Assembly.GetName().Version" in source
     ), f"{filename}: assembly-derived updater version verification missing"
     assert "RELEASE_ASSEMBLY_VERSION" in source
+    probe_steps = [step for step in steps if "Read-only EXE and offline update probe smoke tests" in step.get("name", "")]
+    assert len(probe_steps) == 1, f"{filename}: exactly one real EXE startup health probe"
+    expected_arg = "RELEASE_VERSION" if channel == "PREVIEW" else "RELEASE_ASSEMBLY_VERSION"
+    assert "'--update-probe', $env:" + expected_arg in probe_steps[0].get("run", ""), (
+        f"{filename}: startup probe must use actual {channel} EXE release identity"
+    )
     assert source.count("scripts/sign_release_exe.ps1") == 1
     assert source.count("scripts/verify_signed_release_archives.ps1") == 1
     print(f"PASS: {channel} publisher parses; remains disabled with pinned signing and ordered gates")

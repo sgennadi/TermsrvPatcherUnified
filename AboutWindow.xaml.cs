@@ -8,7 +8,8 @@ public partial class AboutWindow : Window
     public AboutWindow()
     {
         InitializeComponent();
-        AppVersionText.Text = UpdateIntegration.Version + " | Windows x64 | .NET 10";
+        Title = "About / Components — " + UpdateIntegration.InstalledReleaseVersion;
+        AppVersionText.Text = UpdateIntegration.InstalledReleaseVersion + " | Windows x64 | .NET 10";
         NSudoStatusText.Text = NsudoDevilModeScope.ComponentStatus;
     }
 

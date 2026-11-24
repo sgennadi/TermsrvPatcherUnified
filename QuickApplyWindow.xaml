@@ -1,7 +1,7 @@
 <Window x:Class="TermsrvPatcherUnified.QuickApplyWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="TermsrvPatcherUnified 1.0.7"
+        Title="TermsrvPatcherUnified"
         Width="940" Height="675" MinWidth="690" MinHeight="510"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BackgroundBrush}"

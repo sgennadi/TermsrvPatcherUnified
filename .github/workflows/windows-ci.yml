@@ -163,14 +163,15 @@ jobs:
           dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:Version=1.0.6 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish-old
           if ($LASTEXITCODE -ne 0) { throw 'Disposable older-version publish failed.' }
           # Preview suffixes belong to the release channel, not AssemblyVersion.
-          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          $currentReleaseVersion = (Get-Content VERSION -Raw).Trim()
+          $currentVersion = ($currentReleaseVersion -split '[-+]')[0]
           if ([version]$currentVersion -le [version]'1.0.6') {
             throw "Expected current source assembly to be newer than disposable 1.0.6 fixture: $currentVersion."
           }
           $cases = @(
             @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.6'; Success = $true },
-            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentVersion; Success = $true },
-            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentVersion; Success = $false },
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentReleaseVersion; Success = $true },
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentReleaseVersion; Success = $false },
             @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.6'; Success = $false }
           )
           $old = (Resolve-Path 'publish-old/TermsrvPatcherUnified.exe').Path
@@ -189,6 +190,47 @@ jobs:
               throw "EXE changed during offline version probe: $($case.Path)."
             }
             Write-Host "PASS: $($case.Path) with expected version $($case.Version), expected success=$($case.Success)."
+          }
+      - name: Verify built Preview and Stable EXE full SemVer probes (no DLL writes)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # Equal numeric assembly versions must still have distinct release
+          # identities. Exercise actual compiled, embedded, single-file binaries.
+          $previewVersion = '1.0.8-preview.1'
+          $stableVersion = '1.0.8'
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:Version=$previewVersion -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish-preview-semver
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable Preview EXE publish failed.' }
+          dotnet publish TermsrvPatcher.Unified.csproj -c Release -r win-x64 --self-contained true -p:Version=$stableVersion -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:RequireNSudo=true -o publish-stable-semver
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable same-numeric Stable EXE publish failed.' }
+          $preview = (Resolve-Path 'publish-preview-semver/TermsrvPatcherUnified.exe').Path
+          $stable = (Resolve-Path 'publish-stable-semver/TermsrvPatcherUnified.exe').Path
+          if ((Get-FileHash $preview -Algorithm SHA256).Hash -eq (Get-FileHash $stable -Algorithm SHA256).Hash) {
+            throw 'Preview and Stable EXEs unexpectedly have identical bytes.'
+          }
+          $cases = @(
+            @{ Path = $preview; Version = $previewVersion; Success = $true },
+            @{ Path = $stable; Version = $stableVersion; Success = $true },
+            @{ Path = $preview; Version = $stableVersion; Success = $false },
+            @{ Path = $stable; Version = $previewVersion; Success = $false },
+            @{ Path = $preview; Version = '1.0.8-preview.2'; Success = $false },
+            @{ Path = $stable; Version = '0.0.0'; Success = $false }
+          )
+          foreach ($case in $cases) {
+            $fileVersion = (Get-Item -LiteralPath $case.Path).VersionInfo.ProductVersion
+            $expectedFileVersion = if ($case.Path -eq $preview) { $previewVersion } else { $stableVersion }
+            if (-not ($fileVersion -eq $expectedFileVersion -or $fileVersion.StartsWith($expectedFileVersion + '+', [StringComparison]::Ordinal))) {
+              throw "Packaged EXE product metadata is wrong: '$fileVersion' expected '$expectedFileVersion'."
+            }
+            $before = (Get-FileHash -LiteralPath $case.Path -Algorithm SHA256).Hash
+            $probe = Start-Process -FilePath $case.Path -ArgumentList @('--update-probe', $case.Version) -PassThru -Wait -WindowStyle Hidden
+            if (($probe.ExitCode -eq 0) -ne $case.Success) {
+              throw "SemVer EXE probe was incorrect for $($case.Path) / $($case.Version): exit $($probe.ExitCode)."
+            }
+            if ((Get-FileHash -LiteralPath $case.Path -Algorithm SHA256).Hash -ne $before) {
+              throw 'Read-only SemVer probe changed the executable.'
+            }
+            Write-Host "PASS: $expectedFileVersion EXE probe against $($case.Version); expected=$($case.Success)."
           }
       - name: Repeat protected SYSTEM Session 0 probe twice (no DLL writes)
         shell: pwsh
