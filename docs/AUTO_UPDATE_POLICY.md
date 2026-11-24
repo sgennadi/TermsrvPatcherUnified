@@ -1,4 +1,4 @@
-# Auto-update checks and operator approval (1.0.3)
+# Auto-update checks and operator approval
 
 The checkbox **Auto-update Stable (confirm before installing)** is an
 administrator-controlled machine-wide opt-in. It is **OFF by default**.
@@ -24,13 +24,18 @@ The checkbox is stored as a DWORD under
 The last scheduled check is separately stored under the same key.
 When disabled, scheduled checks stop; existing DLL backups are not affected.
 
-**Unsigned builds:** every update uses the existing explicit operator consent,
-GitHub SHA-256 / ZIP / x64 PE validation, protected staging, original EXE backup,
-post-install probe and rollback. The SHA-256 attached to a GitHub release does
-not provide authenticated publisher signing. Therefore this release does
-**not** support unattended auto-installation, especially from a SYSTEM task.
-For true unattended installation, implement and validate code signing and an
-organization-controlled signer trust policy first.
+**Current source trust model (1.0.8 preparation, not yet published):** both the
+running EXE and the candidate must pass independently pinned Authenticode
+verification. GitHub SHA-256 / ZIP / x64 PE validation, protected staging,
+original EXE backup, post-install probe and rollback remain mandatory.
+A self-signed certificate may still display Unknown Publisher in Windows;
+a GitHub checksum alone does not authenticate the publisher.
+
+Legacy unsigned releases cannot serve as the trusted elevated helper of the
+new updater. Transition manually to an independently verified signed release
+after publication. The signed source still requires explicit interactive
+administrator approval; **no unattended installation** is supported, including
+from a SYSTEM task.
 
 **Channels:** Stable reads only GitHub non-prerelease releases with final
 SemVer tags. Preview reads only `prerelease=true` entries with a prerelease

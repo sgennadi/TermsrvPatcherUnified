@@ -6,6 +6,8 @@
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
 
+**Source version 1.0.8 — release preparation (not published).** The latest downloadable Stable remains 1.0.7. The new signed updater requires a trusted, project-signed current executable and candidate; legacy unsigned installations must transition manually to an independently verified signed release when it becomes available. A GitHub checksum alone is not proof of publisher identity. Publication remains disabled pending the release gates in [Security](SECURITY.md).
+
 ## What's new in Stable 1.0.7
 
 1. **Unambiguous DLL status:** both Simple and Advanced display **PATCHED / NOT PATCHED / UNKNOWN** based on current installed `termsrv.dll` evidence, not the Revert button.
@@ -18,7 +20,7 @@ TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signatu
 
 ## Download and update
 
-Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. From an existing installation, use **Updates → Stable → Check → Install**; replacement requires administrator approval and a successful live release verification.
+Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. For the currently published legacy build, download the official release ZIP and verify its published checksum; it is unsigned. The new source updater will not authorize an unsigned current EXE as a privileged update helper. After independently verifying and manually installing a future signed release, use **Updates → Stable → Check → Install** for subsequent updates. Installation requires administrator approval and signature verification.
 
 ## Reporting, consent and verification
 

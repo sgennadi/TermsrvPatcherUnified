@@ -114,7 +114,7 @@ readme = (ROOT / "README.md").read_text(encoding="utf-8")
 release_version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 check(bool(re.fullmatch(r"(?:[0-9]+\.[0-9]+\.[0-9]+-preview\.[1-9][0-9]*|1\.[0-9]+\.[0-9]+)", release_version)),
       "VERSION is a semantic version (Preview or Stable 1.x)")
-for document in (project, main, readme):
+for document in (project, readme):
     check(release_version in document, "version consistency")
 check("UpdateNotificationController" in (ROOT / "Core/UpdateIntegration.cs").read_text(encoding="utf-8"),
       "shared updater notification controller referenced")
@@ -163,6 +163,20 @@ check("UpdateIntegration.InstalledReleaseVersion" in about_ui and
       "UpdateIntegration.InstalledReleaseVersion" in
           (ROOT / "QuickApplyWindow.xaml.cs").read_text(encoding="utf-8"),
       "About and compact windows show the complete release identity")
+# Every custom window must use the compiled release identity, including Preview
+# suffixes. Stale XAML literals caused a 1.0.8 layout-smoke regression.
+for window_name in ("MainWindow", "QuickApplyWindow", "AboutWindow",
+                    "UpdateCenterWindow", "DiagnosticsWindow", "CleanupWindow",
+                    "RdpLocalSettingEditWindow", "ModernConfirmDialog",
+                    "ModernMessageDialog", "SuccessfulFixWindow"):
+    xaml = (ROOT / (window_name + ".xaml")).read_text(encoding="utf-8")
+    code = (ROOT / (window_name + ".xaml.cs")).read_text(encoding="utf-8")
+    check(not re.search(r'Title="[^"]*\b\d+\.\d+\.\d+', xaml),
+          window_name + " XAML title contains no hard-coded release version")
+    check(bool(re.search(r'\bTitle\s*=\s*[^\r\n;]*UpdateIntegration\.InstalledReleaseVersion', code)),
+          window_name + " title derives from full installed release identity")
+    check(not re.search(r'\bTitle\s*=\s*[^\r\n;]*UpdateIntegration\.Version\b', code),
+          window_name + " never truncates Preview identity in its title")
 check(all("UpdateIntegration.InstalledReleaseVersion" in
           (ROOT / name).read_text(encoding="utf-8") for name in
           ("Core/AutoReapplyScheduler.cs", "Core/SuccessfulFixPublisher.cs",

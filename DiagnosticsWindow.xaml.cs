@@ -27,6 +27,7 @@ public partial class DiagnosticsWindow : Window
     internal DiagnosticsWindow(DiagnosticsBridge.DiagnosticDraft? approvedContext)
     {
         InitializeComponent();
+        Title = "Diagnostics — " + UpdateIntegration.InstalledReleaseVersion;
         Loaded += (_, _) => WindowLayout.FitToWorkArea(this);
         draft = approvedContext ?? DiagnosticsBridge.Current();
         ErrorLabel.Text = $"Component: {draft.Component}  |  {draft.ErrorType} ({draft.Code})";
@@ -133,7 +134,7 @@ public partial class DiagnosticsWindow : Window
                 : environment.AsPreview();
         var proposed = $"Project: {DiagnosticsBridge.Project}\nComponent: {draft.Component}\n" +
             $"Type: {draft.ErrorType}\nCode: {draft.Code}\n" +
-            $"Version: {UpdateIntegration.Version}\n\n{evidencePreview}\n\n{description}";
+            $"Version: {UpdateIntegration.InstalledReleaseVersion}\n\n{evidencePreview}\n\n{description}";
         if (ModernMessageDialog.Show(this,
                 "Review this description. The diagnostics module will redact common identifiers " +
                 "and save a local event. Nothing will be uploaded automatically.\n\n" + proposed,

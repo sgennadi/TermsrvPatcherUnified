@@ -11,6 +11,7 @@ public partial class CleanupWindow : Window
     public CleanupWindow()
     {
         InitializeComponent();
+        Title = "Cleanup — " + UpdateIntegration.InstalledReleaseVersion;
         var task = AutoReapplyScheduler.ReadStatus();
         CleanupTaskStatus.Text = task.Installed
             ? "Current task: " + (task.Trusted ? task.Message : "UNRECOGNIZED; cannot be removed automatically")

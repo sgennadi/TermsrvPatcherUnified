@@ -1,3 +1,9 @@
+## 1.0.8 — release preparation (unpublished)
+
+- Baseline commit `44b8b801`: [protected signing smoke](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45329645265), [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45329570412), [CodeQL](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45329570384) and [published EXE replacement/rollback](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45329570525) passed.
+- These results belong to the prior source revision, not a signed 1.0.8 release. Repeat candidate CI and protected signing checks for the new revision. Publication remains disabled. The latest public Stable remains 1.0.7.
+- Live authorized Windows VM acceptance, protected-system-file recovery and actual remote reconnection remain unverified; see the existing security release policy.
+
 ## Stable 1.0.7 — release acceptance (published 2026-11-12)
 
 - **Scope:** promote the current-DLL classification and independent Revert readiness already included in [Preview 1.0.7-preview.1](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7-preview.1), without new patch patterns.
