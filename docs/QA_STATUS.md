@@ -1,25 +1,16 @@
-## 1.0.9 — frozen signed candidate and protected promotion (unpublished)
+## 1.0.9 — published on 2026-11-24
 
-- Exact candidate: `edb8d5c34e14f039c808c496bb941c99d2a81470`; all five automated checks passed ([issue #87](https://github.com/sgennadi/TermsrvPatcherUnified/issues/87)). Signed QA artifact 14916731849 from run 45386390209 expires 2026-11-27 11:43 UTC. Its independently computed outer SHA-256 is `3a1323b499e3aff997282118464077f9e400d8e6fcfef82902c37d973b90a69a`. Independently downloaded archive: exact three assets, both ZIP checksums, identical x64 EXE SHA-256 `36ca3caae22343e7f52fea61c7ece91a6a921d70f82bee61a4b77e4505fd8006`, RSA signature, signed PE digest, and SPKI pin verified statically. No executable run in this independent check.
-- A separate owner-only protected manual workflow, **Promote verified Stable 1.0.9 (protected)**, is prepared for review. It is bound to the exact frozen artifact, not a rebuild. Original push publishers remain disabled; no release credentials or acceptance requirements change.
-- After genuinely completing authorized isolated Windows VM acceptance and recovery, the repository owner records actual results in a comment on #87. The comment must begin with the following four lines, followed by an `Evidence: ` line containing actual results. Do not use a synthetic test fixture or claim tests not performed.
+- [Public release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.9) is Latest Stable (not a draft or prerelease), published 2026-11-24 13:17:35 UTC. Exact source: `edb8d5c34e14f039c808c496bb941c99d2a81470`.
+- [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45386313803), [CodeQL](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45386313807), [Authenticode regression](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45386314002), [signing readiness](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45386313860), and [protected signing smoke](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45386390209) passed on the exact candidate. Signed QA artifact 14916731849 was independently inspected; both ZIPs held the same signed EXE, SHA-256 `36ca3caae22343e7f52fea61c7ece91a6a921d70f82bee61a4b77e4505fd8006`.
+- [Protected promotion](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45401770158) succeeded. Readback of the release API verified the candidate target, publication status and exactly three asset SHA-256 digests against the frozen candidate:
 
-```text
-Stable 1.0.9 VM acceptance: PASS
-Commit: edb8d5c34e14f039c808c496bb941c99d2a81470
-Artifact: 14916731849
-Recovery verification: PASS
-```
+| Asset | SHA-256 |
+| --- | --- |
+| TermsrvPatcherUnified-win-x64.zip | `eda5e4500f61f0877e37ab032497d185df9abf3fcd5b647a813953cf599541cc` |
+| TermsrvPatcherUnified-update-win-x64.zip | `17b53d2e20642068447f9cfa33d43df8d1a4278946c601bf6049f152b1ed26ef` |
+| SHA256SUMS.txt | `c751fd3fdd1c965d51edebaf5fb68d667cfc09eb0ead1a687dd069753b8e2ff4` |
 
-- Run the owner-only workflow on main with the numeric comment ID and satisfy existing protected environment approval. It verifies all frozen runs, hashes, signer, product version, exact draft assets and published tag. If a gate fails, it stops. Do not mark README/CHANGELOG as published until the public release is verified. Latest public Stable remains 1.0.7.
-
-## 1.0.9 — Stable candidate preparation (unpublished)
-
-- [UI refresh PR #85](https://github.com/sgennadi/TermsrvPatcherUnified/pull/85) passed [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655764), [CodeQL](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655772), [Authenticode regression](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655769) and [signing readiness](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655988). These runs belong to the UI fix, not a signed 1.0.9 release.
-- Operator-reported physical Windows 11 25H2 / 26200.6899 testing of 1.0.8 confirmed Apply, actual RDP connectivity, automatic report-window closing, diagnostic receipt ([#84](https://github.com/sgennadi/TermsrvPatcherUnified/issues/84)) and Revert. No independent Windows VM acceptance or new-candidate validation is inferred from these reports.
-- After the 1.0.9 candidate is merged and its main CI checks pass, the owner can run **Protected signing smoke test (no release)** on main with `retain_qa_package` selected, under the existing protected signing environment. Check the exact candidate commit, signed archive hashes, EXE version and pinned signer. Do not use the old frozen 1.0.8 package or its version-specific promotion workflow for 1.0.9.
-- A new candidate-bound acceptance record, genuinely completed authorized isolated VM/recovery tests and a separately reviewed protected promotion for the exact signed artifact are required before public Stable publication. The existing manual owner and environment approval boundaries remain unchanged.
-- The latest published Stable is 1.0.7. No new tag or release is created by candidate preparation.
+**Acceptance discrepancy (outstanding):** [owner comment #7132302514](https://github.com/sgennadi/TermsrvPatcherUnified/issues/87#issuecomment-7132302514) declares PASS but still contains the literal unfilled placeholder `[actual OS build and test results]` for 1.0.9 live VM acceptance. The promotion gate validated the comment's format, not actual test execution, and accepted it. Do not infer live VM or protected DLL recovery acceptance from that workflow success. Earlier operator-reported physical 1.0.8 tests and synthetic Windows CI do not substitute for the missing 1.0.9 results. Record actual candidate-bound results before production use and strengthen future acceptance review. Publication status and safety acceptance are distinct.
 
 ## 1.0.8 — protected promotion plan (unpublished)
 

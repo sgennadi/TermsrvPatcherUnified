@@ -7,12 +7,12 @@ This project edits a protected Windows Remote Desktop system DLL. Treat it as a 
 - Do not publish a real `termsrv.dll` or a report with hostnames, usernames, network addresses or other private environment details in GitHub issues.
 - Report vulnerabilities privately to the repository owner through GitHub's private vulnerability reporting if enabled. Otherwise open a minimal issue **without reproduction secrets** asking for a private reporting channel.
 - Never ask users to disable NLA or enable blank-password RDP login to make the patch work.
-- Legacy published releases through 1.0.7 are unsigned. Signed smoke-test binaries are disposable QA artifacts, not public releases or proof of safety or licensing compatibility.
+- Legacy published releases through 1.0.7 are unsigned. The public 1.0.9 release is signed by the project's pinned key. Signed smoke-test artifacts remain QA-only unless promoted; signing is not proof of safety or licensing compatibility.
 
-No public release should be called stable before Windows VM patch and rollback tests pass.
+No public release should be called stable before Windows VM patch and rollback tests pass. Although GitHub currently labels 1.0.9 Latest Stable, its promotion workflow accepted an incomplete owner acceptance comment; actual live VM and recovery results are not established. Treat the published package as requiring isolated acceptance before production use. See [QA status](docs/QA_STATUS.md).
 
 
-## Updater trust model (1.0.8 source, unpublished)
+## Updater trust model (1.0.9 published)
 
 - The new updater requires an Authenticode signature matching its independently configured signing-key pin on both the running EXE and the candidate. SHA-256, strict ZIP/x64 PE validation, protected staging, installed-file verification, startup probe and rollback remain mandatory.
 - A self-signed signing certificate does not imply Windows trust or Microsoft endorsement; Windows may display Unknown Publisher. Do not bypass trust checks to install an unsigned update. Transition manually from an independently verified legacy installation to a verified signed package after publication.

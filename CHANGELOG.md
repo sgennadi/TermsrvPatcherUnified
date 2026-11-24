@@ -1,13 +1,13 @@
 # Changelog
 
-## 1.0.9 — Stable candidate preparation (unpublished)
+## 1.0.9 — 2026-11-24 (Stable published)
 
 1. Refresh the compact DLL status automatically after completed local or protected SYSTEM Apply/Revert using the existing read-only inspection.
 2. Refresh recovery and action availability from current evidence; keep a historical job outcome separate from the current DLL classification.
 3. Preserve UNKNOWN on inspection failure and suppress nested completion refreshes.
 4. Retain the signed-updater trust, version, approval and rollback protections prepared in 1.0.8. No new DLL modification or recovery logic.
 
-**Validation:** [UI fix PR #85](https://github.com/sgennadi/TermsrvPatcherUnified/pull/85) passed Windows CI, CodeQL, Authenticode regression and signing readiness before merge. The operator reported successful 1.0.8 Apply, RDP connectivity, report delivery and Revert on a physical Windows 11 25H2 system. These observations do not certify the 1.0.9 build or substitute for the exact signed candidate's acceptance. New candidate CI, protected signing, authorized isolated VM/recovery acceptance and protected publication are required. Latest public Stable remains 1.0.7.
+**Publication:** [v1.0.9](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.9) is Latest Stable; [protected promotion](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45401770158) succeeded and all three published asset digests match the exact signed candidate. All five automated candidate gates passed. **Acceptance limitation:** the owner comment still contained an unfilled live VM test-results placeholder when the workflow accepted it. Actual live 1.0.9 VM and protected recovery test results remain unverified; previous 1.0.8 physical observations do not certify this release. See [QA status](docs/QA_STATUS.md).
 
 ## 1.0.8 — release preparation (unpublished)
 

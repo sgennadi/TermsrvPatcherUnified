@@ -1,26 +1,28 @@
 # TermsrvPatcherUnified
 
-**Latest Stable:** [**1.0.7**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7) · **Published:** 2026-11-12 · **Windows x64** (.NET 10 WPF, self-contained release) · **Unsigned EXE**
+**Latest Stable:** [**1.0.9**](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.9) · **Published:** 2026-11-24 · **Windows x64** (.NET 10 WPF, self-contained release) · **Project-signed EXE**
 
 **[Download releases](https://github.com/sgennadi/TermsrvPatcherUnified/releases)** · **[Changelog](CHANGELOG.md)** · **[Test status](docs/QA_STATUS.md)** · **[Security and recovery](SECURITY.md)**
 
 TermsrvPatcherUnified provides Windows Remote Desktop diagnostics, exact-signature inspection, manually approved `termsrv.dll` maintenance, protected backup/restore, offline DLL inspection and a verified portable EXE updater. Changes to protected system files can interrupt remote access. Use only where authorized, with a current backup and independent console access; this tool does not grant Microsoft RDP licenses.
 
-**Source version 1.0.9 — Stable candidate preparation (not published).** The latest downloadable Stable remains 1.0.7. The new signed updater requires a trusted, project-signed current executable and candidate; legacy unsigned installations must transition manually to an independently verified signed release when it becomes available. A GitHub checksum alone is not proof of publisher identity. The compact interface now refreshes its read-only DLL and recovery status automatically after completed Apply/Revert ([PR #85](https://github.com/sgennadi/TermsrvPatcherUnified/pull/85)). Automatic publication remains disabled pending the release gates in [Security](SECURITY.md); the frozen 1.0.8 QA artifact does not contain this fix.
+The signed release includes the updater trust hardening developed in 1.0.8 and the compact-window status refresh fix. The project signing identity is pinned by the updater; a self-signed certificate is not equivalent to Windows publisher trust or Microsoft endorsement.
 
-## What's new in Stable 1.0.7
+## What's new in Stable 1.0.9
 
-1. **Unambiguous DLL status:** both Simple and Advanced display **PATCHED / NOT PATCHED / UNKNOWN** based on current installed `termsrv.dll` evidence, not the Revert button.
-2. **Independent Revert readiness:** SHA-256/version-bound recovery is shown separately, including catalog reconstruction versus a verified original/journal source.
-3. **Fail closed:** stale, conflicting or changing file evidence disables automatic actions; run Check Status after Apply or Revert, including scheduled SYSTEM jobs.
-4. **Existing diagnostics retained:** RDP Doctor, configured-port Windows Firewall evidence, privacy-aware reports and protected SYSTEM worker checks.
-5. **Stable update protection:** administrator confirmation, rollback and version safeguards prevent installing an older release over the installed version.
+1. Automatically refresh the compact DLL and recovery status after completed local or SYSTEM operations.
+2. Keep current DLL evidence separate from historical job outcomes; retain UNKNOWN on inspection failure.
+3. Require pinned Authenticode verification of both the installed EXE and update payload.
+4. Preserve complete version identity and prevent downgrade or replay.
+5. Retain administrator approval, verified staging, backups and rollback.
 
-**Limitations:** synthetic Windows CI does not prove successful live RDP authentication, Microsoft licensing or Windows Update Auto Reapply.
+**Verification limits:** Windows CI, CodeQL, signing, signed update/rollback regression and release asset verification passed. The published 1.0.9 package has not been demonstrated to pass independent live Windows VM and protected DLL recovery acceptance. The owner comment accepted by the promotion workflow still contained an unfilled test-results placeholder. See [QA status](docs/QA_STATUS.md) before use; do not treat publication as certification of live RDP compatibility.
 
 ## Download and update
 
-Use the [Stable 1.0.7 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.7): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the `TermsrvPatcherUnified-update-win-x64.zip` contains one EXE. Check the published `SHA256SUMS.txt`. For the currently published legacy build, download the official release ZIP and verify its published checksum; it is unsigned. The new source updater will not authorize an unsigned current EXE as a privileged update helper. After independently verifying and manually installing a future signed release, use **Updates → Stable → Check → Install** for subsequent updates. Installation requires administrator approval and signature verification.
+Use the [Stable 1.0.9 release](https://github.com/sgennadi/TermsrvPatcherUnified/releases/tag/v1.0.9): the portable `TermsrvPatcherUnified-win-x64.zip` contains exactly **TermsrvPatcherUnified.exe** and **Example.txt**; the updater ZIP contains one EXE. Verify the published `SHA256SUMS.txt` and independently trusted signing identity. Legacy unsigned installations through 1.0.7 require a manually verified transition to the signed build. Subsequent supported updates use **Updates → Stable → Check → Install**, with administrator approval and signature verification.
+
+Test only in an authorized isolated environment with a snapshot and independent console recovery. Do not rely on a production machine or an RDP-only session to establish recovery.
 
 ## Reporting, consent and verification
 
