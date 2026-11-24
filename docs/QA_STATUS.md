@@ -1,3 +1,18 @@
+## 1.0.8 — protected promotion plan (unpublished)
+
+- Candidate and automated results are frozen at `f6b19322599db57d80fa68e3903fdb498e33c59f`; see [acceptance issue #82](https://github.com/sgennadi/TermsrvPatcherUnified/issues/82). All five automated gates passed. The retained artifact is 14893070061 from run 45332770728, expires 2026-11-27 05:24 UTC. Actual independent Windows VM acceptance and recovery are still outstanding.
+- The separate **Promote verified Stable 1.0.8 (protected)** workflow will be available once the workflow PR is reviewed and merged. It is owner-only, manual, main-only and uses the existing `release-signing` environment. The original Stable and Preview push publishers remain disabled.
+- After genuinely completing the authorized VM acceptance and recovery checks required by SECURITY.md, the repository owner records the actual results on #82. The promotion input is the numeric ID of that comment. The comment must identify the exact candidate and contain these first four lines, followed by a fifth line beginning `Evidence: ` with the actual test evidence (OS/build and result summary, no private identifiers). Do not post a passing attestation for tests that were not performed.
+
+```text
+Stable 1.0.8 VM acceptance: PASS
+Commit: f6b19322599db57d80fa68e3903fdb498e33c59f
+Artifact: 14893070061
+Recovery verification: PASS
+```
+
+- Run the promotion workflow on `main` with the recorded comment ID and satisfy the existing protected environment review. The job rechecks the owner attestation, exact prior CI runs, retained artifact metadata and bytes, each asset hash, EXE identity and pinned signature. No recompilation, candidate execution or access to the signing private key. It creates a draft, verifies the three uploaded asset SHA-256 digests, and only then promotes it to Latest Stable. Any existing tag/release, expired artifact, missing evidence or mismatch fails closed. If a draft is left after a failure, inspect it manually; the workflow will not replace it. README and CHANGELOG publication status must only be updated after verified publication.
+
 ## 1.0.8 — signed candidate acceptance (unpublished)
 
 - On baseline commit `b09a72e0`, [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45331151480), [CodeQL](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45331151663), [protected signing smoke](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45331175780), Authenticode regression and signing readiness passed. The protected run retained no downloadable artifact.
