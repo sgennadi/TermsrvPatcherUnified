@@ -148,3 +148,39 @@ assert upload['with'] == {
 }
 assert 'gh release ' not in smoke_source
 print('PASS: protected signed QA artifact is explicit opt-in, final-step only, exact files, three-day retention; no publication')
+
+# A separate, strictly manual candidate promotion never re-enables the
+# legacy push publishers. Exercise all acceptance checks without API access.
+promotion_path = ROOT / '.github/workflows/promote-verified-stable.yml'
+promotion = yaml.load(promotion_path.read_text(encoding='utf-8'), Loader=yaml.BaseLoader)
+assert promotion['on'] == {'workflow_dispatch': {'inputs': {'acceptance_comment_id': {
+    'description': 'Owner comment ID on issue 82 recording completed VM acceptance and recovery',
+    'type': 'string', 'required': 'true',
+}}}}
+assert promotion['permissions'] == {'contents': 'read'}
+assert promotion['concurrency'] == {'group': 'promote-verified-stable-108', 'cancel-in-progress': 'false'}
+assert set(promotion['jobs']) == {'promote'}
+promotion_job = promotion['jobs']['promote']
+assert promotion_job['if'] == "github.repository == 'sgennadi/TermsrvPatcherUnified' && github.ref == 'refs/heads/main' && github.actor == 'sgennadi' && github.triggering_actor == 'sgennadi'"
+assert promotion_job['environment'] == 'release-signing'
+assert promotion_job['runs-on'] == 'windows-2025'
+assert promotion_job['permissions'] == {'contents': 'write', 'actions': 'read', 'issues': 'read'}
+promotion_steps = promotion_job['steps']
+assert len(promotion_steps) == 4
+assert promotion_steps[0] == {'uses': 'actions/checkout@v7', 'with': {'persist-credentials': 'false'}}
+assert [s['name'] for s in promotion_steps[1:]] == [
+    'Verify actual acceptance, CI, and exact retained artifact',
+    'Verify exact signed archive contents with pinned key',
+    'Create verified draft and publish only matching assets',
+]
+assert all('if' not in s and 'continue-on-error' not in s for s in promotion_steps)
+assert promotion_steps[1]['env'] == {'GH_TOKEN': '${{ github.token }}', 'TPU_ACCEPTANCE_COMMENT_ID': '${{ inputs.acceptance_comment_id }}'}
+assert promotion_steps[2]['env'] == {'TPU_SIGNER_SPKI_SHA256': '${{ vars.TPU_SIGNER_SPKI_SHA256 }}'}
+assert promotion_steps[3]['env'] == {'GH_TOKEN': '${{ github.token }}', 'TPU_ACCEPTANCE_COMMENT_ID': '${{ inputs.acceptance_comment_id }}', 'TPU_SIGNER_SPKI_SHA256': '${{ vars.TPU_SIGNER_SPKI_SHA256 }}'}
+assert 'promote_verified_stable_108.py --prepare' in promotion_steps[1]['run']
+assert './scripts/verify_signed_release_archives.ps1' in promotion_steps[2]['run']
+assert 'promote_verified_stable_108.py --publish' in promotion_steps[3]['run']
+assert 'secrets.' not in promotion_path.read_text(encoding='utf-8')
+from promote_verified_stable_108 import selftest as promotion_selftest
+promotion_selftest()
+print('PASS: owner-only protected manual promotion; acceptance, immutable artifact and verified draft gates remain mandatory.')
