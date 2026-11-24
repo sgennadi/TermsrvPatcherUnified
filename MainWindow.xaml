@@ -17,7 +17,7 @@
         <StackPanel DockPanel.Dock="Left">
           <TextBlock Text="TermsrvPatcherUnified" FontSize="24" FontWeight="SemiBold"
                      Foreground="{StaticResource NavyBrush}"/>
-          <TextBlock Text="1.0.7  |  Windows x64" FontSize="12"
+          <TextBlock x:Name="MainVersionText" Text="1.0.7  |  Windows x64" FontSize="12"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
           <TextBlock Text="Remote Desktop inspection, verified patterns and reversible changes"
                      Foreground="{StaticResource MutedBrush}" Margin="0,5,0,0"/>
