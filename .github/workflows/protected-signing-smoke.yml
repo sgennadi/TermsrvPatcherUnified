@@ -143,13 +143,14 @@ jobs:
           # Exercise the actual packaged WPF startup probe, not only the test
           # runner. Never invoke the GUI, RDP patching, or an updater job.
           # Prerelease metadata is separate from the numeric assembly identity.
-          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          $currentReleaseVersion = (Get-Content VERSION -Raw).Trim()
+          $currentVersion = ($currentReleaseVersion -split '[-+]')[0]
           if ([version]$currentVersion -le [version]'1.0.6') {
             throw "Signed-current version must be newer than 1.0.6: $currentVersion."
           }
           $cases = @(
             @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = '1.0.6' },
-            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentVersion }
+            @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = $currentReleaseVersion }
           )
           foreach ($case in $cases) {
             $exe = (Resolve-Path $case.Path).Path
@@ -166,7 +167,7 @@ jobs:
           # Both signed executable identities must reject each other's version,
           # and an invalid version, without modifying the actual EXE.
           $negativeCases = @(
-            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentVersion },
+            @{ Path = 'publish-old/TermsrvPatcherUnified.exe'; Version = $currentReleaseVersion },
             @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '1.0.6' },
             @{ Path = 'publish/TermsrvPatcherUnified.exe'; Version = '0.0.0' }
           )
@@ -226,11 +227,12 @@ jobs:
           TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $currentVersion = ((Get-Content VERSION -Raw).Trim() -split '[-+]')[0]
+          $currentReleaseVersion = (Get-Content VERSION -Raw).Trim()
+          $currentVersion = ($currentReleaseVersion -split '[-+]')[0]
           if ([version]$currentVersion -le [version]'1.0.6') {
             throw "Signed transaction must upgrade disposable fixture 1.0.6 to a newer version."
           }
-          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentVersion
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentReleaseVersion
           if ($LASTEXITCODE -ne 0) { throw 'Signed EXE transaction regression failed.' }
-          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentVersion publish-old/TermsrvPatcherUnified.exe 1.0.6
+          dotnet run --project Tests/TermsrvPatcher.Tests.csproj -c Release --no-build -- --signed-transaction-qa TermsrvPatcherUnified-update-win-x64.zip $env:TPU_SIGNER_SPKI_SHA256 $currentReleaseVersion publish-old/TermsrvPatcherUnified.exe 1.0.6
           if ($LASTEXITCODE -ne 0) { throw 'Two-signed-version transaction regression failed.' }
