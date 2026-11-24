@@ -113,10 +113,6 @@ jobs:
         if: env.PUBLISH_STABLE == 'true'
         with:
           node-version: '24'
-      - uses: actions/setup-node@v5
-        if: env.PUBLISH_STABLE == 'true'
-        with:
-          node-version: '24'
       - name: Validate Google Apps Script gateway schemas and deduplication (offline)
         if: env.PUBLISH_STABLE == 'true'
         shell: pwsh
@@ -188,16 +184,17 @@ jobs:
           $exists = gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName --jq .tagName 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Host "Existing $tag release retained unchanged."; exit 0 }
           $notes = @(
-            '1. Show current DLL STATUS: PATCHED, NOT PATCHED or UNKNOWN in Simple and Advanced.'
-            '2. Show Revert readiness separately, with SHA-256 and version-bound recovery evidence.'
-            '3. Fail closed on contradictory, stale or changing DLL and recovery evidence.'
-            '4. Require a fresh status check after Apply/Revert, including SYSTEM scheduled jobs.'
-            '5. Keep the Firewall/RDP Doctor improvements, approved updates and rollback.'
+            '1. Require pinned Authenticode verification of current EXE and candidate.'
+            '2. Preserve full release SemVer in updates, version probes, UI and diagnostic reports.'
+            '3. Correct Preview-to-Stable upgrade ordering; reject downgrade and replay.'
+            '4. Retain explicit administrator approval, protected staging, backup and rollback.'
+            '5. Validate the signed EXE and exact archive contents before publication.'
             ''
             "TermsrvPatcherUnified $env:RELEASE_VERSION Stable - signed Windows x64."
-            'Installation and protected operations require administrator approval.'
-            'Matching DLL bytes do not prove successful remote sign-in or Microsoft licensing.'
-            'Synthetic Windows CI and harmless SYSTEM/Session 0 tests do not replace real RDP testing.'
+            'Legacy unsigned installations require a manually verified transition to the signed release.'
+            'The signing certificate may be self-signed; Windows can show Unknown Publisher.'
+            'Installation requires administrator approval. No unattended EXE installation is supported.'
+            'Synthetic Windows CI and harmless SYSTEM/Session 0 tests do not replace authorized live Windows VM and recovery tests.'
             'Portable ZIP: TermsrvPatcherUnified.exe and Example.txt. Updater ZIP: one EXE. SHA256SUMS.txt supplies checksums.'
           )
           Set-Content release-notes.txt -Value $notes -Encoding utf8

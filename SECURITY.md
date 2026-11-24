@@ -7,15 +7,16 @@ This project edits a protected Windows Remote Desktop system DLL. Treat it as a 
 - Do not publish a real `termsrv.dll` or a report with hostnames, usernames, network addresses or other private environment details in GitHub issues.
 - Report vulnerabilities privately to the repository owner through GitHub's private vulnerability reporting if enabled. Otherwise open a minimal issue **without reproduction secrets** asking for a private reporting channel.
 - Never ask users to disable NLA or enable blank-password RDP login to make the patch work.
-- Release artifacts built by GitHub Actions are unsigned preview binaries, not proof of safety or licensing compatibility.
+- Legacy published releases through 1.0.7 are unsigned. Signed smoke-test binaries are disposable QA artifacts, not public releases or proof of safety or licensing compatibility.
 
 No public release should be called stable before Windows VM patch and rollback tests pass.
 
 
-## Preview updater trust model
+## Updater trust model (1.0.8 source, unpublished)
 
-- Unsigned preview EXEs are not publisher-authenticated. The GitHub Releases SHA-256 digest and strict updater ZIP/x64 PE format are checked, but this is not a substitute for Authenticode.
-- Installation requires a live release check, elevated administrator, an administrator-protected Program Files installation folder and explicit user confirmation; do not enable silent updates.
+- The new updater requires an Authenticode signature matching its independently configured signing-key pin on both the running EXE and the candidate. SHA-256, strict ZIP/x64 PE validation, protected staging, installed-file verification, startup probe and rollback remain mandatory.
+- A self-signed signing certificate does not imply Windows trust or Microsoft endorsement; Windows may display Unknown Publisher. Do not bypass trust checks to install an unsigned update. Transition manually from an independently verified legacy installation to a verified signed package after publication.
+- Installation requires a live release check, an elevated administrator, a safe local executable path without filesystem links, protected helper staging and explicit user confirmation. No silent installation is enabled.
 - Manual successful-fix metadata is publicly self-reported and should never be treated as independent proof of licensing, compatibility or safety. Public comments contain only version information.
 
 ## Offline DLL file mode

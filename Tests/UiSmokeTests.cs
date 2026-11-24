@@ -25,7 +25,7 @@ internal static class UiSmokeTests
                 using var updater = new UpdateIntegration();
                 var record = new SuccessfulFixMetadata(
                     "Windows 11", "24H2", 26100, 1234, "10.0.26100.1234",
-                    UpdateIntegration.Version, "automatic",
+                    UpdateIntegration.InstalledReleaseVersion, "automatic",
                     new string('a', 64), new string('b', 64),
                     [new ChangedBytes(40, "11223344", "AABBCCDD")]);
                 var main = new MainWindow();
@@ -34,11 +34,11 @@ internal static class UiSmokeTests
                     advancedCaption != "Updates")
                     throw new Exception("Advanced Updates button must start neutral.");
                 var noUpdate = new UpdateNotice(UpdateNoticeStatus.UpToDate,
-                    UpdateIntegration.Version, null, false, "NO_NEWER_RELEASE", null);
+                    UpdateIntegration.InstalledReleaseVersion, null, false, "NO_NEWER_RELEASE", null);
                 var newStable = new UpdateNotice(UpdateNoticeStatus.Available,
-                    UpdateIntegration.Version, "1.1.0", false, "UPDATE_AVAILABLE", null);
+                    UpdateIntegration.InstalledReleaseVersion, "1.1.0", false, "UPDATE_AVAILABLE", null);
                 var newPreview = new UpdateNotice(UpdateNoticeStatus.Available,
-                    UpdateIntegration.Version, "1.2.0-preview.1", true, "UPDATE_AVAILABLE", null);
+                    UpdateIntegration.InstalledReleaseVersion, "1.2.0-preview.1", true, "UPDATE_AVAILABLE", null);
                 var description = UpdateButtonIndicator.Describe(newStable, newPreview);
                 if (!description.HasUpdate || description.Channel != UpdateChannel.Stable ||
                     !description.Caption.Contains("NEW", StringComparison.Ordinal) ||
@@ -51,7 +51,7 @@ internal static class UiSmokeTests
                 if (UpdateButtonIndicator.Describe(noUpdate, noUpdate).HasUpdate ||
                     UpdateButtonIndicator.Describe(
                         new UpdateNotice(UpdateNoticeStatus.CheckFailed,
-                            UpdateIntegration.Version, null, false, "CHECK_FAILED", null),
+                            UpdateIntegration.InstalledReleaseVersion, null, false, "CHECK_FAILED", null),
                         noUpdate).HasUpdate)
                     throw new Exception("No-update and failed checks must not show a false badge.");
                 if (main.FindName("CreateBackupCheck") is not CheckBox backup ||
@@ -240,8 +240,8 @@ internal static class UiSmokeTests
                 var updaterWindow = new UpdateCenterWindow(updater);
                 if (updaterWindow.FindName("StableChannelButton") is not RadioButton stableChannel ||
                     updaterWindow.FindName("PreviewChannelButton") is not RadioButton previewChannel ||
-                    previewChannel.IsChecked != UpdateIntegration.Version.Contains('-', StringComparison.Ordinal) ||
-                    stableChannel.IsChecked == UpdateIntegration.Version.Contains('-', StringComparison.Ordinal) ||
+                    previewChannel.IsChecked != UpdateIntegration.InstalledReleaseVersion.Contains('-', StringComparison.Ordinal) ||
+                    stableChannel.IsChecked == UpdateIntegration.InstalledReleaseVersion.Contains('-', StringComparison.Ordinal) ||
                     updaterWindow.FindName("ChannelSelector") is not null ||
                     updaterWindow.FindName("ChannelHint") is not TextBlock)
                     throw new Exception("Stable/Preview must be a visible segmented selector with Preview selected for preview builds.");
@@ -366,7 +366,7 @@ internal static class UiSmokeTests
                     successReport.FindName("SkipButton") is not Button)
                     throw new Exception("Completed Apply must offer read-only, token-free Google compatibility review.");
                 var offlineReport = new OfflineFixMetadata("x64", "10.0.26100.1234",
-                    UpdateIntegration.Version, new string('a', 64), "1234ABCD",
+                    UpdateIntegration.InstalledReleaseVersion, new string('a', 64), "1234ABCD",
                     new string('b', 64), "FFFFFFFF",
                     [new ChangedBytes(40, "11223344", "AABBCCDD")]);
                 var offlineShare = new SuccessfulFixWindow(offlineReport);
@@ -448,7 +448,7 @@ internal static class UiSmokeTests
                 };
                 foreach (var window in windows)
                 {
-                    if (!window.Title.Contains(UpdateIntegration.Version,
+                    if (!window.Title.Contains(UpdateIntegration.InstalledReleaseVersion,
                             StringComparison.Ordinal))
                         throw new Exception("Window title lacks version: " +
                             window.GetType().Name);

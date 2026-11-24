@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.8 — release preparation (unpublished)
+
+1. Require independently pinned Authenticode verification of the current updater executable and update payload, with tamper rejection.
+2. Preserve complete assembly-derived SemVer identities across update channels, version probes, window titles, scheduled state and diagnostic reports.
+3. Correct Preview-to-Stable ordering, reject downgrade/replay, and retain explicit administrator approval, backup and rollback.
+4. Validate the release workflows, signed archive contents, and real disposable EXE version identities in CI.
+5. Document manual migration from legacy unsigned builds; retain existing release artifacts and their actual publication status.
+
+**Release gates:** the previous source revision passed protected signing smoke, Windows CI and CodeQL. The 1.0.8 candidate must be verified separately; protected live Windows VM and rollback acceptance remain outstanding. No new Stable release or tag is created by this preparation.
+
 ## 1.0.7 — 2026-11-12 (Stable released)
 
 1. Show **DLL STATUS: PATCHED / NOT PATCHED / UNKNOWN** in Simple and Advanced based on the current installed DLL, independently of backup or Revert availability.
