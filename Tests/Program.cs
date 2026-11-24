@@ -129,6 +129,28 @@ Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
 Ensure(UpdateInstallBridge.IsUpgradeCandidate(
         SemanticVersion.Parse("1.0.8"), "1.0.7"),
     "newer version ordering remains valid independently of the signing gate");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.1"), "1.0.7"),
+    "a newer prerelease may upgrade an older Stable when explicitly selected");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.2"), "1.0.8-preview.1"),
+    "a later Preview must upgrade an earlier Preview of the same numeric version");
+Ensure(UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8"), "1.0.8-preview.2"),
+    "Stable must be allowed to replace Preview with the same numeric version");
+Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.2"), "1.0.8"),
+    "Preview must never downgrade a same-numeric installed Stable");
+Ensure(!UpdateInstallBridge.IsUpgradeCandidate(
+        SemanticVersion.Parse("1.0.8-preview.1"), "1.0.8-preview.2"),
+    "an earlier Preview must never replace a newer Preview");
+Ensure(UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Stable).InstalledVersion ==
+       UpdateIntegration.InstalledReleaseVersion &&
+       UpdateIntegration.Options(UniversalUpdater.UpdateChannel.Prerelease).InstalledVersion ==
+       UpdateIntegration.InstalledReleaseVersion,
+    "both updater channels compare candidates to the actual installed release SemVer");
+Ensure(UpdateIntegration.InstalledReleaseVersion.Split('-', 2)[0] == UpdateIntegration.Version,
+    "installed SemVer numeric triplet must agree with assembly version");
 
 // Regression: current installed DLL state and ability to Revert are
 // independent facts. None of these pure tests accesses the system DLL.
