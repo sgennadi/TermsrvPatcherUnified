@@ -232,7 +232,12 @@ internal static class UpdateInstallBridge
     internal static int Probe(string expectedVersion)
     {
         // Offline start check. No DLL modification, NSudo hooks, or RDP access.
-        if (!string.Equals(expectedVersion, UpdateIntegration.Version, StringComparison.Ordinal) ||
+        // The candidate tag is a full SemVer release identity. A preview's
+        // numeric AssemblyVersion alone is insufficient: it would reject a
+        // legitimate preview during post-install health verification and permit
+        // a different release with the same numeric triplet to impersonate it.
+        if (!string.Equals(expectedVersion, UpdateIntegration.InstalledReleaseVersion,
+                StringComparison.Ordinal) ||
             System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture !=
                 System.Runtime.InteropServices.Architecture.X64 ||
             !NsudoDevilModeScope.IsBundled) return 5;
