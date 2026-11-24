@@ -1,3 +1,18 @@
+## 1.0.9 — frozen signed candidate and protected promotion (unpublished)
+
+- Exact candidate: `edb8d5c34e14f039c808c496bb941c99d2a81470`; all five automated checks passed ([issue #87](https://github.com/sgennadi/TermsrvPatcherUnified/issues/87)). Signed QA artifact 14916731849 from run 45386390209 expires 2026-11-27 11:43 UTC. Its independently computed outer SHA-256 is `3a1323b499e3aff997282118464077f9e400d8e6fcfef82902c37d973b90a69a`. Independently downloaded archive: exact three assets, both ZIP checksums, identical x64 EXE SHA-256 `36ca3caae22343e7f52fea61c7ece91a6a921d70f82bee61a4b77e4505fd8006`, RSA signature, signed PE digest, and SPKI pin verified statically. No executable run in this independent check.
+- A separate owner-only protected manual workflow, **Promote verified Stable 1.0.9 (protected)**, is prepared for review. It is bound to the exact frozen artifact, not a rebuild. Original push publishers remain disabled; no release credentials or acceptance requirements change.
+- After genuinely completing authorized isolated Windows VM acceptance and recovery, the repository owner records actual results in a comment on #87. The comment must begin with the following four lines, followed by an `Evidence: ` line containing actual results. Do not use a synthetic test fixture or claim tests not performed.
+
+```text
+Stable 1.0.9 VM acceptance: PASS
+Commit: edb8d5c34e14f039c808c496bb941c99d2a81470
+Artifact: 14916731849
+Recovery verification: PASS
+```
+
+- Run the owner-only workflow on main with the numeric comment ID and satisfy existing protected environment approval. It verifies all frozen runs, hashes, signer, product version, exact draft assets and published tag. If a gate fails, it stops. Do not mark README/CHANGELOG as published until the public release is verified. Latest public Stable remains 1.0.7.
+
 ## 1.0.9 — Stable candidate preparation (unpublished)
 
 - [UI refresh PR #85](https://github.com/sgennadi/TermsrvPatcherUnified/pull/85) passed [Windows CI](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655764), [CodeQL](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655772), [Authenticode regression](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655769) and [signing readiness](https://github.com/sgennadi/TermsrvPatcherUnified/actions/runs/45383655988). These runs belong to the UI fix, not a signed 1.0.9 release.

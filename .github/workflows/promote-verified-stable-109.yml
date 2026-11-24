@@ -1,0 +1,57 @@
+name: Promote verified Stable 1.0.9 (protected)
+on:
+  workflow_dispatch:
+    inputs:
+      acceptance_comment_id:
+        description: 'Owner comment ID on issue 87 recording completed VM acceptance and recovery'
+        type: string
+        required: true
+
+# No automatic publish on push. Promote only the frozen, verified candidate.
+permissions:
+  contents: read
+concurrency:
+  group: promote-verified-stable-109
+  cancel-in-progress: false
+jobs:
+  promote:
+    if: github.repository == 'sgennadi/TermsrvPatcherUnified' && github.ref == 'refs/heads/main' && github.actor == 'sgennadi' && github.triggering_actor == 'sgennadi'
+    runs-on: windows-2025
+    environment: release-signing
+    permissions:
+      contents: write
+      actions: read
+      issues: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify actual acceptance, CI, and exact retained artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TPU_ACCEPTANCE_COMMENT_ID: ${{ inputs.acceptance_comment_id }}
+        run: |
+          python scripts/promote_verified_stable_109.py --prepare
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify exact signed archive contents with pinned key
+        shell: pwsh
+        env:
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($env:TPU_SIGNER_SPKI_SHA256 -ne 'a185f90644de1c2c5ea2ae2e923eb08f93ebde4b06cc8273679a168dfa5535b9') {
+            throw 'Configured signer differs from the verified candidate pin.'
+          }
+          ./scripts/verify_signed_release_archives.ps1
+          $version = ((Get-Item -LiteralPath 'publish/TermsrvPatcherUnified.exe').VersionInfo.ProductVersion -split '\+')[0]
+          if ($version -ne '1.0.9') { throw 'Candidate ProductVersion mismatch.' }
+      - name: Create verified draft and publish only matching assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TPU_ACCEPTANCE_COMMENT_ID: ${{ inputs.acceptance_comment_id }}
+          TPU_SIGNER_SPKI_SHA256: ${{ vars.TPU_SIGNER_SPKI_SHA256 }}
+        run: |
+          python scripts/promote_verified_stable_109.py --publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
