@@ -336,6 +336,36 @@ internal static class UiSmokeTests
                     quick.FindName("QuickDllEvidenceText") is not TextBlock ||
                     quick.FindName("QuickRevertStateText") is not TextBlock)
                     throw new Exception("Compact Apply / Revert / Check / Advanced / Cancel and safe backup default missing.");
+                // Completion refresh is read-only. Exercise its reentrancy guard
+                // without touching the installed DLL, launching tasks or networking.
+                int completionChecks = 0;
+                quick.RefreshAfterCompletionAsync(() =>
+                {
+                    completionChecks++;
+                    return quick.RefreshAfterCompletionAsync(() =>
+                    {
+                        completionChecks++;
+                        return Task.CompletedTask;
+                    });
+                }).GetAwaiter().GetResult();
+                if (completionChecks != 1)
+                    throw new Exception("Nested completion refresh must be suppressed.");
+                try
+                {
+                    quick.RefreshAfterCompletionAsync(() =>
+                        Task.FromException(new InvalidOperationException("Synthetic inspection failure")))
+                        .GetAwaiter().GetResult();
+                    throw new Exception("Synthetic completion inspection failure was swallowed.");
+                }
+                catch (InvalidOperationException ex) when (ex.Message == "Synthetic inspection failure") { }
+                quick.RefreshAfterCompletionAsync(() =>
+                {
+                    completionChecks++;
+                    return Task.CompletedTask;
+                }).GetAwaiter().GetResult();
+                if (completionChecks != 2)
+                    throw new Exception("Completion refresh guard must reset after failure.");
+                verified++;
                 var cleanup = new CleanupWindow();
                 if (cleanup.FindName("CleanupBackupsCheck") is not CheckBox ||
                     cleanup.FindName("CleanupReportsCheck") is not CheckBox ||
