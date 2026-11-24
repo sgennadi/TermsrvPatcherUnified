@@ -47,7 +47,7 @@ internal static class DiagnosticsBridge
             ["component"] = draft.Component,
             ["error_type"] = draft.ErrorType,
             ["code"] = draft.Code,
-            ["version"] = UpdateIntegration.Version,
+            ["version"] = UpdateIntegration.InstalledReleaseVersion,
             ["summary"] = summary,
             ["level"] = "error"
         };
@@ -94,7 +94,7 @@ internal static class DiagnosticsBridge
             ["error_type"] = draft.ErrorType,
             ["code"] = draft.Code,
             ["level"] = draft.ErrorType == "VerifiedSuccess" ? "info" : "error",
-            ["version"] = UpdateIntegration.Version,
+            ["version"] = UpdateIntegration.InstalledReleaseVersion,
             ["platform"] = "Windows",
             ["architecture"] = architecture,
             ["fingerprint"] = fingerprint
